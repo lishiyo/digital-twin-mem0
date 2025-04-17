@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 Always maintain development tracking files. After each significant change or command run:
 - Update DEVELOPMENT_LOG.md with an outline of:

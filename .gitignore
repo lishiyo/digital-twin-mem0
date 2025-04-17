@@ -122,4 +122,4 @@ yarn-debug.log*
 yarn-error.log*
 
 # Data
-/data/uploads/
+/data/
