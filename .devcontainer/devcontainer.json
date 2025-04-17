@@ -1,0 +1,43 @@
+{
+    "name": "Digital-Twin-DAO Backend",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "backend",
+    "workspaceFolder": "/workspace",
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "ms-python.python",
+          "ms-python.vscode-pylance",
+          "ms-azuretools.vscode-docker",
+          "ms-vscode.makefile-tools",
+          "matangover.mypy",
+          "charliermarsh.ruff",
+          "njpwerner.autodocstring",
+          "mikestead.dotenv"
+        ],
+        "settings": {
+          "python.defaultInterpreterPath": "/usr/local/bin/python",
+          "python.linting.enabled": true,
+          "python.linting.mypyEnabled": true,
+          "python.formatting.provider": "none",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true,
+            "source.fixAll": true
+          },
+          "files.exclude": {
+            "**/.git": true,
+            "**/.svn": true,
+            "**/.hg": true,
+            "**/CVS": true,
+            "**/.DS_Store": true,
+            "**/__pycache__": true,
+            "**/.pytest_cache": true
+          }
+        }
+      }
+    },
+    "forwardPorts": [8000],
+    "postCreateCommand": "pip install -e '.[dev]' && pre-commit install",
+    "remoteUser": "vscode"
+}

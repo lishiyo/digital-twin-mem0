@@ -20,14 +20,14 @@ The implementation follows this high-level progression:
 ![Critical Path Diagram]
 
 ```
-Local Dev Env Setup → 
-Minimal Infra Bootstrap → 
-Mem0 Wrapper + Graphiti Wrapper (parallel) → 
-PoC LangGraph Agent → 
-Basic Chat API + File Upload (parallel) → 
-Refine Ingestion + Chat Streaming (parallel) → 
-Voting Intent + DAO Manager → 
-External Integrations + Frontend Stubs (parallel) → 
+Local Dev Env Setup →
+Minimal Infra Bootstrap →
+Mem0 Wrapper + Graphiti Wrapper (parallel) →
+PoC LangGraph Agent →
+Basic Chat API + File Upload (parallel) →
+Refine Ingestion + Chat Streaming (parallel) →
+Voting Intent + DAO Manager →
+External Integrations + Frontend Stubs (parallel) →
 Full Infrastructure + CI/CD
 ```
 
@@ -43,13 +43,13 @@ Full Infrastructure + CI/CD
 ### 1. Local Dev Env Setup
 
 **Subtasks:**
-- [ ] Set up devcontainer configuration
-- [ ] Create initial Dockerfile for development
-- [ ] Set up Makefile with common commands
-- [ ] Configure direnv for .env management
-- [ ] Set up Python dependencies (requirements.txt)
-- [ ] Set up pre-commit hooks for code quality
-- [ ] Create initial project structure
+- [x] Set up devcontainer configuration
+- [x] Create initial Dockerfile for development
+- [x] Set up Makefile with common commands
+- [x] Configure direnv for .env management
+- [x] Set up Python dependencies (requirements.txt)
+- [x] Set up pre-commit hooks for code quality
+- [x] Create initial project structure
 
 **Testing:**
 - Verify development environment works across different developer machines
@@ -68,17 +68,20 @@ Full Infrastructure + CI/CD
 - [ ] Configure schema migrations with Alembic
 - [ ] Create initial database schema
 - [ ] Set up Mem0 Cloud API access
-- [ ] Deploy local Graphiti instance with Docker
+- [ ] Deploy local Neo4j instance for Graphiti
+- [ ] Initialize Graphiti with Neo4j backend
 - [ ] Configure basic networking between services
 - [ ] Create test fixtures for development
 
 **Testing:**
 - Connectivity tests
 - Basic CRUD operations for each service
+- Verify Neo4j connectivity from Graphiti service
 
 **Documentation:**
 - Infrastructure diagram
 - Credentials management guide
+- Neo4j and Graphiti configuration guide
 
 **Dependencies:**
 - Local Dev Env Setup
@@ -441,6 +444,6 @@ Throughout development, implement monitoring for:
 
 ## Incremental Milestones
 
-1. **Alpha (Internal)**: PoC + Basic Chat + File Upload  
+1. **Alpha (Internal)**: PoC + Basic Chat + File Upload
 2. **Beta (Limited Users)**: + Streaming + Voting + DAO Manager
-3. **v1.0**: All features with production infrastructure 
+3. **v1.0**: All features with production infrastructure

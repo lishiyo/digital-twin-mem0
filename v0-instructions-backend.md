@@ -12,8 +12,8 @@ The web front‑end will be a thin Next.js layer that calls these back‑end API
 ## Executive Summary
 
 Build a backend that:
-1. **Creates per‑member digital twins** with persistent memory in **Mem0**  
-2. **Maintains a shared temporal knowledge graph** (policies, proposals, votes) in **Graphiti**  
+1. **Creates per‑member digital twins** with persistent memory in **Mem0**
+2. **Maintains a shared temporal knowledge graph** (policies, proposals, votes) in **Graphiti**
 3. Exposes REST / SSE endpoints a simple Next.js front‑end can consume.
 
 ## 1 | Goals & Success Metrics
@@ -29,21 +29,22 @@ Build a backend that:
 
 ### 2.1 Ingestion
 * **Files** (PDF/MD/TXT ≤ 20 MB)
-* **Twitter** one‑shot scraper  
+* **Twitter** one‑shot scraper
 * **Telegram** group‑chat poll every 5 min
 
 ### 2.2 Memory
-* **Mem0 Cloud** per user (`user_id` namespace)  
+* **Mem0 Cloud** per user (`user_id` namespace)
 * Metadata: `domain, source, importance, session_id, turn, created_at, expiration_date?`
 
 ### 2.3 Knowledge Graph
 * **Graphiti** (https://help.getzep.com/graphiti/graphiti/overview) with temporal edges for proposals, votes, policies, chat‑events
+* Backed by **Neo4j** 5.26+ for graph storage and queries
 
 ### 2.4 Digital‑Twin Agent
 * LangGraph + OpenAI GPT‑4o
-* Retrieval plan:  
-  1. Mem0 `search()` (personal)  
-  2. Graphiti Cypher (shared)  
+* Retrieval plan:
+  1. Mem0 `search()` (personal)
+  2. Graphiti Cypher (shared)
   3. Last‑6 raw messages from Postgres
 
 #### Twin Personalization Strategy
@@ -58,8 +59,8 @@ Build a backend that:
 
 ### 2.6 Frontend (stub)
 * File‑upload area
-* Policy / proposal list  
-* "Personal wiki" page (Mem0 summary endpoint)  
+* Policy / proposal list
+* "Personal wiki" page (Mem0 summary endpoint)
 * Chat UI (SSE)
 
 ### User stories (condensed)
@@ -78,12 +79,13 @@ DAO admin - view resolution dashboard -> track consensus in real time
 | **Languages** | Python 3.12 (LTS), TypeScript 5.x | — |
 | **Frontend** | Next.js 14 · React 18 · TailwindCSS · shadcn/ui · SWR | Chat over **SSE** |
 | **Auth** | Auth0 (Universal Login) | JWT bearer tokens |
-| **API Gateway** | **FastAPI** + Uvicorn workers (Docker) | REST + SSE |
+| **API Gateway** | **FastAPI** + Uvicorn workers (Docker) | REST + SSE |
 | **Task Queue** | Celery 5 · Redis 7 (Elasticache) | Ingestion & async Mem0 writes |
 | **LLM & Agents** | OpenAI GPT‑4o (`openai` 1.x) | LangGraph ≥ 0.3 |
 | **Memory (per user)** | **Mem0 Cloud** (`mem0ai` Python SDK) | Vector store = Qdrant (managed) |
 | **Chat‑log store** | Postgres 15 (`chat_message` table) | Point‑in‑time recovery |
-| **Knowledge Graph (shared)** | **Graphiti CE** (Docker) · RocksDB backend | Temporal edges |
+| **Knowledge Graph (shared)** | **Graphiti** (`graphiti-core` Python SDK) | Backed by Neo4j 5.26+ |
+| **Graph Database** | **Neo4j** 5.26 Community | Storage backend for Graphiti |
 | **Blob Storage** | Wasabi | Only for large file uploads |
 | **Scraping / ETL** | Tweepy (Twitter) · Telethon (Telegram) · pdfminer.six | Chunking with `tiktoken` |
 | **Background Jobs** | Prefect 2 (optional orchestration) | Twitter/TG pulls, nightly summariser |
@@ -123,18 +125,18 @@ Nightly task trims low‑importance Mem0 chat vectors after 90 days while keepin
 
 ### 4.1 File & Text Ingestion
 - Accept files ≤ 20 MB (PDF/TXT/MD).
-- Chunk to ≤ 2 k tokens  
+- Chunk to ≤ 2 k tokens
 - `add_batch()` to Mem0 with `domain="doc"` and `byte_range`
 - Scrapers must deduplicate via doc hash.
 
 ### 4.2 Chat Pipeline
-1. **POST /twin/{uid}/chat**  
-2. Insert turn into `chat_message`  
-3. Enqueue Mem0 upsert (Celery) with low importance + 90‑day TTL  
-4. Fetch context:  
-   * Last 6 raw messages (Postgres)  
-   * Top 5 Mem0 memories  
-   * ± 5 Graphiti facts  
+1. **POST /twin/{uid}/chat**
+2. Insert turn into `chat_message`
+3. Enqueue Mem0 upsert (Celery) with low importance + 90‑day TTL
+4. Fetch context:
+   * Last 6 raw messages (Postgres)
+   * Top 5 Mem0 memories
+   * ± 5 Graphiti facts
 5. Stream GPT‑4o response; store assistant turn via same path.
 
 ### 4.3 Graphiti Model (temporal)
@@ -238,8 +240,7 @@ FRONTEND--S3-->UPLOAD
 
 Rationale
 - Use Celery + Redis as ingestion bus; duplicate‑free, retryable.
-- Graphiti runs in Docker (compose) backed by embedded RocksDB. 
-GitHub
+- Graphiti integration via Python SDK with Neo4j backend.
 - Mem0 Cloud for vectors + Postgres row store.
 - Chat streaming via Server‑Sent Events (SSE) for simplicity.
 

@@ -1,0 +1,40 @@
+# API Framework
+fastapi>=0.103.0
+uvicorn>=0.23.0
+pydantic>=2.3.0
+pydantic-settings>=2.0.3
+python-multipart>=0.0.6
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.11.0
+psycopg2-binary>=2.9.0
+
+# Task Queue
+celery>=5.3.0
+redis>=4.6.0
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+
+# HTTP Clients
+httpx>=0.24.1
+
+# NLP and AI
+openai>=1.0.0
+langgraph>=0.3.0
+tiktoken>=0.4.0
+
+# Social media clients
+tweepy>=4.14.0
+telethon>=1.29.0
+
+# Document processing
+pdfminer.six>=20221105
+
+# Graphiti and Neo4j
+graphiti-core>=0.10.0
+neo4j>=5.26.0
+
+# For the mem0ai dependency, you'll need to install it according to the docs
+# pip install mem0ai

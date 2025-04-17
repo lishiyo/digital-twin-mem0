@@ -1,0 +1,30 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+Always maintain development tracking files. After each significant change or command run:
+- Update DEVELOPMENT_LOG.md with an outline of:
+  - Current status
+  - Commands run
+  - Any errors encountered
+  - Next steps planned
+- Update CURSOR_CONTEXT.md with:
+  - Which section of the guide we're implementing
+  - What's working
+  - What's broken
+  - Current blockers
+  - Database/model state
+- When starting a new session:
+  - Read CURSOR_CONTEXT.md first
+  - Acknowledge the current state
+  - Reference relevant sections from the guide
+  - Continue from last documented point
+- Format for updates:
+  - Use the current timestamp in PST for each entry (make sure this is correct, search web for the current timestamp unless I tell you it)
+  - Include all commands run
+  - Document both successes and failures
+  - List any pending tasks
+  - Reference line numbers from guide when relevant
+
+Important: Do NOT automatically update docs after every major change, ask me first since I may want you to wait - BUT if I tell you to update docs, you can proceed without asking. You do NOT have to ask me for any reading.
