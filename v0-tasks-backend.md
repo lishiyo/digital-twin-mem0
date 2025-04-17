@@ -111,13 +111,14 @@ Full Infrastructure + CI/CD
 ### 4. Graphiti Basic Setup & Service Wrapper
 
 **Subtasks:**
-- [ ] Create GraphitiService interface
-- [ ] Implement Cypher query execution
-- [ ] Add entity management (create, update, delete)
-- [ ] Implement relationship management
-- [ ] Add temporal query support
-- [ ] Create schema validation
-- [ ] Add transaction ID support for data consistency
+- [x] Create GraphitiService interface
+- [x] Implement Cypher query execution
+- [x] Add entity management (create, update, delete)
+- [x] Implement relationship management
+- [x] Add temporal query support
+- [x] Create schema validation
+- [x] Add transaction ID support for data consistency
+- [x] Create test to verify graphiti pipeline is working - push a fake chunk to Mem0, tell Graphiti about an entity mention, verify Neo4j has both nodes + REL with timestamp
 
 **Testing:**
 - Unit tests for query execution
@@ -130,7 +131,58 @@ Full Infrastructure + CI/CD
 **Dependencies:**
 - Minimal Infra Bootstrap
 
-### 5. PoC: Basic LangGraph Agent
+### 5. File Upload Service & Basic Ingestion
+
+**Subtasks:**
+- [ ] Create file upload API endpoint, we will ingest files from the `data` directory for now
+- [ ] Implement multipart file handling
+- [ ] Add file validation and virus scanning
+- [ ] Create file parsing utilities (PDF, MD, TXT)
+- [ ] Implement chunking with tiktoken
+- [ ] Create Celery task for processing
+- [ ] Implement basic Mem0 ingestion, verify this is working with a script
+- [ ] Add deduplication via hash
+
+**Testing:**
+- Valid/invalid file handling
+- Chunking quality
+- Deduplication effectiveness
+
+**Documentation:**
+- API documentation
+- Supported file types and limitations
+
+**Dependencies:**
+- Mem0 Wrapper Lib
+
+### 6. Refine Ingestion
+
+**Subtasks:**
+- [ ] Extend ingestion pipeline to update Graphiti
+- [ ] Implement entity extraction from documents with spacy
+- [ ] Create relationships based on extracted entities
+- [ ] Optimize chunking strategies
+- [ ] Implement advanced deduplication
+- [ ] Add document metadata extraction
+- [ ] Create content classification
+- [ ] Create implementation test to verify Mem0 + Graphiti are working (create small fixture document with 1-2 named entities, add the chunk to Mem0, register mentions in Graphiti, search_entities in Graphiti)
+- [ ] Implement CDC pipeline for consistency
+
+**Testing:**
+- Integration tests across data stores
+- Performance benchmarks
+- Data consistency validation
+
+**Documentation:**
+- Ingestion pipeline diagram
+- Troubleshooting guide
+- Data consistency strategy
+
+**Dependencies:**
+- File Upload Service
+- Graphiti Service Wrapper
+
+### 7. PoC: Basic LangGraph Agent
 
 **Subtasks:**
 - [ ] Set up LangGraph agent framework
@@ -140,6 +192,7 @@ Full Infrastructure + CI/CD
 - [ ] Create prompting templates
 - [ ] Set up OpenAI integration
 - [ ] Implement basic twin agent workflow
+- [ ] Verify this is working with our ingested docs
 - [ ] Create evaluation metrics
 - [ ] Add twin personalization basic support
 
@@ -157,32 +210,7 @@ Full Infrastructure + CI/CD
 - Mem0 Wrapper Lib
 - Graphiti Service Wrapper
 
-### 6. File Upload Service & Basic Ingestion
-
-**Subtasks:**
-- [ ] Create file upload API endpoint
-- [ ] Implement multipart file handling
-- [ ] Add file validation and virus scanning
-- [ ] Create file parsing utilities (PDF, MD, TXT)
-- [ ] Implement chunking with tiktoken
-- [ ] Create Celery task for processing
-- [ ] Implement basic Mem0 ingestion
-- [ ] Add deduplication via hash
-
-**Testing:**
-- Valid/invalid file handling
-- Chunking quality
-- Deduplication effectiveness
-
-**Documentation:**
-- API documentation
-- Supported file types and limitations
-
-**Dependencies:**
-- Mem0 Wrapper Lib
-- PoC Agent (for end-to-end testing)
-
-### 7. Basic Chat API
+### 8. Basic Chat API
 
 **Subtasks:**
 - [ ] Create FastAPI endpoint structure
@@ -205,32 +233,6 @@ Full Infrastructure + CI/CD
 **Dependencies:**
 - PoC LangGraph Agent
 - Minimal Infra Bootstrap
-
-### 8. Refine Ingestion
-
-**Subtasks:**
-- [ ] Extend ingestion pipeline to update Graphiti
-- [ ] Implement entity extraction from documents
-- [ ] Create relationships based on extracted entities
-- [ ] Optimize chunking strategies
-- [ ] Implement advanced deduplication
-- [ ] Add document metadata extraction
-- [ ] Create content classification
-- [ ] Implement CDC pipeline for consistency
-
-**Testing:**
-- Integration tests across data stores
-- Performance benchmarks
-- Data consistency validation
-
-**Documentation:**
-- Ingestion pipeline diagram
-- Troubleshooting guide
-- Data consistency strategy
-
-**Dependencies:**
-- File Upload Service
-- Graphiti Service Wrapper
 
 ### 9. Implement Chat Streaming (SSE)
 
