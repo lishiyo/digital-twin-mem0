@@ -5,6 +5,15 @@ from sqlalchemy import Column, DateTime
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase
 
+# Import all models so that Base has them before running Alembic
+from app.db.base_class import Base
+
+# Import all models here
+from app.db.models.user import User
+from app.db.models.chat_message import ChatMessage
+from app.db.models.proposal import Proposal
+from app.db.models.vote import Vote
+# Add additional models as they are created
 
 class Base(DeclarativeBase):
     """Base class for all models."""

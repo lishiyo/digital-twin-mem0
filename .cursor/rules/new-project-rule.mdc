@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: true
 ---
 Always maintain development tracking files. After each significant change or command run:
@@ -21,7 +21,7 @@ Always maintain development tracking files. After each significant change or com
   - Reference relevant sections from the guide
   - Continue from last documented point
 - Format for updates:
-  - Use the current timestamp in PST for each entry (make sure this is correct, search web for the current timestamp unless I tell you it)
+  - Use the current datetime in PST for each entry (make sure this is correct, use `date` in terminal for the current datetime unless I tell you it)
   - Include all commands run
   - Document both successes and failures
   - List any pending tasks
