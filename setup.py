@@ -43,6 +43,7 @@ setup(
     extras_require={
         "dev": [
             "pytest>=7.3.1",
+            "pytest-asyncio",
             "pytest-cov>=4.1.0",
             "black>=23.7.0",
             "ruff>=0.0.280",

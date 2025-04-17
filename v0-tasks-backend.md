@@ -64,14 +64,14 @@ Full Infrastructure + CI/CD
 ### 2. Minimal Infra Bootstrap
 
 **Subtasks:**
-- [ ] Set up local Postgres instance with Docker Compose
-- [ ] Configure schema migrations with Alembic
-- [ ] Create initial database schema
-- [ ] Set up Mem0 Cloud API access
-- [ ] Deploy local Neo4j instance for Graphiti
-- [ ] Initialize Graphiti with Neo4j backend
-- [ ] Configure basic networking between services
-- [ ] Create test fixtures for development
+- [x] Set up local Postgres instance with Docker Compose
+- [x] Configure schema migrations with Alembic
+- [x] Create initial database schema
+- [x] Set up Mem0 Cloud API access
+- [x] Deploy local Neo4j instance for Graphiti
+- [x] Initialize Graphiti with Neo4j backend
+- [x] Configure basic networking between services
+- [x] Create test fixtures for development
 
 **Testing:**
 - Connectivity tests
@@ -89,13 +89,13 @@ Full Infrastructure + CI/CD
 ### 3. Mem0 Wrapper Lib (MemoryService)
 
 **Subtasks:**
-- [ ] Create MemoryService interface
-- [ ] Implement memory add/search functions
-- [ ] Add metadata management
-- [ ] Implement importance scoring
-- [ ] Add TTL management
-- [ ] Create serialization/deserialization utilities
-- [ ] Add transaction ID support for data consistency
+- [x] Create MemoryService interface
+- [x] Implement memory add/search functions
+- [x] Add metadata management
+- [x] Implement importance scoring
+- [x] Add TTL management
+- [x] Create serialization/deserialization utilities
+- [x] Add transaction ID support for data consistency
 
 **Testing:**
 - Unit tests for all functions
