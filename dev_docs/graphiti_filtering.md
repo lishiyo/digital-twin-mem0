@@ -2,11 +2,110 @@
 
 This document outlines the filtering rules and criteria used for entities and relationships in the Graphiti knowledge graph.
 
-## Entity Filtering
+## Gemini-Based Entity Extraction and Filtering
 
-Entities extracted during document ingestion are filtered using the following criteria:
+The system has been upgraded to use Google's Gemini API for entity extraction, which offers improved accuracy and capabilities over the previous spaCy-based approach.
 
-### Entity Extraction and Filtering (Centralized in EntityExtractor)
+### Gemini Entity Extraction Approach
+
+Entity extraction with Gemini uses a prompt-based approach where we:
+
+1. Request entities with specific attributes (text, label, position, confidence, context)
+2. Set a low temperature (0.1) to get consistent, factual responses
+3. Extract entities from structured JSON responses
+4. Apply post-processing to standardize and filter entities
+
+Key configuration constants:
+```python
+# Default Gemini model
+DEFAULT_MODEL = "gemini-2.0-flash"
+
+# Minimum confidence threshold for entity filtering
+MIN_CONFIDENCE = 0.6
+
+# Important entity types that we want to prioritize
+IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time"]
+
+# Blacklist of items that should not be treated as entities
+ENTITY_BLACKLIST = [
+    "#", "##", "###", "####", "#####", "######",  # Markdown headers
+    "*", "**", "_", "__", "~", "~~",              # Markdown formatting
+    "-", "+", ">", ">>",                          # Markdown list/quote markers
+    ".", ",", ":", ";", "!", "?",                 # Common punctuation
+    "`", "```",                                   # Code blocks
+]
+```
+
+### Gemini Entity Filtering Process
+
+The filtering process with Gemini consists of several layers:
+
+1. **In-Prompt Filtering**: The prompt explicitly instructs Gemini to:
+   - Only include high-quality entities
+   - Ignore common words and formatting markers
+   - Consider bold text (surrounded by `**`) as potential entities
+
+2. **Post-Processing Filtering**:
+   - Entities with confidence scores below the minimum threshold (0.6) are removed
+   - Entities without required attributes have default values applied
+   - Entity types are mapped to our standard set using the `ENTITY_TYPE_MAPPING` dictionary
+
+3. **Fallback Mechanism**:
+   If the initial extraction fails, a more structured prompt is used with explicit format requirements to ensure proper JSON extraction.
+
+### Relationship Extraction with Gemini
+
+Relationship extraction uses entities as input and has several filtering considerations:
+
+1. **Minimum Entity Requirement**: At least two entities must be present for relationship extraction
+2. **Entity-Based Prompt**: Only extracted entities are considered for relationships
+3. **Context Verification**: The prompt specifically asks for relationships "clearly supported by the text"
+4. **Structured Output**: Relationships must include source, target, relationship type, and supporting context
+5. **Relationship Type Mapping**: A comprehensive mapping system determines appropriate relationship types based on entity pairs:
+   ```python
+   relationship_map = {
+       ("Person", "Organization"): "ASSOCIATED_WITH",
+       ("Organization", "Person"): "HAS_MEMBER",
+       ("Person", "Person"): "RELATED_TO",
+       ("Person", "Location"): "LOCATED_IN",
+       # Many more mappings...
+   }
+   ```
+
+### Keyword Extraction
+
+In addition to entities and relationships, Gemini extracts keywords with these filtering criteria:
+
+1. **Relevance Scoring**: Each keyword has a relevance score between 0 and 1
+2. **Limited Results**: Only the top N (default 10) keywords are retained
+3. **Conceptual Focus**: The prompt specifically asks for "genuinely important keywords that represent key concepts"
+4. **Usage Counting**: Each keyword includes an estimated count of appearances in the text
+
+### Document Processing Workflow
+
+The complete document processing workflow with Gemini includes:
+
+1. Extract keywords from the entire document for overall context
+2. Process entities by document chunk to maintain locality
+3. Adjust entity positions to reference the original document
+4. Extract relationships using the full set of entities
+5. Return a structured result with entities, relationships, and keywords
+
+### JSON Extraction and Error Handling
+
+The system includes robust error handling for JSON extraction from Gemini responses:
+
+1. **Pattern Matching**: Uses regex to identify JSON blocks in responses
+2. **Multiple Formats**: Handles both list and dictionary-based response formats
+3. **Fallback Methods**: If extraction fails, a more structured prompt is used
+4. **Default Values**: Missing fields in entity responses are populated with defaults
+5. **Error Logging**: Comprehensive logging of extraction failures
+
+
+--------
+
+
+## Entity Extraction and Filtering (Prior SpaCy Approach)
 
 All entity filtering now happens in a single place - the `EntityExtractor` class in `entity_extraction.py`. This centralized approach provides consistency and avoids redundant filtering.
 

@@ -153,12 +153,6 @@ curl -X POST http://localhost:8000/api/v1/upload \
   -F "file=@path/to/file.md" \
   -F "async_processing=true"
 
-# Upload multiple files
-curl -X POST http://localhost:8000/api/v1/upload/batch \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -F "files=@path/to/file1.md" \
-  -F "files=@path/to/file2.md"
-
 # Process a directory
 curl -X POST http://localhost:8000/api/v1/upload/process-directory \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -186,6 +180,24 @@ curl -X GET "http://localhost:8000/api/v1/search?query=your%20search%20query&sea
 # List ingested documents
 curl -X GET "http://localhost:8000/api/v1/search/ingested-documents" \
   -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Chat API
+
+```bash
+# Chat with your digital twin
+curl -X POST \
+  "http://localhost:8000/api/v1/chat" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What can you tell me about digital twins?"}'
+
+# Chat with a specific user's digital twin
+curl -X POST \
+  "http://localhost:8000/api/v1/chat?user_id=specific-user" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What file formats are supported?"}'
 ```
 
 ## Project Structure
