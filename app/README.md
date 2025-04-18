@@ -293,9 +293,179 @@ curl -X GET \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+### Chat API
+
+The Chat API allows you to interact with the digital twin agent, which uses the ingested documents to provide informed responses.
+
+```bash
+# Chat with the digital twin
+curl -X POST \
+  "http://localhost:8000/api/v1/chat" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What can you tell me about digital twins?"}'
+
+# Chat with a specific model
+curl -X POST \
+  "http://localhost:8000/api/v1/chat?model_name=gpt-4" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How does the ingestion pipeline work?"}'
+
+# Use a specific user ID
+curl -X POST \
+  "http://localhost:8000/api/v1/chat?user_id=specific-user" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What file formats are supported?"}'
+```
+
+Response format:
+```json
+{
+  "user_message": "What can you tell me about digital twins?",
+  "twin_response": "A digital twin is a virtual representation...",
+  "user_id": "user-id",
+  "model_used": "gpt-3.5-turbo"
+}
+```
+
+### Agent Architecture
+
+The digital twin is implemented using LangGraph, a framework for building structured agents. The agent workflow:
+
+1. Retrieves relevant information from Mem0 (vector database)
+2. Retrieves information from Graphiti (knowledge graph)
+3. Merges context from both sources
+4. Generates a response using an LLM
+
+This approach provides the twin with both semantic understanding (vector embeddings) and structured knowledge (graph relationships), allowing for more informed and accurate responses.
+
 ### Coming in Future Updates
 
-Future API endpoints will include:
-- Advanced filtering for search results
-- Digital twin interaction endpoints
-- Proposal and voting endpoints 
+Future API features will include:
+- Streaming responses (Server-Sent Events)
+- Conversation history and context management
+- Twin personalization
+- Voting intent detection
+- DAO proposal creation and management
+
+## API Examples
+
+### File Upload
+
+```bash
+# Upload a single file
+curl -X POST \
+  http://localhost:8000/api/v1/upload \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@/path/to/your/file.txt" \
+  -F "async_processing=true"
+
+# Upload multiple files
+curl -X POST \
+  http://localhost:8000/api/v1/upload/batch \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "files=@/path/to/file1.txt" \
+  -F "files=@/path/to/file2.md"
+
+# Process a directory
+curl -X POST \
+  http://localhost:8000/api/v1/upload/process-directory \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "directory=documents"
+  
+# Check task status
+curl -X GET \
+  http://localhost:8000/api/v1/upload/task/{task_id} \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Search Operations
+
+```bash
+# Unified search (searches both memory and graph)
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=your%20search%20query" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Memory-only search
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=your%20query&search_type=memory&limit=10" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Graph-only search 
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=your%20query&search_type=graph&limit=10" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Use mock results for testing without actual data
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=test&use_mock=true" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# List all ingested documents
+curl -X GET \
+  "http://localhost:8000/api/v1/search/ingested-documents" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# List documents with limit
+curl -X GET \
+  "http://localhost:8000/api/v1/search/ingested-documents?limit=5" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Chat API
+
+```bash
+# Chat with the digital twin
+curl -X POST \
+  "http://localhost:8000/api/v1/chat" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What can you tell me about digital twins?"}'
+
+# Chat with a specific model
+curl -X POST \
+  "http://localhost:8000/api/v1/chat?model_name=gpt-4" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How does the ingestion pipeline work?"}'
+
+# Use a specific user ID
+curl -X POST \
+  "http://localhost:8000/api/v1/chat?user_id=specific-user" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What file formats are supported?"}'
+```
+
+Response format:
+```json
+{
+  "user_message": "What can you tell me about digital twins?",
+  "twin_response": "A digital twin is a virtual representation...",
+  "user_id": "user-id",
+  "model_used": "gpt-3.5-turbo"
+}
+```
+
+### Agent Architecture
+
+The digital twin is implemented using LangGraph, a framework for building structured agents. The agent workflow:
+
+1. Retrieves relevant information from Mem0 (vector database)
+2. Retrieves information from Graphiti (knowledge graph)
+3. Merges context from both sources
+4. Generates a response using an LLM
+
+This approach provides the twin with both semantic understanding (vector embeddings) and structured knowledge (graph relationships), allowing for more informed and accurate responses.
+
+### Coming in Future Updates
+
+Future API features will include:
+- Streaming responses (Server-Sent Events)
+- Conversation history and context management
+- Twin personalization
+- Voting intent detection
+- DAO proposal creation and management 

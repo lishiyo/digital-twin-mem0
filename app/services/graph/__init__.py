@@ -147,6 +147,30 @@ class GraphitiService:
             # If all else fails, generate a UUID
             if not episode_id:
                 episode_id = str(uuid.uuid4())
+            
+            # After creating the episode, update its properties to add scope and owner_id
+            # This is necessary because the Graphiti client doesn't directly support our custom properties
+            if episode_id:
+                try:
+                    update_query = """
+                    MATCH (e) 
+                    WHERE e.uuid = $episode_id
+                    SET e.scope = $scope, e.owner_id = $owner_id, e.user_id = $user_id
+                    """
+                    
+                    await self.execute_cypher(
+                        update_query, 
+                        {
+                            "episode_id": episode_id,
+                            "scope": scope,
+                            "owner_id": metadata["owner_id"],
+                            "user_id": user_id
+                        }
+                    )
+                    
+                    logger.info(f"Updated episode {episode_id} with scope {scope} and owner_id {metadata['owner_id']}")
+                except Exception as e:
+                    logger.error(f"Error updating episode properties: {e}")
                 
             return {
                 "episode_id": episode_id, 
@@ -354,20 +378,54 @@ class GraphitiService:
             # Format results
             formatted_results = []
             for node in search_results.nodes:
+                # Create a base node data dictionary
                 node_data = {
                     "uuid": node.uuid,
                     "name": node.name,
                     "summary": node.summary,
                     "labels": node.labels,
                     "created_at": node.created_at,
-                    "scope": getattr(node, "scope", None),
-                    "owner_id": getattr(node, "owner_id", None),
                 }
                 
+                # Add scope and owner_id from node attributes if available
+                # or add them from node object if they're properties
+                if hasattr(node, "scope"):
+                    node_data["scope"] = node.scope
+                elif hasattr(node, "attributes") and "scope" in node.attributes:
+                    node_data["scope"] = node.attributes["scope"]
+                    
+                if hasattr(node, "owner_id"):
+                    node_data["owner_id"] = node.owner_id
+                elif hasattr(node, "attributes") and "owner_id" in node.attributes:
+                    node_data["owner_id"] = node.attributes["owner_id"]
+                
+                # Add other attributes if they exist
                 if hasattr(node, "attributes") and node.attributes:
                     node_data["attributes"] = node.attributes
                     
                 formatted_results.append(node_data)
+                
+            # If search doesn't return scope and owner_id, try to update results with these properties
+            for i, node_data in enumerate(formatted_results):
+                if "scope" not in node_data or "owner_id" not in node_data:
+                    try:
+                        # Fetch the node directly with all properties
+                        query = """
+                        MATCH (n)
+                        WHERE n.uuid = $uuid
+                        RETURN n.scope as scope, n.owner_id as owner_id
+                        """
+                        
+                        result = await self.execute_cypher(query, {"uuid": node_data["uuid"]})
+                        
+                        if result and len(result) > 0:
+                            if "scope" not in node_data and result[0].get("scope") is not None:
+                                node_data["scope"] = result[0]["scope"]
+                                
+                            if "owner_id" not in node_data and result[0].get("owner_id") is not None:
+                                node_data["owner_id"] = result[0]["owner_id"]
+                    except Exception as e:
+                        logger.warning(f"Error fetching scope/owner_id for node {node_data['uuid']}: {e}")
                 
             return formatted_results
             
@@ -898,3 +956,40 @@ class GraphitiService:
         except Exception as e:
             logger.error(f"Error clearing graph data for user {user_id}: {e}")
             return {"error": str(e), "success": False, "user_id": user_id}
+
+    async def update_node_properties(self, uuid: str, properties: dict[str, Any]) -> bool:
+        """Update properties of a node by its UUID.
+        
+        This is different from update_entity which uses elementId. This method
+        targets nodes created through the Graphiti client that have a uuid property.
+        
+        Args:
+            uuid: The UUID of the node to update
+            properties: Properties to update
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            query = """
+            MATCH (n)
+            WHERE n.uuid = $uuid
+            SET n += $properties
+            RETURN count(n) as updated
+            """
+            
+            result = await self.execute_cypher(
+                query, {"uuid": uuid, "properties": properties}
+            )
+            
+            updated = result[0]["updated"] > 0 if result else False
+            
+            if updated:
+                logger.info(f"Updated node {uuid} with properties: {properties}")
+            else:
+                logger.warning(f"No node found with UUID {uuid}")
+                
+            return updated
+        except Exception as e:
+            logger.error(f"Error updating node properties: {e}")
+            return False
