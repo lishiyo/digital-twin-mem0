@@ -158,7 +158,7 @@ Full Infrastructure + CI/CD
 
 **Subtasks:**
 - [x] Extend ingestion pipeline to update Graphiti
-- [x] Implement entity extraction from documents with spacy
+- [x] Implement entity extraction from documents with spaCy
 - [x] Create relationships based on extracted entities
 - [x] Optimize chunking strategies
 - [x] Implement advanced deduplication
@@ -168,16 +168,21 @@ Full Infrastructure + CI/CD
 - [x] Implement CDC pipeline for consistency
 - [x] Partition Graphiti by user, twin, and global scope, by adding a tag to all nodes. This lets us separate user vs shared data.
 - [x] Add script to clear all data from Mem0 and Graphiti for ease of testing.
+- [x] Enhance entity extraction by adding Google Gemini API-based NER as an alternative to spaCy
+- [x] Create factory pattern to select between spaCy and Gemini entity extractors
+- [x] Implement comparison tool to evaluate entity extraction quality
 
 **Testing:**
 - Integration tests across data stores
 - Performance benchmarks
 - Data consistency validation
+- Comparative analysis between spaCy and Gemini entity extraction accuracy
 
 **Documentation:**
 - Ingestion pipeline diagram
 - Troubleshooting guide
 - Data consistency strategy
+- Entity extraction comparison guide
 
 **Dependencies:**
 - File Upload Service
@@ -438,6 +443,7 @@ Throughout development, implement monitoring for:
    - Twin preference recall accuracy (≥ 90% target)
    - Vote intent detection precision
    - Document chunking quality
+   - Entity extraction accuracy (benchmarking Gemini vs spaCy)
 
 3. **Operational Metrics**
    - Service availability

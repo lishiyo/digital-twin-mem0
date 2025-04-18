@@ -8,11 +8,13 @@ import asyncio
 import logging
 import sys
 import json
+import os
 from pathlib import Path
 
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from app.core.config import settings
 from app.services.ingestion import IngestionService
 from app.services.memory import MemoryService
 from app.services.graph import GraphitiService
@@ -23,6 +25,13 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Verify config is loaded
+logger.info(f"Using entity extractor type: {settings.ENTITY_EXTRACTOR_TYPE}")
+if settings.GEMINI_API_KEY:
+    logger.info(f"GEMINI_API_KEY is configured in settings (length: {len(settings.GEMINI_API_KEY)})")
+else:
+    logger.warning("GEMINI_API_KEY not found in settings, will fall back to spaCy")
 
 
 async def ingest_file(file_path: str, user_id: str = "test-user", scope: str = "user", owner_id: str = None):

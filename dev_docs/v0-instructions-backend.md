@@ -1,8 +1,8 @@
-# Frontier Tower Digital‑Twin & DAO Coordination
+# Frontier Tower Digital‑Twin & DAO Coordination
 
-Build a Python prototype that turns each user's heterogeneous footprint — personal docs, chats, votes, socials - into a Digital Twin able to:
-1. Answer questions and give recommendations in the user's voice.
-2. Take actions like casting votes inside an autonomous organization (e.g., a robot‑run 3‑D‑printing micro‑factory) while coordinating with up to 99 other twins through a multi‑agent planner.
+Build a Python prototype that turns each user's heterogeneous footprint — personal docs, chats, votes, socials - into a Digital Twin able to:
+1. Answer questions and give recommendations in the user's voice.
+2. Take actions like casting votes inside an autonomous organization (e.g., a robot‑run 3‑D‑printing micro‑factory) while coordinating with up to 99 other twins through a multi‑agent planner.
 
 This is the backend PRD. This backend (1) builds per‑member digital twins with persistent memory (Mem0) and (2) maintains a shared temporal knowledge graph of proposals, votes, and policies (Graphiti).
 The web front‑end will be a thin Next.js layer that calls these back‑end APIs.
@@ -16,31 +16,33 @@ Build a backend that:
 2. **Maintains a shared temporal knowledge graph** (policies, proposals, votes) in **Graphiti**
 3. Exposes REST / SSE endpoints a simple Next.js front‑end can consume.
 
-## 1 | Goals & Success Metrics
+## 1 | Goals & Success Metrics
 
 | Goal | KPI | Target |
 |------|-----|--------|
-| Twins recall user preferences | Eval success rate | ≥ 90 % |
-| Vote → DAO‑resolution latency | Minutes | < 2 min |
-| Retrieval P95 (Mem0 + Graphiti) | ms | < 200 ms |
-| Dev on‑boarding | Hours | < 2 h |
+| Twins recall user preferences | Eval success rate | ≥ 90 % |
+| Vote → DAO‑resolution latency | Minutes | < 2 min |
+| Retrieval P95 (Mem0 + Graphiti) | ms | < 200 ms |
+| Dev on‑boarding | Hours | < 2 h |
+| Entity extraction accuracy | NER F1-score | ≥ 85% |
 
 ## Scope (MVP)
 
-### 2.1 Ingestion
-* **Files** (PDF/MD/TXT ≤ 20 MB)
+### 2.1 Ingestion
+* **Files** (PDF/MD/TXT ≤ 20 MB)
 * **Twitter** one‑shot scraper
-* **Telegram** group‑chat poll every 5 min
+* **Telegram** group‑chat poll every 5 min
+* **Entity extraction** using Google Gemini API (with spaCy fallback)
 
-### 2.2 Memory
+### 2.2 Memory
 * **Mem0 Cloud** per user (`user_id` namespace)
 * Metadata: `domain, source, importance, session_id, turn, created_at, expiration_date?`
 
-### 2.3 Knowledge Graph
+### 2.3 Knowledge Graph
 * **Graphiti** (https://help.getzep.com/graphiti/graphiti/overview) with temporal edges for proposals, votes, policies, chat‑events
 * Backed by **Neo4j** 5.26+ for graph storage and queries
 
-### 2.4 Digital‑Twin Agent
+### 2.4 Digital‑Twin Agent
 * LangGraph + OpenAI GPT‑4o
 * Retrieval plan:
   1. Mem0 `search()` (personal)
@@ -54,10 +56,10 @@ Build a backend that:
 * **Stylometric Analysis**: Extract features like sentence length, vocabulary diversity, and formatting preferences
 * **Adaptive Prompting**: Dynamically adjust LLM prompts to incorporate voice characteristics
 
-### 2.5 DAO Manager
-* Cron every 60 s; closes proposals & writes `(:DAOResolution)`
+### 2.5 DAO Manager
+* Cron every 60 s; closes proposals & writes `(:DAOResolution)`
 
-### 2.6 Frontend (stub)
+### 2.6 Frontend (stub)
 * File‑upload area
 * Policy / proposal list
 * "Personal wiki" page (Mem0 summary endpoint)
@@ -72,7 +74,7 @@ DAO admin - view resolution dashboard -> track consensus in real time
 
 ## Tech stack
 
-### ⚙️ Full End‑to‑End Tech Stack (MVP)
+### ⚙️ Full End‑to‑End Tech Stack (MVP)
 
 | Layer | Component | Version / Notes |
 |-------|-----------|-----------------|
@@ -86,6 +88,7 @@ DAO admin - view resolution dashboard -> track consensus in real time
 | **Chat‑log store** | Postgres 15 (`chat_message` table) | Point‑in‑time recovery |
 | **Knowledge Graph (shared)** | **Graphiti** (`graphiti-core` Python SDK) | Backed by Neo4j 5.26+ |
 | **Graph Database** | **Neo4j** 5.26 Community | Storage backend for Graphiti |
+| **Entity Extraction** | **Google Gemini API** (primary) · spaCy (fallback) | NER with 18+ entity types |
 | **Blob Storage** | Wasabi | Only for large file uploads |
 | **Scraping / ETL** | Tweepy (Twitter) · Telethon (Telegram) · pdfminer.six | Chunking with `tiktoken` |
 | **Background Jobs** | Prefect 2 (optional orchestration) | Twitter/TG pulls, nightly summariser |
@@ -123,13 +126,14 @@ Nightly task trims low‑importance Mem0 chat vectors after 90 days while keepin
 
 ## Functional Requirements
 
-### 4.1 File & Text Ingestion
+### 4.1 File & Text Ingestion
 - Accept files ≤ 20 MB (PDF/TXT/MD).
 - Chunk to ≤ 2 k tokens
 - `add_batch()` to Mem0 with `domain="doc"` and `byte_range`
 - Scrapers must deduplicate via doc hash.
+- Extract entities using Google Gemini API (with spaCy as fallback)
 
-### 4.2 Chat Pipeline
+### 4.2 Chat Pipeline
 1. **POST /twin/{uid}/chat**
 2. Insert turn into `chat_message`
 3. Enqueue Mem0 upsert (Celery) with low importance + 90‑day TTL
@@ -139,7 +143,7 @@ Nightly task trims low‑importance Mem0 chat vectors after 90 days while keepin
    * ± 5 Graphiti facts
 5. Stream GPT‑4o response; store assistant turn via same path.
 
-### 4.3 Graphiti Model (temporal)
+### 4.3 Graphiti Model (temporal)
 
 Entities:
 ```
@@ -159,7 +163,7 @@ Relations:
 (:Document)-[:MENTIONS]->(:PolicyTopic)
 ```
 
-### 4.4 Twin agent
+### 4.4 Twin agent
 
 Exposes /twin/{user_id}/chat (stream).
 Retrieval plan:
@@ -190,20 +194,24 @@ When quorum met: create (:DAOResolution {id, status:'passed'}) and set Proposal.
   * `LLM_ERROR`: Model unavailable (queue request, fallback to smaller model)
   * `VOTE_ERROR`: Failed vote recording (alert, retry, manual resolution path)
   * `SYNC_ERROR`: Data consistency failure (reconciliation job, alert)
+  * `NER_ERROR`: Entity extraction failure (retry with fallback extractor)
 
 * **Recovery Mechanisms**:
   * Dead-letter queues for failed ingestion tasks
-  * Circuit breakers for external dependencies (OpenAI, Mem0)
+  * Circuit breakers for external dependencies (OpenAI, Mem0, Gemini)
   * Automatic proposal unblocking for stalled voting processes
   * Graceful degradation paths for all critical services
+  * Automatic fallback to spaCy if Gemini API is unavailable
 
 ### 4.7 Monitoring and Evaluation
 * **Twin Accuracy Test Suite**: Golden dataset of user preferences to evaluate recall performance
 * **Periodic Self-evaluation**: Twins periodically test themselves against known user data
+* **Entity Extraction Evaluation**: Benchmarking tool comparing Gemini vs spaCy extraction quality
 * **Key Dashboards**:
   * Response latency (P50, P95, P99)
   * Preference recall accuracy (against test suite)
   * Vote alignment (% match between user and twin votes when both exist)
+  * Entity extraction accuracy (F1 scores by entity type)
   * System health (service availability, error rates)
 * **Anomaly Detection**: Alert on unexpected twin behavior or preference drift
 * **Usage Metrics**: Track user engagement, twin utilization, and feature adoption
@@ -216,7 +224,10 @@ subgraph Ingestion
   UPLOAD((File Upload Svc))
   TW(Twitter Scraper)
   TG(Telegram Worker)
+  NER((Entity Extraction))
   UPLOAD--chunk-->M0[[Mem0]]
+  UPLOAD--extract-->NER
+  NER--"Gemini/spaCy"-->GRAPHITI
   TW-->M0
   TG-->M0
 end
@@ -243,6 +254,7 @@ Rationale
 - Graphiti integration via Python SDK with Neo4j backend.
 - Mem0 Cloud for vectors + Postgres row store.
 - Chat streaming via Server‑Sent Events (SSE) for simplicity.
+- Google Gemini API for high-quality entity extraction with spaCy fallback.
 
 ### API outline (FastAPI)
 
@@ -266,7 +278,7 @@ After we have the PoC:
 6. File Upload Service + Basic Ingestion Worker
   - Mem0 only first - we'll use files in `data` directory for now, we won't add the S3/Wasabi flow until the end of this MVP
 7. Basic Chat API (/twin/{uid}/chat - POST only, no streaming yet)integrating the PoC Agent
-8. Refine Ingestion (add Graphiti sync, chunking, deduplication)
+8. Refine Ingestion (add Graphiti sync, dual entity extraction with Gemini/spaCy, chunking, deduplication)
 9. Implement Chat Streaming (SSE)
 10. Voting Intent Parsing & /vote Endpoint
 11. DAO Manager Cron + Quorum Logic

@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     OPENAI_MODEL: str = "gpt-4o"
 
+    # Entity Extraction
+    GEMINI_API_KEY: str | None = None
+    ENTITY_EXTRACTOR_TYPE: str = "gemini"  # Options: "spacy" or "gemini"
+
     # Auth
     AUTH0_DOMAIN: str
     AUTH0_API_AUDIENCE: str

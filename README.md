@@ -58,6 +58,23 @@ This project builds a Python backend that:
    make dev
    ```
 
+### Additional Configuration
+
+#### Gemini API (Optional)
+
+To use the Gemini-based entity extraction:
+
+1. Get a Google Gemini API key from [AI Studio](https://aistudio.google.com/)
+2. Add it to your `.env` file:
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   ```
+3. Set the entity extractor type:
+   ```
+   ENTITY_EXTRACTOR_TYPE=gemini
+   ```
+   (Valid options: "spacy" or "gemini", defaults to "gemini" if the API key is available)
+
 ## Running the Backend
 
 1. Start the required services (if not already running)
@@ -185,17 +202,25 @@ app/
 - OpenAI & LangGraph
 - Mem0 (vector memory)
 - Graphiti (temporal knowledge graph) with Neo4j backend
-- spaCy (for entity extraction)
+- Entity extraction options:
+  - spaCy (traditional NLP)
+  - Google Gemini (AI-powered)
 
 ## Features
 
 - Memory management with Mem0
 - Knowledge graph integration with Graphiti/Neo4j
-- Entity extraction and relationship discovery with spaCy:
-  - Support for 18+ entity types (people, organizations, locations, etc.)
-  - Smart handling of Markdown content
-  - Extraction from formatted text (bold, italic)
-  - Intelligent filtering of non-entity content
+- Flexible entity extraction with two options:
+  - **spaCy** (traditional NLP approach):
+    - Support for 18+ entity types (people, organizations, locations, etc.)
+    - Smart handling of Markdown content
+    - Extraction from formatted text (bold, italic)
+    - Intelligent filtering of non-entity content
+  - **Google Gemini** (LLM-based approach):
+    - More accurate entity extraction
+    - Better understanding of context
+    - Enhanced relationship detection
+    - Improved keyword extraction
 - Automated document processing and chunking
 - File upload API with validation and deduplication
 - Intelligent chunking with document structure awareness
@@ -209,23 +234,27 @@ The system processes documents through a sophisticated pipeline:
 
 1. **File Upload**: Documents are uploaded and basic validation is performed
 2. **Content Parsing**: Files are parsed based on type (PDF, MD, TXT)
-3. **Entity Extraction**: spaCy extracts entities like people, organizations, locations
+3. **Entity Extraction**: Using either spaCy or Gemini to extract entities like people, organizations, locations
 4. **Smart Chunking**: Content is split into semantic chunks while respecting document structure
 5. **Mem0 Storage**: Chunks are stored in Mem0 with metadata and deduplication
 6. **Graphiti Integration**: Entities and relationships are registered in the knowledge graph
 
 ### Entity Extraction
 
-The system uses spaCy to identify entities such as:
-- People (PERSON)
-- Organizations (ORG)
-- Locations (GPE, LOC)
-- Products
-- Dates and Times
-- Events
-- And more
+The system supports two entity extraction methods:
 
-Relationships between entities appearing in the same context are also inferred and stored in the knowledge graph. The system is particularly good at handling Markdown content, extracting entities from formatted text while ignoring Markdown syntax itself.
+#### 1. spaCy (Traditional NLP)
+- Uses a rule-based and statistical approach
+- Identifies common entity types like People, Organizations, Locations
+- Efficient but may miss complex context-dependent entities
+
+#### 2. Gemini (Google's LLM)
+- Uses an AI-powered approach for more accurate extraction
+- Better at understanding context and nuanced entities
+- Provides more accurate relationships between entities
+- Requires a Google Gemini API key
+
+You can switch between extractors using the `ENTITY_EXTRACTOR_TYPE` environment variable.
 
 ## Getting Started
 
@@ -238,6 +267,21 @@ Relationships between entities appearing in the same context are also inferred a
 5. Run migrations: `alembic upgrade head`
 6. Start the API: `uvicorn app.main:app --reload`
 7. Start the worker: `celery -A app.worker worker -l info`
+
+### Testing Entity Extraction
+
+To compare the entity extraction methods:
+
+```bash
+# Run comparison with sample text
+python -m app.services.ingestion.compare_extractors
+
+# Run with a specific file
+python -m app.services.ingestion.compare_extractors --input path/to/file.txt
+
+# Output in JSON format
+python -m app.services.ingestion.compare_extractors --format json
+```
 
 ### Quick Test
 

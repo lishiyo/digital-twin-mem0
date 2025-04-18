@@ -27,6 +27,7 @@ langgraph>=0.0.30
 langchain-core>=0.1.0
 langchain>=0.0.301
 langchain-openai>=0.0.2
+google-generativeai>=0.3.1
 
 # Auth
 python-jose>=3.3.0
