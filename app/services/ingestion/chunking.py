@@ -9,9 +9,9 @@ import tiktoken
 logger = logging.getLogger(__name__)
 
 # Default chunking parameters
-DEFAULT_CHUNK_SIZE = 500  # tokens
-DEFAULT_CHUNK_OVERLAP = 50  # tokens
-DEFAULT_MODEL = "gpt-3.5-turbo"  # Model to use for token counting
+DEFAULT_CHUNK_SIZE = 1000  # tokens
+DEFAULT_CHUNK_OVERLAP = 100  # tokens
+DEFAULT_MODEL = "gpt-4o-mini"  # Model to use for token counting
 
 
 class DocumentChunker:
