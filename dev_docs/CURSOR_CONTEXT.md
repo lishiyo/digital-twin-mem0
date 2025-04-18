@@ -161,3 +161,52 @@
 **Pending Tasks:**
 - Implement Task 7 (PoC: Basic LangGraph Agent).
 - Re-enable and fix pre-commit hook issues. 
+
+## 2025-04-17 21:04 PDT
+
+**Current Guide Section:** 
+- Completed Task 6 (Refine Ingestion) from `v0-tasks-backend.md`.
+- Preparing to start Task 7 (PoC: Basic LangGraph Agent).
+
+**What's Working:**
+- Local development environment setup (devcontainer/local Python).
+- Docker Compose setup for Postgres, Redis, Neo4j.
+- Basic FastAPI application (`app/main.py`) runs.
+- Configuration loading (`app/core/config.py`) from `.env` works.
+- `MemoryService` fully implemented with error handling and optimizations.
+- `GraphitiService` functioning with entity creation and relationship management.
+- File Upload API endpoints with Celery worker integration.
+- Entity extraction with spaCy (`app/services/ingestion/entity_extraction.py`):
+  - Proper handling of Markdown syntax
+  - Extraction of formatted text (bold, italic)
+  - Intelligent filtering of non-entity text
+- Intelligent document chunking respecting document structure.
+- Graphiti integration for storing entities and relationships with correct property mapping.
+- Advanced document metadata extraction.
+- Improved chunking strategies and deduplication.
+- End-to-end tests for the ingestion pipeline.
+- Redis connection for Celery working properly.
+- Neo4j queries optimized to avoid performance warnings.
+
+**What's Broken/Incomplete:**
+- Pre-commit hooks are currently disabled.
+
+**Current Blockers:**
+- None.
+
+**Database/Model State:**
+- PostgreSQL database `digitaltwin-mem0` exists.
+- Tables created via Alembic for User, ChatMessage, Proposal, Vote models.
+- Neo4j database is running and initialized with Graphiti indices/constraints.
+- Mem0 functionality is working, storing and retrieving memories.
+- Entity and relationship nodes are now stored in Neo4j with proper property mapping.
+
+**Pending Tasks:**
+- Implement Task 7 (PoC: Basic LangGraph Agent):
+  - Set up LangGraph agent framework
+  - Create retrieval nodes for Mem0
+  - Create retrieval nodes for Graphiti
+  - Implement context merging
+  - Create prompting templates
+- Re-enable and fix pre-commit hook issues.
+- Optimize OpenAI API usage in Graphiti service. 

@@ -133,3 +133,67 @@
 - Proceed with Task 6 (Refine Ingestion).
 - Consider ways to optimize Graphiti's OpenAI API usage.
 - Investigate implementing proper virus scanning integration. 
+
+## 2025-04-17 21:04 PDT
+
+**Status:**
+- Completed Task 6 (Refine Ingestion).
+- Successfully implemented entity extraction with spaCy.
+- Fixed Markdown syntax handling in entity extraction.
+- Fixed entity property mapping in GraphitiService.
+
+**Commands Run:**
+- Updated entity extraction to handle Markdown syntax:
+  ```python
+  # Added MARKDOWN_PATTERNS in entity_extraction.py
+  # Modified extract_entities() method to properly filter Markdown syntax
+  ```
+- Fixed entity creation in Graphiti:
+  ```python
+  # Updated entity property mapping to use "title" for Document entities instead of "name"
+  ```
+- Created test for entity extraction:
+  ```bash
+  python -m app.tests.test_entity_extraction
+  ```
+- Optimized Cypher queries in GraphitiService:
+  ```python
+  # Updated create_relationship query to avoid Cartesian product warning
+  ```
+- Updated requirements for spaCy models:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Verified ingestion pipeline with test scripts:
+  ```bash
+  python -m app.tests.integration.test_ingestion
+  python -m app.scripts.ingest_one_file
+  ```
+
+**Implementation Details:**
+- Enhanced entity extraction with improved Markdown filtering:
+  - Added a comprehensive list of Markdown patterns to filter out
+  - Implemented checks to skip entities that are just formatting characters
+  - Added special handling for formatted text (bold, italic, etc.)
+- Fixed entity property mapping in Graphiti integration:
+  - Used correct property names based on entity type (title vs. name)
+  - Improved validation to prevent errors with Document entities
+- Optimized Neo4j queries:
+  - Modified Cypher queries to avoid Cartesian product warnings
+  - Used separate MATCH clauses for better query performance
+- Added comprehensive spaCy model installation to requirements.txt:
+  - Added direct link to en_core_web_sm model
+  - Added Neo4j driver and graphiti-core as explicit dependencies
+  - Fixed package name for mem0 (mem0ai)
+
+**Errors & Fixes:**
+- **Entity extraction issue with Markdown**: Added new filtering logic to handle Markdown syntax characters.
+- **Entity property mapping**: Fixed mismatch between how entities are sent to Graphiti and what properties are expected for Document entities.
+- **Neo4j Cartesian product warnings**: Optimized Cypher queries to use separate MATCH clauses instead of a single MATCH with multiple patterns.
+- **Redis connectivity**: Added configuration to ensure Redis can be properly connected for Celery workers.
+- **Package name issue**: Fixed mem0 package name from "mem0" to "mem0ai" in requirements.txt.
+
+**Next Steps:**
+- Begin work on Task 7 (PoC: Basic LangGraph Agent).
+- Consider implementing unit tests for GraphitiService.
+- Investigate optimizing OpenAI API usage in Graphiti service. 

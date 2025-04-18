@@ -44,7 +44,7 @@ This project builds a Python backend that:
    venv\Scripts\activate     # On Windows
 
    # Install dependencies
-   pip install -e ".[dev]"
+   pip install -r requirements.txt
    ```
 
 4. Start the required services (if not using dev container)
@@ -56,6 +56,28 @@ This project builds a Python backend that:
    ```
    make setup
    make dev
+   ```
+
+## Running the Backend
+
+1. Start the required services (if not already running)
+   ```
+   docker-compose up -d db redis neo4j
+   ```
+
+2. Start the API server
+   ```
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+3. Start the Celery worker for background tasks
+   ```
+   celery -A app.worker worker -l info
+   ```
+
+4. Process a single file (for testing)
+   ```
+   python -m app.scripts.ingest_one_file "path/to/file.md"
    ```
 
 ## Project Structure
@@ -86,7 +108,10 @@ app/
 
 ## API Endpoints
 
-- `POST /upload` - Upload and ingest files
+- `POST /api/v1/upload` - Upload and ingest a single file
+- `POST /api/v1/upload/batch` - Upload and ingest multiple files
+- `POST /api/v1/upload/process-directory` - Process all files in a directory
+- `GET /api/v1/upload/task/{task_id}` - Check status of an upload task
 - `GET /twin/{uid}/profile` - Get digital twin profile
 - `POST /twin/{uid}/chat` - Chat with a digital twin
 - `GET /proposals/open` - List open proposals
@@ -100,17 +125,23 @@ app/
 - OpenAI & LangGraph
 - Mem0 (vector memory)
 - Graphiti (temporal knowledge graph) with Neo4j backend
+- spaCy (for entity extraction)
 
 ## Features
 
 - Memory management with Mem0
 - Knowledge graph integration with Graphiti/Neo4j
-- Entity extraction and relationship discovery
+- Entity extraction and relationship discovery with spaCy:
+  - Support for 18+ entity types (people, organizations, locations, etc.)
+  - Smart handling of Markdown content
+  - Extraction from formatted text (bold, italic)
+  - Intelligent filtering of non-entity content
 - Automated document processing and chunking
 - File upload API with validation and deduplication
 - Intelligent chunking with document structure awareness
 - Metadata extraction from document content
 - Asynchronous processing with Celery
+- Optimized database queries for Neo4j
 
 ## Ingestion Pipeline
 
@@ -134,7 +165,7 @@ The system uses spaCy to identify entities such as:
 - Events
 - And more
 
-Relationships between entities appearing in the same context are also inferred and stored in the knowledge graph.
+Relationships between entities appearing in the same context are also inferred and stored in the knowledge graph. The system is particularly good at handling Markdown content, extracting entities from formatted text while ignoring Markdown syntax itself.
 
 ## Getting Started
 
@@ -142,8 +173,20 @@ Relationships between entities appearing in the same context are also inferred a
 
 1. Clone the repository
 2. Install dependencies: `pip install -r requirements.txt`
-3. Download spaCy models: `python app/scripts/download_models.py`
-4. Configure environment variables (see `.env.example`)
-5. Start services: `docker-compose up -d`
-6. Run migrations: `alembic upgrade head`
-7. Start the API: `uvicorn app.main:app --reload`
+3. Configure environment variables (see `.env.example`)
+4. Start services: `docker-compose up -d`
+5. Run migrations: `alembic upgrade head`
+6. Start the API: `uvicorn app.main:app --reload`
+7. Start the worker: `celery -A app.worker worker -l info`
+
+### Quick Test
+
+To quickly test the ingestion pipeline:
+
+```bash
+# Process a sample file
+python -m app.scripts.ingest_one_file
+
+# Run the integration test
+python -m app.tests.integration.test_ingestion
+```

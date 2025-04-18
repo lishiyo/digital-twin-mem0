@@ -12,11 +12,14 @@ asyncpg>=0.28.0
 alembic>=1.12.0
 redis>=5.0.1
 celery>=5.3.4
+neo4j>=5.8.0
 
 # Memory and graph services
-mem0>=0.0.9
+mem0ai>=0.1.0
 tiktoken>=0.5.1
 spacy>=3.7.2
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl
+graphiti-core>=0.0.11
 
 # LLM and AI
 openai>=1.3.2
