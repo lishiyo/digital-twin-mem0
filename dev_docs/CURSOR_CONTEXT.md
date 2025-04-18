@@ -76,3 +76,50 @@
 - Add importance scoring for memories.
 - Add advanced metadata management.
 - Re-enable and fix pre-commit hook issues. 
+
+## 2025-04-17 20:02 PDT
+
+**Current Guide Section:** 
+- Completed Task 5 (File Upload Service & Basic Ingestion) from `v0-tasks-backend.md`.
+- Preparing to start Task 6 (Refine Ingestion).
+
+**What's Working:**
+- Local development environment setup (devcontainer/local Python).
+- Docker Compose setup for Postgres, Redis, Neo4j.
+- Basic FastAPI application (`app/main.py`) runs.
+- Configuration loading (`app/core/config.py`) from `.env` works.
+- `MemoryService` fully implemented with error handling and optimizations.
+- `GraphitiService` functioning with basic operations.
+- File Upload API endpoints:
+  - Single file upload: `/api/v1/upload`
+  - Multiple file upload: `/api/v1/upload/batch`
+  - Directory processing: `/api/v1/upload/process-directory`
+  - Task status checking: `/api/v1/upload/task/{task_id}`
+- Celery worker integration for asynchronous file processing.
+- File validation, safety checking, and deduplication.
+- Mem0 performance optimization (disabled inference to reduce API calls).
+
+**What's Broken/Incomplete:**
+- Graphiti still makes many OpenAI API calls during entity extraction.
+- No proper virus scanning integration (using basic content safety checks).
+- Pre-commit hooks are currently disabled.
+
+**Current Blockers:**
+- None.
+
+**Database/Model State:**
+- PostgreSQL database `digitaltwin-mem0` exists.
+- Tables created via Alembic for User, ChatMessage, Proposal, Vote models.
+- Neo4j database is running and initialized with Graphiti indices/constraints.
+- Mem0 functionality is working, storing and retrieving memories.
+- File processing pipeline (FileService → IngestionService → MemoryService → GraphitiService) functioning.
+
+**Pending Tasks:**
+- Implement Task 6 (Refine Ingestion):
+  - Implement entity extraction from documents with spacy
+  - Create relationships based on extracted entities
+  - Optimize chunking strategies
+  - Implement advanced deduplication
+  - Add document metadata extraction
+- Consider additional optimization for Graphiti's OpenAI API usage.
+- Re-enable and fix pre-commit hook issues. 

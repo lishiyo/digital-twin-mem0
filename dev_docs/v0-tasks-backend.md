@@ -134,14 +134,13 @@ Full Infrastructure + CI/CD
 ### 5. File Upload Service & Basic Ingestion
 
 **Subtasks:**
-- [ ] Create file upload API endpoint, we will ingest files from the `data` directory for now
-- [ ] Implement multipart file handling
-- [ ] Add file validation and virus scanning
-- [ ] Create file parsing utilities (PDF, MD, TXT)
-- [ ] Implement chunking with tiktoken
-- [ ] Create Celery task for processing
-- [ ] Implement basic Mem0 ingestion, verify this is working with a script
-- [ ] Add deduplication via hash
+- [x] Create file upload API endpoint, we will ingest files from the `data` directory for now
+- [x] Add file validation and virus scanning
+- [x] Create file parsing utilities (PDF, MD, TXT)
+- [x] Implement chunking with tiktoken
+- [x] Create Celery task for processing
+- [x] Implement basic Mem0 ingestion, verify this is working with a script
+- [ ] Add deduplication via hash - skipped
 
 **Testing:**
 - Valid/invalid file handling

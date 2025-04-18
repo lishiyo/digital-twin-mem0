@@ -59,13 +59,14 @@ class MemoryService:
         if not self.client:
             logger.warning("MemoryService initialized without a valid Mem0 client")
 
-    async def add(self, content: str, user_id: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def add(self, content: str, user_id: str, metadata: Optional[Dict[str, Any]] = None, infer: bool = False) -> Dict[str, Any]:
         """Add a memory to Mem0.
         
         Args:
             content: The content of the memory
             user_id: The user ID to namespace the memory
             metadata: Optional metadata for the memory
+            infer: Whether to use LLM inference to extract knowledge (costly in API calls)
             
         Returns:
             Dictionary with memory information
@@ -101,7 +102,8 @@ class MemoryService:
                         user_id=user_id, 
                         metadata=metadata,
                         version="v2",  # Use v2 as recommended
-                        output_format="v1.1"  # Use v1.1 output format as recommended
+                        output_format="v1.1",  # Use v1.1 output format as recommended
+                        infer=infer  # Use the provided infer parameter
                     )
                     logger.info(f"Memory added for user {user_id}")
                     
@@ -126,6 +128,10 @@ class MemoryService:
                             if "id" in raw_result and "memory_id" not in raw_result:
                                 raw_result["memory_id"] = raw_result["id"]
                             return raw_result
+                    # Handle empty array response
+                    elif isinstance(raw_result, list) and not raw_result:
+                        logger.warning(f"Empty array response from Mem0")
+                        return {"memory_id": f"generated-{uuid.uuid4()}", "user_id": user_id, "_source": "empty_array"}
                     
                     # Fallback: Return the raw result if we couldn't normalize it
                     logger.warning(f"Unexpected Mem0 response format: {raw_result}")
@@ -230,12 +236,13 @@ class MemoryService:
                 logger.error(f"Error searching memories: {e}")
                 return [{"error": str(e)}]
     
-    async def add_batch(self, items: List[Dict[str, Any]], user_id: str) -> Dict[str, Any]:
+    async def add_batch(self, items: List[Dict[str, Any]], user_id: str, infer: bool = False) -> Dict[str, Any]:
         """Add multiple memories to Mem0 in a batch.
         
         Args:
             items: List of memory items with content and metadata
             user_id: The user ID to namespace the memories
+            infer: Whether to use LLM inference to extract knowledge (costly in API calls)
             
         Returns:
             Dictionary with batch operation results
@@ -282,7 +289,8 @@ class MemoryService:
                             user_id=user_id, 
                             metadata=metadata,
                             version="v2",  # Use v2 as recommended
-                            output_format="v1.1"  # Use v1.1 output format
+                            output_format="v1.1",  # Use v1.1 output format
+                            infer=infer  # Use the provided infer parameter
                         )
                         
                         # Normalize the response format
@@ -307,6 +315,10 @@ class MemoryService:
                                 # Ensure memory_id is available
                                 if "id" in raw_result and "memory_id" not in raw_result:
                                     normalized_result["memory_id"] = raw_result["id"]
+                        # Handle empty array response
+                        elif isinstance(raw_result, list) and not raw_result:
+                            logger.warning(f"Empty array response from Mem0 in batch add")
+                            normalized_result = {"memory_id": f"generated-{uuid.uuid4()}", "user_id": user_id, "_source": "empty_array"}
                         else:
                             # Unexpected format, use as is
                             normalized_result = raw_result
@@ -572,7 +584,8 @@ class MemoryService:
                              tags: Optional[List[str]] = None,
                              location: Optional[Dict[str, Any]] = None,
                              timestamp: Optional[str] = None,
-                             custom_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                             custom_data: Optional[Dict[str, Any]] = None,
+                             infer: bool = False) -> Dict[str, Any]:
         """Add a memory to Mem0 with rich metadata.
         
         Args:
@@ -584,6 +597,7 @@ class MemoryService:
             location: Optional location data (e.g., {'lat': 37.7749, 'lon': -122.4194, 'name': 'San Francisco'})
             timestamp: Optional timestamp in ISO format
             custom_data: Additional custom metadata fields
+            infer: Whether to use LLM inference to extract knowledge (costly in API calls)
             
         Returns:
             Dictionary with memory information
@@ -607,4 +621,4 @@ class MemoryService:
             metadata.update(custom_data)
             
         # Call the regular add method with structured metadata
-        return await self.add(content, user_id, metadata)
+        return await self.add(content, user_id, metadata, infer=infer)

@@ -37,6 +37,23 @@ Start the Celery worker for background tasks:
 celery -A app.worker worker -l info
 ```
 
+## Performance and Cost Optimization
+
+Mem0 and Graphiti can generate significant OpenAI API costs due to their extensive use of embeddings and completion calls. The following optimizations have been made:
+
+1. **Disabled Inference**: By default, LLM inference in Mem0 is disabled, which significantly reduces API calls
+2. **Configurable Processing**: All memory services accept an `infer` parameter to control whether advanced processing is enabled
+
+If you need to enable inference for specific use cases, you can do so selectively:
+
+```python
+# For a single memory with inference enabled (more API calls but richer knowledge extraction)
+result = await memory_service.add(content, user_id, metadata, infer=True)
+
+# For batch processing with inference disabled (faster, cheaper)
+result = await memory_service.add_batch(items, user_id, infer=False)
+```
+
 ## API Endpoints
 
 ### File Upload API

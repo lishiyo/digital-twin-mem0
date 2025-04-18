@@ -93,7 +93,8 @@ class IngestionService:
                     result = await self.memory_service.add(
                         content=chunk_content,
                         user_id=user_id,
-                        metadata=chunk_metadata
+                        metadata=chunk_metadata,
+                        infer=False  # Disable inference to reduce OpenAI API calls
                     )
                     
                     if "error" in result:

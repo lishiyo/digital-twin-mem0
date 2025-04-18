@@ -67,3 +67,69 @@
 - Proceed with Task 4 (Graphiti Basic Setup & Service Wrapper) to enhance the Graphiti implementation.
 - Consider implementing additional metadata management for more advanced memory retrieval.
 - Look into importing/implementing importance scoring for memories. 
+
+## 2025-04-17 20:02 PDT
+
+**Status:**
+- Completed Task 5 (File Upload Service & Basic Ingestion).
+
+**Commands Run:**
+- Updated `app/api/endpoints/upload.py` with proper file upload endpoints:
+  ```python
+  @router.post("")  # Single file upload
+  @router.post("/batch")  # Multiple file upload
+  @router.get("/task/{task_id}")  # Task status checking
+  @router.post("/process-directory")  # Directory processing
+  ```
+- Created file safety scanning in `app/services/ingestion/file_service.py`.
+- Fixed authentication for testing with a mock user in `upload.py`.
+- Updated Mem0 client initialization in `app/services/memory/__init__.py`.
+- Fixed circular import issues in the Celery worker:
+  ```bash
+  mv app/worker.py app/worker/celery_app.py
+  ```
+- Updated `.env` to fix Redis connection issues:
+  ```diff
+  - REDIS_HOST=redis
+  + REDIS_HOST=localhost
+  ```
+- Ran the server and worker:
+  ```bash
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  celery -A app.worker worker -l info
+  ```
+- Tested file upload with curl:
+  ```bash
+  curl -X POST http://localhost:8000/api/v1/upload -F "file=@data/2012-12-28.md" -F "async_processing=true"
+  ```
+
+**Implementation Details:**
+- Created a fully functional file upload API with:
+  - File type validation and safety checks
+  - File size limits (10MB per file)
+  - Unique filename generation to prevent overwriting
+  - Synchronous and asynchronous processing options
+  - Batch upload support
+  - Task status checking
+- Improved MemoryService performance:
+  - Added `infer` parameter to control OpenAI API usage
+  - Disabled inference by default to reduce costs
+  - Added proper error handling for empty array responses
+  - Added rich metadata support
+- Added comprehensive documentation to app/README.md with:
+  - API endpoint descriptions
+  - Usage examples
+  - Performance and cost optimization guidelines
+
+**Errors & Fixes:**
+- **Celery circular import**: Reorganized worker code into properly structured modules.
+- **Redis connection error**: Updated `.env` to use `localhost` instead of `redis` hostname.
+- **Authentication errors**: Added mock user support to bypass auth during development.
+- **Mem0 API key initialization**: Fixed env variable setting in `get_mem0_client()`.
+- **Excessive OpenAI API calls**: Added `infer=False` parameter to Mem0 methods to disable automatic inference.
+- **Mem0 empty response handling**: Added specific handling for empty array responses.
+
+**Next Steps:**
+- Proceed with Task 6 (Refine Ingestion).
+- Consider ways to optimize Graphiti's OpenAI API usage.
+- Investigate implementing proper virus scanning integration. 
