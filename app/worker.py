@@ -1,24 +1,9 @@
-from celery import Celery
+"""Entry point for Celery worker."""
 
-from app.core.config import settings
+from app.worker import celery_app
 
-celery_app = Celery(
-    "app.worker",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-    include=["app.worker.tasks"],
-)
-
-# Optional configuration
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    worker_hijack_root_logger=False,
-)
+# This is just a re-export of the celery_app for compatibility
+# The actual configuration is in app.worker.celery_app
 
 if __name__ == "__main__":
     celery_app.start()

@@ -193,4 +193,74 @@ class FileService:
             return metadata
         except Exception as e:
             logger.error(f"Error extracting metadata from {full_path}: {e}")
-            return {"error": str(e), "path": file_path} 
+            return {"error": str(e), "path": file_path}
+    
+    def scan_file_safety(self, file_path: str) -> Tuple[bool, Optional[str]]:
+        """Perform basic safety checks on uploaded file.
+        
+        In a production environment, this should integrate with a proper
+        antivirus solution (e.g., ClamAV). For now, we do basic checks.
+        
+        Args:
+            file_path: Path to the file (relative to data_dir)
+            
+        Returns:
+            Tuple of (is_safe, error_message)
+        """
+        full_path = os.path.join(self.data_dir, file_path)
+        
+        if not os.path.exists(full_path):
+            return False, f"File not found: {file_path}"
+        
+        try:
+            # Basic file safety checks
+            # These are very basic heuristics and NOT a replacement for real virus scanning!
+            file_size = os.path.getsize(full_path)
+            
+            # Check if file is empty
+            if file_size == 0:
+                return False, "Empty file detected"
+                
+            # Check for suspicious large files
+            if file_size > 50 * 1024 * 1024:  # 50MB
+                return False, "File exceeds maximum allowed size"
+            
+            # Get file extension
+            ext = os.path.splitext(file_path)[1].lower()
+            
+            # For text-based files, do content inspection
+            if ext in ['.txt', '.md']:
+                # Read first few KB to check for suspicious content
+                with open(full_path, 'rb') as f:
+                    content = f.read(8192)  # Read first 8KB
+                    
+                # Check for suspicious binary content in text files
+                if b'\x00' in content:
+                    return False, "Invalid binary content in text file"
+                    
+                # Convert to string for text analysis
+                try:
+                    text_content = content.decode('utf-8')
+                    
+                    # Check for suspicious script tags or commands
+                    suspicious_patterns = [
+                        "#!/bin/", 
+                        "<script>", 
+                        "rm -rf", 
+                        "eval(", 
+                        "system(", 
+                        "exec("
+                    ]
+                    
+                    for pattern in suspicious_patterns:
+                        if pattern in text_content:
+                            return False, f"Suspicious content detected: {pattern}"
+                except UnicodeDecodeError:
+                    return False, "File contains invalid Unicode characters"
+            
+            # All checks passed
+            return True, None
+                
+        except Exception as e:
+            logger.error(f"Error scanning file {full_path}: {e}")
+            return False, f"Error scanning file: {str(e)}" 

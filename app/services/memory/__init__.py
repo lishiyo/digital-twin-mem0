@@ -23,9 +23,14 @@ def get_mem0_client():
     global _mem0_client
     if _mem0_client is None:
         try:
+            # Initialize client with API key through environment
+            if settings.MEM0_API_KEY:
+                os.environ["MEM0_API_KEY"] = settings.MEM0_API_KEY
+            else:
+                logger.warning("MEM0_API_KEY not set – Mem0 will fall back to local mode!")
+            
             # Initialize using the synchronous client
             logger.info(f"Initializing Mem0 client with API key: {settings.MEM0_API_KEY}")
-            logger.info(f"Mem0 API key: {os.environ['MEM0_API_KEY']}")
             _mem0_client = MemoryClient(api_key=settings.MEM0_API_KEY)
             logger.info("Initialized Mem0 singleton client")
         except Exception as e:
