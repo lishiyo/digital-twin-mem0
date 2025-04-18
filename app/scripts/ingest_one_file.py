@@ -7,6 +7,7 @@ This script processes one specific file from the data directory.
 import asyncio
 import logging
 import sys
+import json
 from pathlib import Path
 
 # Add the parent directory to the path so we can import app modules
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services.ingestion import IngestionService
 from app.services.memory import MemoryService
+from app.services.graph import GraphitiService
 
 # Configure logging
 logging.basicConfig(
@@ -33,11 +35,37 @@ async def ingest_file(file_path: str, user_id: str = "test-user"):
     # Initialize services
     ingestion_service = IngestionService()
     memory_service = MemoryService()
+    graphiti_service = GraphitiService()
     
     # Process the file
     logger.info(f"Processing file: {file_path}")
     result = await ingestion_service.process_file(file_path, user_id)
-    logger.info(f"Processing result: {result}")
+    
+    # Log basic processing results
+    logger.info(f"Processing status: {result.get('status')}")
+    logger.info(f"Created {result.get('chunks')} chunks, stored {result.get('stored_chunks')}, skipped {result.get('skipped_chunks', 0)}")
+    
+    # Log entity extraction results
+    if "entities" in result:
+        entity_count = result["entities"].get("count", 0)
+        entities = result["entities"].get("created", [])
+        logger.info(f"Extracted {entity_count} entities from the document")
+        
+        if entities:
+            logger.info("Top entities extracted:")
+            for i, entity in enumerate(entities[:5]):  # Show first 5 entities
+                logger.info(f"  {i+1}. {entity.get('text')} ({entity.get('type')})")
+    
+    # Log relationship results
+    if "relationships" in result:
+        rel_count = result["relationships"].get("count", 0)
+        rels = result["relationships"].get("created", [])
+        logger.info(f"Created {rel_count} relationships in Graphiti")
+        
+        if rels:
+            logger.info("Top relationships created:")
+            for i, rel in enumerate(rels[:5]):  # Show first 5 relationships
+                logger.info(f"  {i+1}. {rel.get('source')} --[{rel.get('type')}]--> {rel.get('target')}")
     
     # Check if we can retrieve the memories
     if result.get("status") in ["success", "partial"]:
@@ -59,7 +87,19 @@ async def ingest_file(file_path: str, user_id: str = "test-user"):
             
         # Try searching for something relevant to the file
         search_result = await memory_service.search("What topics are discussed?", user_id, limit=3)
-        logger.info(f"Search results: {search_result}")
+        logger.info(f"Memory search results: {search_result}")
+        
+        # Test searching for entities in Graphiti
+        if entity_count > 0 and entities:
+            # Try to search for the first entity
+            first_entity = entities[0]["text"]
+            logger.info(f"Searching Graphiti for entity: {first_entity}")
+            graph_search = await graphiti_service.node_search(first_entity, limit=3)
+            logger.info(f"Found {len(graph_search)} results in Graphiti")
+            
+            if graph_search:
+                logger.info("First Graphiti search result:")
+                logger.info(json.dumps(graph_search[0], indent=2, default=str))
     
     return result
 
@@ -75,10 +115,19 @@ if __name__ == "__main__":
     user_id = f"ingest-test-{Path(file_path).stem.replace(' ', '_')}"
     result = asyncio.run(ingest_file(file_path, user_id))
     
+    # Print summary
+    logger.info("-" * 60)
+    logger.info("Ingestion Summary:")
+    
     if result.get("status") == "success":
         logger.info("✅ File ingestion successful!")
+        logger.info(f"  Chunks: {result.get('chunks')}")
+        logger.info(f"  Stored in Mem0: {result.get('stored_chunks')}")
+        logger.info(f"  Entities extracted: {result.get('entities', {}).get('count', 0)}")
+        logger.info(f"  Relationships created: {result.get('relationships', {}).get('count', 0)}")
     elif result.get("status") == "partial":
         logger.info("⚠️ File ingestion partially successful!")
     else:
         logger.error("❌ File ingestion failed!")
+        logger.error(f"  Error: {result.get('error', 'Unknown error')}")
         sys.exit(1) 

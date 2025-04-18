@@ -3,6 +3,7 @@
 import logging
 import re
 from typing import Dict, List, Optional, Tuple, Any, Callable
+import hashlib
 
 import tiktoken
 
@@ -12,6 +13,43 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHUNK_SIZE = 1000  # tokens
 DEFAULT_CHUNK_OVERLAP = 100  # tokens
 DEFAULT_MODEL = "gpt-4o-mini"  # Model to use for token counting
+
+# Section headers pattern (common in documents)
+SECTION_HEADER_PATTERNS = [
+    r'^#+\s+.+$',  # Markdown headers
+    r'^.*?\n[=\-]{3,}$',  # Underlined headers
+    r'^\s*(?:SECTION|CHAPTER|PART)\s+\d+.*$',  # Section/Chapter labels
+    r'^\s*\d+\.\d*\s+[A-Z].*$',  # Numbered sections (1.1, 1.2.3, etc.)
+    r'^\s*[A-Z][A-Z\s]+[A-Z]$',  # ALL CAPS HEADERS
+]
+
+# Compile patterns for efficiency
+SECTION_HEADER_REGEX = re.compile('|'.join(f'({pattern})' for pattern in SECTION_HEADER_PATTERNS), re.MULTILINE)
+
+# Metadata extraction patterns
+METADATA_PATTERNS = {
+    'title': [
+        r'^#\s+(.+)$',  # Markdown title
+        r'^Title:\s*(.+)$',  # Explicit title
+        r'^(?:\s*\n)*([A-Z][^.!?]*(?:[.!?]|\n\n|\n$))',  # First sentence in ALL CAPS or Title Case
+    ],
+    'author': [
+        r'^Author(?:s)?:\s*(.+)$',
+        r'(?:written|created|compiled|prepared)\s+by\s+([^.]+)',
+        r'^\s*By\s+([^.]+)'
+    ],
+    'date': [
+        r'^Date:\s*(.+)$',
+        r'(?:created|published|updated|revised)\s+on\s+([^.]+)',
+        r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # MM/DD/YYYY or similar
+        r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',  # YYYY/MM/DD or similar
+    ],
+    'summary': [
+        r'^Abstract:\s*(.+(?:\n(?!\n).+)*)$',
+        r'^Summary:\s*(.+(?:\n(?!\n).+)*)$',
+        r'^TL;DR:\s*(.+(?:\n(?!\n).+)*)$',
+    ]
+}
 
 
 class DocumentChunker:
@@ -52,6 +90,54 @@ class DocumentChunker:
         """
         return len(self.tokenizer.encode(text))
     
+    def extract_document_metadata(self, content: str) -> Dict[str, Any]:
+        """Extract metadata from document content.
+        
+        Args:
+            content: Document content
+            
+        Returns:
+            Dictionary of extracted metadata
+        """
+        metadata = {}
+        
+        # Try to extract metadata for each type
+        for meta_type, patterns in METADATA_PATTERNS.items():
+            for pattern in patterns:
+                matches = re.search(pattern, content, re.IGNORECASE | re.MULTILINE)
+                if matches:
+                    try:
+                        # Try to get the first capture group
+                        value = matches.group(1).strip()
+                        metadata[meta_type] = value
+                        break
+                    except IndexError:
+                        # If no capture group, use the whole match
+                        metadata[meta_type] = matches.group(0).strip()
+                        break
+        
+        # Extract sections if we can find headers
+        section_headers = SECTION_HEADER_REGEX.findall(content)
+        if section_headers:
+            # Flatten results
+            section_headers = [h for sublist in section_headers for h in sublist if h]
+            # Only keep the first few
+            sections = section_headers[:5]
+            if sections:
+                metadata["sections"] = sections
+        
+        # Calculate document complexity metrics
+        sentences = re.split(r'[.!?]+', content)
+        avg_sentence_length = sum(len(s.split()) for s in sentences) / max(1, len(sentences))
+        metadata["metrics"] = {
+            "sentences": len(sentences),
+            "avg_sentence_length": round(avg_sentence_length, 1),
+            "token_count": self.count_tokens(content),
+            "char_count": len(content)
+        }
+        
+        return metadata
+        
     def get_optimized_chunk_size(self, content: str) -> int:
         """Calculate an optimized chunk size based on content length.
         
@@ -74,10 +160,10 @@ class DocumentChunker:
         # For larger documents, consider increasing chunk size
         # to reduce the number of chunks
         if total_tokens < 50000:
-            return min(1000, self.chunk_size * 1.5)
+            return min(1500, self.chunk_size * 1.5)
             
         # For very large documents, use larger chunks
-        return min(1500, self.chunk_size * 2)
+        return min(2000, self.chunk_size * 2)
     
     def chunk_by_tokens(self, content: str) -> List[str]:
         """Split text into chunks based on token count.
@@ -109,6 +195,46 @@ class DocumentChunker:
             else:
                 chunks.append(chunk_text)
         
+        return chunks
+    
+    def chunk_by_sections(self, content: str) -> List[str]:
+        """Split text by section headers.
+        
+        Args:
+            content: Content to split
+            
+        Returns:
+            List of section chunks
+        """
+        if not content.strip():
+            return []
+            
+        # Find all section headers
+        matches = list(SECTION_HEADER_REGEX.finditer(content))
+        
+        # If no sections found, return the whole content
+        if not matches:
+            return [content]
+            
+        chunks = []
+        for i, match in enumerate(matches):
+            # For the first section, include everything before it
+            if i == 0 and match.start() > 0:
+                intro_text = content[:match.start()].strip()
+                if intro_text:
+                    chunks.append(intro_text)
+                    
+            # Determine section end
+            if i < len(matches) - 1:
+                section_end = matches[i+1].start()
+            else:
+                section_end = len(content)
+                
+            # Extract section
+            section_text = content[match.start():section_end].strip()
+            if section_text:
+                chunks.append(section_text)
+                
         return chunks
     
     def chunk_by_separator(
@@ -222,6 +348,34 @@ class DocumentChunker:
             
         return filtered_chunks
     
+    def smart_chunking(self, content: str) -> List[str]:
+        """Perform intelligent chunking by trying different strategies.
+        
+        Args:
+            content: Document content
+            
+        Returns:
+            List of text chunks
+        """
+        # First try to chunk by sections
+        section_chunks = self.chunk_by_sections(content)
+        
+        # If we have multiple sections, process each section to ensure
+        # it fits within our chunk size constraints
+        if len(section_chunks) > 1:
+            result_chunks = []
+            for section in section_chunks:
+                section_tokens = self.count_tokens(section)
+                if section_tokens > self.chunk_size:
+                    # This section is too large, chunk it further
+                    result_chunks.extend(self.chunk_by_separator(section))
+                else:
+                    result_chunks.append(section)
+            return result_chunks
+            
+        # If no sections or just one, use the separator approach
+        return self.chunk_by_separator(content)
+    
     def chunk_document(self, content: str, metadata: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """Chunk a document and prepare it for ingestion.
         
@@ -238,19 +392,35 @@ class DocumentChunker:
         if metadata is None:
             metadata = {}
             
-        # Use the more natural chunking strategy
-        chunks = self.chunk_by_separator(content)
+        # Extract document metadata if not already present
+        doc_metadata = self.extract_document_metadata(content)
+        
+        # Only add metadata we don't already have
+        for key, value in doc_metadata.items():
+            if key not in metadata:
+                metadata[key] = value
+        
+        # Use the smart chunking strategy
+        chunks = self.smart_chunking(content)
         
         # Prepare chunks with metadata
         result = []
         for i, chunk in enumerate(chunks):
             # Create a copy of metadata for each chunk
             chunk_metadata = metadata.copy()
+            
+            # Add chunk-specific metadata
             chunk_metadata.update({
                 "chunk_index": i,
                 "total_chunks": len(chunks),
-                "token_count": self.count_tokens(chunk)
+                "token_count": self.count_tokens(chunk),
+                "chunk_hash": hashlib.md5(chunk.encode()).hexdigest()
             })
+            
+            # Extract any section headers in this chunk
+            section_match = SECTION_HEADER_REGEX.search(chunk)
+            if section_match:
+                chunk_metadata["section"] = section_match.group(0).strip()
             
             result.append({
                 "content": chunk,

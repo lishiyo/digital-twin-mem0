@@ -123,3 +123,41 @@
   - Add document metadata extraction
 - Consider additional optimization for Graphiti's OpenAI API usage.
 - Re-enable and fix pre-commit hook issues. 
+
+## 2025-04-17 20:15 PDT
+
+**Current Guide Section:** 
+- Completed Task 6 (Refine Ingestion) from `v0-tasks-backend.md`.
+- Preparing to start Task 7 (PoC: Basic LangGraph Agent).
+
+**What's Working:**
+- Local development environment setup (devcontainer/local Python).
+- Docker Compose setup for Postgres, Redis, Neo4j.
+- Basic FastAPI application (`app/main.py`) runs.
+- Configuration loading (`app/core/config.py`) from `.env` works.
+- `MemoryService` fully implemented with error handling and optimizations.
+- `GraphitiService` functioning with basic operations.
+- File Upload API endpoints with Celery worker integration.
+- Entity extraction with spaCy (`app/services/ingestion/entity_extraction.py`).
+- Intelligent document chunking respecting document structure.
+- Graphiti integration for storing entities and relationships.
+- Advanced document metadata extraction.
+- Improved chunking strategies and deduplication.
+- End-to-end tests for the ingestion pipeline.
+
+**What's Broken/Incomplete:**
+- Pre-commit hooks are currently disabled.
+
+**Current Blockers:**
+- None.
+
+**Database/Model State:**
+- PostgreSQL database `digitaltwin-mem0` exists.
+- Tables created via Alembic for User, ChatMessage, Proposal, Vote models.
+- Neo4j database is running and initialized with Graphiti indices/constraints.
+- Mem0 functionality is working, storing and retrieving memories.
+- Entity and relationship nodes are now stored in Neo4j.
+
+**Pending Tasks:**
+- Implement Task 7 (PoC: Basic LangGraph Agent).
+- Re-enable and fix pre-commit hook issues. 

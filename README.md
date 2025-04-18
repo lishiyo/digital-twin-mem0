@@ -100,3 +100,50 @@ app/
 - OpenAI & LangGraph
 - Mem0 (vector memory)
 - Graphiti (temporal knowledge graph) with Neo4j backend
+
+## Features
+
+- Memory management with Mem0
+- Knowledge graph integration with Graphiti/Neo4j
+- Entity extraction and relationship discovery
+- Automated document processing and chunking
+- File upload API with validation and deduplication
+- Intelligent chunking with document structure awareness
+- Metadata extraction from document content
+- Asynchronous processing with Celery
+
+## Ingestion Pipeline
+
+The system processes documents through a sophisticated pipeline:
+
+1. **File Upload**: Documents are uploaded and basic validation is performed
+2. **Content Parsing**: Files are parsed based on type (PDF, MD, TXT)
+3. **Entity Extraction**: spaCy extracts entities like people, organizations, locations
+4. **Smart Chunking**: Content is split into semantic chunks while respecting document structure
+5. **Mem0 Storage**: Chunks are stored in Mem0 with metadata and deduplication
+6. **Graphiti Integration**: Entities and relationships are registered in the knowledge graph
+
+### Entity Extraction
+
+The system uses spaCy to identify entities such as:
+- People (PERSON)
+- Organizations (ORG)
+- Locations (GPE, LOC)
+- Products
+- Dates and Times
+- Events
+- And more
+
+Relationships between entities appearing in the same context are also inferred and stored in the knowledge graph.
+
+## Getting Started
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies: `pip install -r requirements.txt`
+3. Download spaCy models: `python app/scripts/download_models.py`
+4. Configure environment variables (see `.env.example`)
+5. Start services: `docker-compose up -d`
+6. Run migrations: `alembic upgrade head`
+7. Start the API: `uvicorn app.main:app --reload`

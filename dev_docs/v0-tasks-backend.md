@@ -157,15 +157,15 @@ Full Infrastructure + CI/CD
 ### 6. Refine Ingestion
 
 **Subtasks:**
-- [ ] Extend ingestion pipeline to update Graphiti
-- [ ] Implement entity extraction from documents with spacy
-- [ ] Create relationships based on extracted entities
-- [ ] Optimize chunking strategies
-- [ ] Implement advanced deduplication
-- [ ] Add document metadata extraction
-- [ ] Create content classification
-- [ ] Create implementation test to verify Mem0 + Graphiti are working (create small fixture document with 1-2 named entities, add the chunk to Mem0, register mentions in Graphiti, search_entities in Graphiti)
-- [ ] Implement CDC pipeline for consistency
+- [x] Extend ingestion pipeline to update Graphiti
+- [x] Implement entity extraction from documents with spacy
+- [x] Create relationships based on extracted entities
+- [x] Optimize chunking strategies
+- [x] Implement advanced deduplication
+- [x] Add document metadata extraction
+- [x] Create content classification
+- [x] Create implementation test to verify Mem0 + Graphiti are working (create small fixture document with 1-2 named entities, add the chunk to Mem0, register mentions in Graphiti, search_entities in Graphiti)
+- [x] Implement CDC pipeline for consistency
 
 **Testing:**
 - Integration tests across data stores

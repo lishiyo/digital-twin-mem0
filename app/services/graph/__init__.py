@@ -383,11 +383,11 @@ class GraphitiService:
         properties["valid_from"] = datetime.now(timezone.utc).isoformat()
         
         try:
-            # Create query to create relationship using elementId() instead of id()
-            # This avoids the Neo4j deprecation warning
+            # Use a more optimized query that avoids Cartesian products
+            # by using separate MATCH clauses instead of a single MATCH with multiple patterns
             query = f"""
-            MATCH (a), (b)
-            WHERE elementId(a) = $source_id AND elementId(b) = $target_id
+            MATCH (a) WHERE elementId(a) = $source_id
+            MATCH (b) WHERE elementId(b) = $target_id
             CREATE (a)-[r:{rel_type} $properties]->(b)
             RETURN elementId(r) as rel_id
             """
@@ -553,28 +553,88 @@ class GraphitiService:
         schemas = {
             "Person": {
                 "required": ["name"],
-                "optional": ["age", "email", "location"]
+                "optional": ["age", "email", "location", "source_file", "label", "user_id", "context"]
             },
             "Organization": {
                 "required": ["name"],
-                "optional": ["industry", "founded", "location"]
+                "optional": ["industry", "founded", "location", "source_file", "label", "user_id", "context"]
             },
             "Document": {
-                "required": ["title", "content"],
-                "optional": ["author", "created_at", "tags"]
+                "required": [],  # Modified to allow documents without title
+                "optional": ["title", "content", "author", "created_at", "tags", "source_file", "label", "user_id", "context"]
             },
             "Proposal": {
                 "required": ["title", "description"],
-                "optional": ["author", "created_at", "deadline", "status"]
+                "optional": ["author", "created_at", "deadline", "status", "source_file", "label", "user_id", "context"]
             },
             "Vote": {
                 "required": ["value", "proposal_id"],
-                "optional": ["voter_id", "timestamp", "weight"]
+                "optional": ["voter_id", "timestamp", "weight", "source_file", "label", "user_id", "context"]
+            },
+            "Location": {
+                "required": ["name"],
+                "optional": ["country", "city", "address", "source_file", "label", "user_id", "context"]
+            },
+            "Event": {
+                "required": ["name"],
+                "optional": ["date", "location", "description", "source_file", "label", "user_id", "context"]
+            },
+            "Date": {
+                "required": ["name"],
+                "optional": ["date", "source_file", "label", "user_id", "context"]
+            },
+            "Time": {
+                "required": ["name"],
+                "optional": ["time", "source_file", "label", "user_id", "context"]
+            },
+            "Money": {
+                "required": ["name"],
+                "optional": ["amount", "currency", "source_file", "label", "user_id", "context"]
+            },
+            "Percent": {
+                "required": ["name"],
+                "optional": ["value", "source_file", "label", "user_id", "context"]
+            },
+            "Group": {
+                "required": ["name"],
+                "optional": ["members", "description", "source_file", "label", "user_id", "context"]
+            },
+            "Facility": {
+                "required": ["name"],
+                "optional": ["location", "type", "source_file", "label", "user_id", "context"]
+            },
+            "Legal": {
+                "required": ["name"],
+                "optional": ["jurisdiction", "date", "source_file", "label", "user_id", "context"]
+            },
+            "Language": {
+                "required": ["name"],
+                "optional": ["region", "family", "source_file", "label", "user_id", "context"]
+            },
+            "Ordinal": {
+                "required": ["name"],
+                "optional": ["value", "source_file", "label", "user_id", "context"]
+            },
+            "Cardinal": {
+                "required": ["name"],
+                "optional": ["value", "source_file", "label", "user_id", "context"]
+            },
+            "Quantity": {
+                "required": ["name"],
+                "optional": ["value", "unit", "source_file", "label", "user_id", "context"]
+            },
+            "Product": {
+                "required": ["name"],
+                "optional": ["manufacturer", "price", "source_file", "label", "user_id", "context"]
+            },
+            "Unknown": {
+                "required": ["name"],
+                "optional": ["source_file", "label", "user_id", "context"]
             }
         }
         
-        # Get schema for the specified entity type
-        schema = schemas.get(entity_type)
+        # Get schema for the specified entity type, default to Unknown if not defined
+        schema = schemas.get(entity_type, schemas.get("Unknown"))
         
         # If no schema is defined for this entity type, skip validation
         if not schema:
@@ -583,7 +643,11 @@ class GraphitiService:
         # Check required properties
         for required_prop in schema["required"]:
             if required_prop not in properties:
-                raise ValueError(f"Missing required property '{required_prop}' for entity type '{entity_type}'")
+                # For Document type, set a default title if missing
+                if entity_type == "Document" and required_prop == "title":
+                    properties["title"] = "Untitled Document"
+                else:
+                    raise ValueError(f"Missing required property '{required_prop}' for entity type '{entity_type}'")
                 
         # Check if there are any properties not in the schema
         all_allowed_props = schema["required"] + schema["optional"]
