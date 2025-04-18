@@ -4,6 +4,7 @@ import logging
 import os
 import asyncio
 import hashlib
+import re
 from typing import Dict, List, Optional, Any, Tuple, Set, Literal
 
 from app.services.memory import MemoryService
@@ -18,6 +19,14 @@ logger = logging.getLogger(__name__)
 
 class IngestionService:
     """Service for ingesting files into memory services."""
+    
+    # Constants for entity filtering
+    MIN_ENTITY_NAME_LENGTH = 2
+    COMMON_TERMS = {"i", "me", "my", "you", "your", "we", "us", "our", "they",
+                   "a", "an", "the", "and", "but", "or", "for", "nor", 
+                   "on", "at", "to", "from", "with", "in", "out", "up", "down"}
+    MAX_ENTITIES_PER_CHUNK = 20
+    MAX_RELATIONSHIPS_TOTAL = 40
     
     def __init__(self):
         """Initialize the ingestion service."""
@@ -68,7 +77,7 @@ class IngestionService:
             # Skip if we've already processed this file
             if file_hash in self._processed_hashes:
                 logger.info(f"File already processed: {file_path} (hash: {file_hash})")
-                return {"status": "skipped", "reason": "already_processed"}
+                return {"status": "skipped", "reason": "duplicate", "file_path": file_path}
                 
         except Exception as e:
             logger.error(f"Error getting file metadata: {e}")
@@ -164,8 +173,142 @@ class IngestionService:
         # Extract entities and relationships using NLP
         extraction_results = {"entities": [], "relationships": []}
         try:
-            extraction_results = self.entity_extractor.process_document(parsed_content)
+            # Create chunk boundaries for entity extraction
+            chunk_boundaries = []
+            current_offset = 0
+            
+            for chunk in chunks:
+                content_length = len(chunk["content"])
+                chunk_boundaries.append((current_offset, current_offset + content_length))
+                current_offset += content_length
+            
+            extraction_results = self.entity_extractor.process_document(
+                parsed_content, 
+                chunk_boundaries=chunk_boundaries
+            )
             logger.info(f"Extracted {len(extraction_results['entities'])} entities and {len(extraction_results['relationships'])} relationships")
+            
+            # Keep name extraction but remove redundant filtering
+            filtered_entities = extraction_results["entities"].copy()
+            
+            # Keep track of person names to extract from longer texts
+            potential_person_names = set()
+            
+            # First pass: identify potential person names in longer texts
+            for entity in extraction_results["entities"]:
+                entity_text = entity["text"]
+                
+                # If we have a long entity text, scan it for potential person names
+                if len(entity_text) > 50:
+                    # Look for patterns like "with Name," or "and Name " or "Name and"
+                    # Find names that follow prepositions or conjunctions
+                    name_patterns = [
+                        r'with\s+([A-Z][a-z]+)[\s,]',
+                        r'and\s+([A-Z][a-z]+)[\s,]', 
+                        r'by\s+([A-Z][a-z]+)[\s,]',
+                        r'from\s+([A-Z][a-z]+)[\s,]',
+                        r'for\s+([A-Z][a-z]+)[\s,]',
+                        r'to\s+([A-Z][a-z]+)[\s,]',
+                        r'of\s+([A-Z][a-z]+)[\s,]',
+                        r'(^|[\s,])([A-Z][a-z]+)(\s+and\s|\s+,\s)'  # Name at beginning or after spaces/commas
+                    ]
+                    
+                    for pattern in name_patterns:
+                        matches = re.findall(pattern, entity_text)
+                        for match in matches:
+                            if isinstance(match, tuple):
+                                # If the pattern has multiple capture groups, get the name part
+                                for part in match:
+                                    if part and part[0].isupper() and len(part) > 1:
+                                        potential_person_names.add(part)
+                            else:
+                                # Single capture group
+                                if match and len(match) > 1:
+                                    potential_person_names.add(match)
+            
+            # Add potential person names as new entities
+            names_added = 0
+            for name in potential_person_names:
+                # Check if this is a capitalized acronym or abbreviation
+                is_acronym = len(name) <= 3 and name.isupper()
+                
+                # Keep the same filtering logic for extracted names
+                if (
+                    (len(name) >= self.MIN_ENTITY_NAME_LENGTH or is_acronym) and
+                    (name.lower() not in self.COMMON_TERMS or is_acronym) and
+                    not name.isdigit()
+                ):
+                    logger.info(f"Extracted person name '{name}' from longer text")
+                    filtered_entities.append({
+                        "text": name,
+                        "entity_type": "Person",
+                        "chunk_index": 0,  # Default chunk
+                        "extracted_from_text": True,
+                        "confidence": 0.9
+                    })
+                    names_added += 1
+            
+            # Update filtered entities - no separate filtering needed as entity_extraction.py already did it
+            logger.info(f"Using {len(filtered_entities)} entities from extraction, added {names_added} extracted person names")
+            extraction_results["entities"] = filtered_entities
+            
+            # Filter relationships to only include valid entities
+            valid_entity_texts = {entity["text"] for entity in filtered_entities}
+            filtered_relationships = []
+            rel_filtered_out = 0
+            
+            # Process all relationships - no need for special handling of important entities
+            # since that's now handled in entity_extraction.py
+            for rel in extraction_results["relationships"]:
+                source_text = rel["source"]
+                target_text = rel["target"]
+                
+                # Standard check - both entities must be in the filtered list
+                if source_text in valid_entity_texts and target_text in valid_entity_texts:
+                    filtered_relationships.append(rel)
+                else:
+                    rel_filtered_out += 1
+                    # Log detailed reason for filtering
+                    filtered_reason = ""
+                    if source_text not in valid_entity_texts and target_text not in valid_entity_texts:
+                        filtered_reason = "both source and target entities missing from filtered list"
+                    elif source_text not in valid_entity_texts:
+                        filtered_reason = f"source entity '{source_text}' missing from filtered list"
+                    else:
+                        filtered_reason = f"target entity '{target_text}' missing from filtered list"
+                        
+                    logger.info(f"Filtered out invalid relationship: {rel} (Reason: {filtered_reason})")
+            
+            # Add relationships for extracted person names
+            for name in potential_person_names:
+                if name in valid_entity_texts:
+                    # Create relationships with other extracted names
+                    for other_name in potential_person_names:
+                        if name != other_name and other_name in valid_entity_texts:
+                            filtered_relationships.append({
+                                "source": name,
+                                "target": other_name,
+                                "relationship": "MENTIONED_WITH",
+                                "context": "Co-mentioned in document",
+                                "sentence_id": 0,
+                                "confidence": 0.8
+                            })
+                    
+                    # Create relationships with longer entities
+                    for entity in filtered_entities:
+                        entity_text = entity["text"]
+                        if len(entity_text) > 50 and name in entity_text and entity_text != name:
+                            filtered_relationships.append({
+                                "source": name,
+                                "target": entity_text,
+                                "relationship": "MENTIONED_IN",
+                                "context": "Mentioned in longer text",
+                                "sentence_id": 0,
+                                "confidence": 0.9
+                            })
+            
+            logger.info(f"Filtered out {rel_filtered_out} relationships with invalid entities, {len(filtered_relationships)} remain")
+            extraction_results["relationships"] = filtered_relationships
         except Exception as e:
             logger.error(f"Error extracting entities: {e}")
         
@@ -204,65 +347,132 @@ class IngestionService:
                     # Dictionary to map entity text to entity_id
                     entity_id_map = {}
                     
-                    # Process each unique entity
+                    # Group entities by chunk
+                    entities_by_chunk = {}
                     for entity in extraction_results["entities"]:
-                        entity_text = entity["text"]
-                        entity_type = entity["entity_type"]
+                        chunk_idx = entity.get("chunk_index", 0)  # Default to 0 if not set
+                        if chunk_idx not in entities_by_chunk:
+                            entities_by_chunk[chunk_idx] = []
+                        entities_by_chunk[chunk_idx].append(entity)
+                    
+                    # Create a set to track processed entities within this file
+                    processed_entity_keys = set()
+                    
+                    for chunk_idx, entities in entities_by_chunk.items():
+                        # Sort entities by confidence first (highest confidence first), 
+                        # then by length (longest first) as a secondary criterion
+                        entities.sort(key=lambda e: (-e.get("confidence", 0), -len(e["text"])))
                         
-                        # Skip if we've already processed this entity (case-sensitive)
-                        entity_key = f"{entity_text}:{entity_type}"
-                        if entity_key in self._registered_entities:
-                            # If already registered, get its ID from graphiti 
-                            # (simplified - in real implementation would need to query)
-                            continue
+                        # Process up to MAX_ENTITIES_PER_CHUNK entities per chunk
+                        chunk_entity_count = 0
                         
-                        # Create entity in Graphiti
-                        try:
-                            # Prepare entity properties based on entity type
-                            entity_properties = {
-                                "source_file": file_path,
-                                "label": entity["label"],
-                                "user_id": user_id,
-                                "context": entity["context"][:255] if "context" in entity else "",
-                                "scope": scope,
-                                "owner_id": owner_id
-                            }
+                        for entity in entities:
+                            # Skip if we've reached the maximum entities for this chunk
+                            if chunk_entity_count >= self.MAX_ENTITIES_PER_CHUNK:
+                                break
+                                
+                            entity_text = entity["text"]
+                            entity_type = entity["entity_type"]
                             
-                            # Add the appropriate name/title property based on entity type
-                            if entity_type == "Document":
-                                entity_properties["title"] = entity_text
-                            else:
-                                entity_properties["name"] = entity_text
+                            # Skip if we've already processed this entity in this file
+                            entity_key = f"{entity_text}:{entity_type}"
+                            if entity_key in processed_entity_keys:
+                                continue
                             
-                            entity_id = await self.graphiti_service.create_entity(
-                                entity_type=entity_type,
-                                properties=entity_properties,
-                                scope=scope,
-                                owner_id=owner_id
-                            )
+                            # Remember this entity has been processed in this file
+                            processed_entity_keys.add(entity_key)
                             
-                            # Remember this entity has been registered
-                            self._registered_entities.add(entity_key)
-                            entity_id_map[entity_text] = entity_id
-                            
-                            entity_results.append({
-                                "entity_id": entity_id,
-                                "text": entity_text,
-                                "type": entity_type,
-                                "scope": scope,
-                                "owner_id": owner_id
-                            })
-                        except Exception as e:
-                            logger.error(f"Error creating entity in Graphiti: {e}")
+                            # Check if entity already exists in the graph
+                            try:
+                                existing_entity = await self.graphiti_service.find_entity(
+                                    name=entity_text,
+                                    entity_type=entity_type,
+                                    scope=scope,
+                                    owner_id=owner_id
+                                )
+                                
+                                if existing_entity:
+                                    # Entity already exists, use its ID
+                                    entity_id = existing_entity.get("id")
+                                    entity_id_map[entity_text] = entity_id
+                                    logger.info(f"Found existing entity: {entity_text} ({entity_type}) with ID {entity_id}")
+                                    
+                                    # Add to entity results so it's included in the count even though it wasn't created
+                                    entity_results.append({
+                                        "entity_id": entity_id,
+                                        "text": entity_text,
+                                        "type": entity_type,
+                                        "scope": scope,
+                                        "owner_id": owner_id,
+                                        "existing": True
+                                    })
+                                    
+                                    # Count this toward our chunk entity limit
+                                    chunk_entity_count += 1
+                                    continue
+                                else:
+                                    # Create a new entity
+                                    try:
+                                        logger.info(f"Creating entity: {entity_text} ({entity_type})")
+                                        
+                                        entity_properties = {
+                                            "name": entity_text,
+                                        }
+                                        
+                                        entity_id = await self.graphiti_service.create_entity(
+                                            entity_type=entity_type,
+                                            properties=entity_properties,
+                                            scope=scope,
+                                            owner_id=owner_id
+                                        )
+                                        
+                                        # Remember this entity's ID
+                                        entity_id_map[entity_text] = entity_id
+                                        logger.info(f"Added entity '{entity_text}' to ID map with ID: {entity_id}")
+                                        
+                                        entity_results.append({
+                                            "entity_id": entity_id,
+                                            "text": entity_text,
+                                            "type": entity_type,
+                                            "scope": scope,
+                                            "owner_id": owner_id,
+                                            "existing": False
+                                        })
+                                        
+                                        # Count this toward our chunk entity limit
+                                        chunk_entity_count += 1
+                                        
+                                    except Exception as e:
+                                        logger.error(f"Error creating entity in Graphiti: {e}")
+                                        continue  # Skip this entity and proceed to the next
+                            except Exception as e:
+                                logger.error(f"Error checking for existing entity: {e}")
+                                continue
                     
                     # 3. Process relationships
                     if extraction_results["relationships"]:
                         logger.info(f"Processing {len(extraction_results['relationships'])} relationships in Graphiti")
                         
+                        # Log the entity map for debugging
+                        logger.info(f"Entity ID map contents ({len(entity_id_map)} entities):")
+                        for entity_name, entity_id in entity_id_map.items():
+                            logger.info(f"  '{entity_name}' -> {entity_id}")
+                        
                         # Skip map to avoid duplicate relationships
                         processed_rels = set()
                         
-                        for rel in extraction_results["relationships"]:
+                        # Maximum relationships per file ingestion
+                        relationship_count = 0
+                        
+                        # Sort relationships by sentence ID so we process related entities in same sentence first
+                        sorted_relationships = sorted(extraction_results["relationships"], key=lambda r: r.get("sentence_id", 0))
+                        
+                        for rel in sorted_relationships:
+                            # Stop if we've reached the maximum relationships
+                            if relationship_count >= self.MAX_RELATIONSHIPS_TOTAL:
+                                logger.info(f"Reached maximum relationship limit ({self.MAX_RELATIONSHIPS_TOTAL}), skipping remaining relationships")
+                                break
+                                
                             source_text = rel["source"]
                             target_text = rel["target"]
                             rel_type = rel["relationship"]
@@ -276,9 +486,35 @@ class IngestionService:
                             source_id = entity_id_map.get(source_text)
                             target_id = entity_id_map.get(target_text)
                             
+                            # Log entity ID mapping for debugging
+                            logger.info(f"Relationship {rel_key}: source_id={source_id}, target_id={target_id}")
+                            
                             # If we have both IDs, create the relationship
                             if source_id and target_id:
                                 try:
+                                    # Check if this relationship already exists
+                                    check_query = """
+                                    MATCH (a)-[r]->(b)
+                                    WHERE elementId(a) = $source_id AND elementId(b) = $target_id
+                                    AND type(r) = $rel_type AND r.scope = $scope
+                                    RETURN count(r) as rel_count
+                                    """
+                                    
+                                    check_result = await self.graphiti_service.execute_cypher(
+                                        check_query, 
+                                        {
+                                            "source_id": source_id,
+                                            "target_id": target_id,
+                                            "rel_type": rel_type,
+                                            "scope": scope
+                                        }
+                                    )
+                                    
+                                    # Skip if relationship already exists
+                                    if check_result and check_result[0]["rel_count"] > 0:
+                                        logger.info(f"Relationship already exists: {rel_key}")
+                                        continue
+                                    
                                     rel_id = await self.graphiti_service.create_relationship(
                                         source_id=source_id,
                                         target_id=target_id,
@@ -295,6 +531,7 @@ class IngestionService:
                                     )
                                     
                                     processed_rels.add(rel_key)
+                                    relationship_count += 1
                                     
                                     relationship_results.append({
                                         "relationship_id": rel_id,
@@ -306,6 +543,14 @@ class IngestionService:
                                     })
                                 except Exception as e:
                                     logger.error(f"Error creating relationship in Graphiti: {e}")
+                            else:
+                                # Log why relationship creation was skipped
+                                if not source_id and not target_id:
+                                    logger.info(f"Skipping relationship {rel_key}: Both source and target entities missing")
+                                elif not source_id:
+                                    logger.info(f"Skipping relationship {rel_key}: Source entity '{source_text}' not found")
+                                elif not target_id:
+                                    logger.info(f"Skipping relationship {rel_key}: Target entity '{target_text}' not found")
             else:
                 graphiti_result = {"error": "No chunks were successfully stored in Mem0, skipping Graphiti"}
                 logger.warning("No chunks were successfully stored in Mem0, skipping Graphiti")
@@ -316,26 +561,36 @@ class IngestionService:
         # Add this hash to processed set for deduplication
         self._processed_hashes.add(file_hash)
         
-        # Return processing results - consider it a success if at least some chunks were stored
+        # Prepare final response data
+        entities_result = {
+            "count": len(entity_results),
+            "items": entity_results
+        }
+        
+        relationships_result = {
+            "count": len(relationship_results),
+            "items": relationship_results
+        }
+
+        # Define embedding count (one per successful memory chunk)
+        embedding_count = len(mem0_results)
+
+        # Return processing results
         status = "success" if mem0_results else "partial" if failures < len(chunks) else "failed"
         
         return {
             "status": status,
             "file_path": file_path,
-            "chunks": len(chunks),
-            "stored_chunks": len(mem0_results),
-            "failed_chunks": failures,
-            "skipped_chunks": skipped_chunks,
-            "mem0_results": mem0_results,
+            "chunks": {
+                "count": len(mem0_results),
+                "items": mem0_results
+            },
+            "entities": entities_result,
+            "relationships": relationships_result,
+            "embeddings": {
+                "count": embedding_count
+            },
             "graphiti_result": graphiti_result,
-            "entities": {
-                "count": len(entity_results),
-                "created": entity_results
-            },
-            "relationships": {
-                "count": len(relationship_results),
-                "created": relationship_results
-            },
             "scope": scope,
             "owner_id": owner_id
         }

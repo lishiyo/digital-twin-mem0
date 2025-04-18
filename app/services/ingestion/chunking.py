@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Default chunking parameters
 DEFAULT_CHUNK_SIZE = 1000  # tokens
-DEFAULT_CHUNK_OVERLAP = 100  # tokens
+DEFAULT_CHUNK_OVERLAP = 0  # tokens
 DEFAULT_MODEL = "gpt-4o-mini"  # Model to use for token counting
 
 # Section headers pattern (common in documents)
