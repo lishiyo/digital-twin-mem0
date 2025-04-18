@@ -41,6 +41,19 @@ def parse_args():
         help="Optional subdirectory to process (relative to data dir)"
     )
     parser.add_argument(
+        "--scope",
+        type=str,
+        choices=["user", "twin", "global"],
+        default="user",
+        help="Content scope (user, twin, or global)"
+    )
+    parser.add_argument(
+        "--owner-id",
+        type=str,
+        default=None,
+        help="Owner ID for content (user or twin ID, defaults to user-id for user scope)"
+    )
+    parser.add_argument(
         "--async", 
         action="store_true",
         dest="use_async",
@@ -49,39 +62,57 @@ def parse_args():
     return parser.parse_args()
 
 
-async def run_async_ingestion(directory, user_id):
+async def run_async_ingestion(user_id, directory, scope, owner_id):
     """Run ingestion directly in async mode."""
     logger.info(f"Starting async ingestion of directory: {directory or 'data'}")
     ingestion_service = IngestionService()
-    result = await ingestion_service.process_directory(directory, user_id)
+    result = await ingestion_service.process_directory(
+        user_id,
+        directory, 
+        scope=scope, 
+        owner_id=owner_id
+    )
     logger.info(f"Ingestion completed with {result['successful']} successes and {result['failed']} failures")
     logger.info(f"Skipped {result['skipped']} files")
+    logger.info(f"Content scope: {result['scope']}, Owner ID: {result['owner_id'] or 'global'}")
     return result
 
 
-def run_celery_ingestion(directory, user_id):
+def run_celery_ingestion(user_id, directory, scope, owner_id):
     """Run ingestion using Celery task."""
     logger.info(f"Queuing Celery task to ingest directory: {directory or 'data'}")
-    task = process_directory.delay(directory, user_id)
+    task = process_directory.delay(
+        user_id,
+        directory, 
+        scope=scope, 
+        owner_id=owner_id
+    )
     logger.info(f"Task queued with ID: {task.id}")
     logger.info("The task will run asynchronously in the Celery worker.")
     logger.info("Check Celery logs for progress and results.")
     return {"task_id": task.id}
 
 
-def main():
-    """Main entry point."""
+if __name__ == "__main__":
     args = parse_args()
     
+    # Set owner_id to user_id for user scope if not explicitly provided
+    if args.scope == "user" and args.owner_id is None:
+        args.owner_id = args.user_id
+        
     if args.use_async:
-        # Run directly in async mode
-        result = asyncio.run(run_async_ingestion(args.subdirectory, args.user_id))
-        logger.info(f"Async ingestion completed: {result}")
+        # Run directly using asyncio
+        result = asyncio.run(run_async_ingestion(
+            args.user_id, 
+            args.subdirectory, 
+            args.scope, 
+            args.owner_id
+        ))
     else:
-        # Use Celery task
-        result = run_celery_ingestion(args.subdirectory, args.user_id)
-        logger.info(f"Celery task queued: {result}")
-
-
-if __name__ == "__main__":
-    main() 
+        # Run using Celery
+        result = run_celery_ingestion(
+            args.user_id, 
+            args.subdirectory, 
+            args.scope, 
+            args.owner_id
+        ) 

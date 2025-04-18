@@ -45,71 +45,91 @@ async def test_file_ingestion_service():
     if not test_files:
         pytest.skip("No supported files found in the data directory")
     
+    # Test different scopes
+    scopes = [
+        {"scope": "user", "owner_id": user_id, "label": "personal content"},
+        {"scope": "global", "owner_id": None, "label": "global content"}
+    ]
+    
     # Process each test file - with delay between files
     results = []
-    for i, file_info in enumerate(test_files):
-        file_path = file_info["path"]
-        
-        # Add a significant delay between files to avoid SQLite concurrency issues
-        if i > 0:
-            logger.info(f"Waiting 5 seconds before processing next file to avoid SQLite concurrency issues")
-            await asyncio.sleep(5)
+    for scope_config in scopes:
+        for i, file_info in enumerate(test_files):
+            file_path = file_info["path"]
             
-        logger.info(f"Testing ingestion of file: {file_path}")
-        
-        try:
-            # Process the file with retry logic for SQLite concurrency issues
-            max_retries = 3
-            result = None
+            # Add a significant delay between files to avoid SQLite concurrency issues
+            if i > 0:
+                logger.info(f"Waiting 5 seconds before processing next file to avoid SQLite concurrency issues")
+                await asyncio.sleep(5)
+                
+            logger.info(f"Testing ingestion of file: {file_path} with {scope_config['label']}")
             
-            for attempt in range(max_retries):
-                try:
-                    result = await ingestion_service.process_file(file_path, user_id)
-                    break
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        logger.warning(f"Error processing file (attempt {attempt+1}): {e}")
-                        await asyncio.sleep(3)  # Wait before retry
-                    else:
-                        logger.error(f"Failed to process file after {max_retries} attempts: {e}")
-                        raise
-            
-            logger.info(f"Ingestion result: {result}")
-            
-            assert "status" in result, "Result should contain a status field"
-            
-            if result["status"] == "success":
-                assert "chunks" in result, "Success result should contain chunks info"
-                assert "stored_chunks" in result, "Success result should contain stored_chunks info" 
-                assert "mem0_results" in result, "Success result should contain mem0_results"
-                assert "graphiti_result" in result, "Success result should contain graphiti_result"
-            
-            results.append(result)
-            
-            # Add additional delay after each file to let SQLite settle
-            await asyncio.sleep(2)
-            
-        except Exception as e:
-            logger.error(f"Error in test: {e}")
-            # Continue testing with next file
+            try:
+                # Process the file with retry logic for SQLite concurrency issues
+                max_retries = 3
+                result = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        result = await ingestion_service.process_file(
+                            file_path, 
+                            user_id,
+                            scope=scope_config["scope"],
+                            owner_id=scope_config["owner_id"]
+                        )
+                        break
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Error processing file (attempt {attempt+1}): {e}")
+                            await asyncio.sleep(3)  # Wait before retry
+                        else:
+                            logger.error(f"Failed to process file after {max_retries} attempts: {e}")
+                            raise
+                
+                logger.info(f"Ingestion result: {result}")
+                
+                assert "status" in result, "Result should contain a status field"
+                assert "scope" in result, "Result should contain a scope field"
+                assert result["scope"] == scope_config["scope"], "Result scope should match requested scope"
+                
+                if result["status"] == "success":
+                    assert "chunks" in result, "Success result should contain chunks info"
+                    assert "stored_chunks" in result, "Success result should contain stored_chunks info" 
+                    assert "mem0_results" in result, "Success result should contain mem0_results"
+                    assert "graphiti_result" in result, "Success result should contain graphiti_result"
+                
+                results.append(result)
+                
+                # Add additional delay after each file to let SQLite settle
+                await asyncio.sleep(2)
+                
+            except Exception as e:
+                logger.error(f"Error in test: {e}")
+                # Continue testing with next file
     
     # Wait before testing directory processing to avoid SQLite conflicts
     logger.info("Waiting 5 seconds before testing directory processing")
     await asyncio.sleep(5)
     
     # Test processing a directory
-    logger.info("Testing directory processing")
+    logger.info("Testing directory processing with global scope")
     dir_result = None
     
     try:
         # Process with a different user ID to avoid conflicts
         dir_user_id = f"{user_id}-dir"
-        dir_result = await ingestion_service.process_directory(user_id=dir_user_id)
+        dir_result = await ingestion_service.process_directory(
+            user_id=dir_user_id,
+            scope="global",
+            owner_id=None
+        )
         logger.info(f"Directory processing result: {dir_result}")
         
         assert "status" in dir_result, "Directory result should contain a status field"
         assert "total_files" in dir_result, "Directory result should contain total_files info"
         assert "results" in dir_result, "Directory result should contain results array"
+        assert "scope" in dir_result, "Directory result should contain scope field"
+        assert dir_result["scope"] == "global", "Directory scope should be global"
     except Exception as e:
         logger.error(f"Error testing directory processing: {e}")
     

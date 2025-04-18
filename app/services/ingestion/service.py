@@ -4,10 +4,10 @@ import logging
 import os
 import asyncio
 import hashlib
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Any, Tuple, Set, Literal
 
 from app.services.memory import MemoryService
-from app.services.graph import GraphitiService
+from app.services.graph import GraphitiService, ContentScope
 from app.services.ingestion.file_service import FileService
 from app.services.ingestion.parsers import parse_file
 from app.services.ingestion.chunking import DocumentChunker
@@ -34,147 +34,140 @@ class IngestionService:
         # Cache to track entities already registered in Graphiti
         self._registered_entities = set()
     
-    async def process_file(self, file_path: str, user_id: str) -> Dict[str, Any]:
+    async def process_file(self, file_path: str, user_id: str, 
+                          scope: ContentScope = "user", 
+                          owner_id: str = None) -> Dict[str, Any]:
         """Process a file and store it in memory services.
         
         Args:
-            file_path: Path to the file (relative to data dir)
-            user_id: User ID to associate with the content
+            file_path: Path to the file to process
+            user_id: ID of the user processing the file
+            scope: Content scope ("user", "twin", or "global")
+            owner_id: ID of the owner (user or twin ID, or None for global)
             
         Returns:
-            Processing results
+            Dictionary with processing results
         """
-        logger.info(f"Processing file: {file_path} for user: {user_id}")
+        logger.info(f"Processing file: {file_path} for user: {user_id}, scope: {scope}")
         
-        # Validate file
-        is_valid, error = self.file_service.validate_file(file_path)
-        if not is_valid:
-            logger.error(f"File validation failed: {error}")
-            return {"error": error, "status": "failed"}
-            
+        # Validate file exists and is supported
+        try:
+            is_valid, error = self.file_service.validate_file(file_path)
+            if not is_valid:
+                logger.error(f"Invalid file: {error}")
+                return {"status": "failed", "error": error}
+        except Exception as e:
+            logger.error(f"Error validating file: {e}")
+            return {"status": "failed", "error": str(e)}
+        
         # Get file metadata
-        file_metadata = self.file_service.get_file_metadata(file_path)
-        
-        # Check if file has already been processed (deduplication)
-        file_hash = file_metadata.get("hash")
-        if file_hash in self._processed_hashes:
-            logger.info(f"File already processed (duplicate hash): {file_path}")
-            return {"status": "skipped", "reason": "duplicate", "file_path": file_path}
+        try:
+            file_metadata = self.file_service.get_file_metadata(file_path)
+            file_hash = file_metadata.get("hash", "unknown")
+            
+            # Skip if we've already processed this file
+            if file_hash in self._processed_hashes:
+                logger.info(f"File already processed: {file_path} (hash: {file_hash})")
+                return {"status": "skipped", "reason": "already_processed"}
+                
+        except Exception as e:
+            logger.error(f"Error getting file metadata: {e}")
+            return {"status": "failed", "error": str(e)}
         
         # Read file content
-        content, error = self.file_service.read_file(file_path)
-        if error:
-            logger.error(f"Error reading file: {error}")
-            return {"error": error, "status": "failed"}
+        try:
+            content, error = self.file_service.read_file(file_path)
+            if error:
+                logger.error(f"Error reading file: {error}")
+                return {"status": "failed", "error": error}
+                
+            if not content:
+                logger.error("File is empty")
+                return {"status": "failed", "error": "File is empty"}
+                
+        except Exception as e:
+            logger.error(f"Error reading file: {e}")
+            return {"status": "failed", "error": str(e)}
+        
+        # Parse the file to extract content and metadata
+        try:
+            parsed_content, parsed_metadata = parse_file(file_path, content)
             
-        # Parse file
-        full_path = os.path.join(self.file_service.data_dir, file_path)
-        parsed_content, parse_metadata = parse_file(full_path, content)
-        
-        # Merge metadata
-        combined_metadata = {**file_metadata, **parse_metadata}
-        combined_metadata["source_file"] = file_path
-        
-        # Extract entities, relationships, and keywords
-        if len(parsed_content.strip()) > 0:
-            try:
-                logger.info(f"Extracting entities from document: {file_path}")
-                extraction_results = self.entity_extractor.process_document(parsed_content)
+            if not parsed_content:
+                logger.error("Failed to parse file content")
+                return {"status": "failed", "error": "Failed to parse file content"}
                 
-                # Add extraction results to metadata
-                combined_metadata["entity_extraction"] = {
-                    "entity_count": extraction_results["summary"]["entity_count"],
-                    "relationship_count": extraction_results["summary"]["relationship_count"],
-                    "keyword_count": extraction_results["summary"]["keyword_count"]
-                }
+            # Combine file metadata with parsed metadata
+            combined_metadata = {**file_metadata, **parsed_metadata}
+            
+        except Exception as e:
+            logger.error(f"Error parsing file: {e}")
+            return {"status": "failed", "error": str(e)}
+        
+        # Chunk the document
+        try:
+            chunks = self.chunker.chunk_document(parsed_content)
+            logger.info(f"Created {len(chunks)} chunks from: {file_path}")
+            
+            if not chunks:
+                logger.error("Failed to create chunks")
+                return {"status": "failed", "error": "Failed to create chunks"}
                 
-                # Add top keywords to metadata
-                if extraction_results["keywords"]:
-                    top_keywords = [k["text"] for k in extraction_results["keywords"][:5]]
-                    combined_metadata["keywords"] = top_keywords
-            except Exception as e:
-                logger.error(f"Error extracting entities: {e}")
-                extraction_results = {"entities": [], "relationships": [], "keywords": [], "summary": {"entity_count": 0, "relationship_count": 0, "keyword_count": 0}}
-        else:
-            extraction_results = {"entities": [], "relationships": [], "keywords": [], "summary": {"entity_count": 0, "relationship_count": 0, "keyword_count": 0}}
+        except Exception as e:
+            logger.error(f"Error chunking document: {e}")
+            return {"status": "failed", "error": str(e)}
         
-        # Chunk document with optimized strategy
-        logger.info(f"Chunking document: {file_path}")
-        chunks = self.chunker.chunk_document(parsed_content, combined_metadata)
-        logger.info(f"Created {len(chunks)} chunks")
-        
-        # Store chunks in Mem0 with deduplication
-        mem0_results = []
+        # For each chunk, add to memory
         failures = 0
-        retries = 0
         skipped_chunks = 0
-        max_retries = 3
+        mem0_results = []
         
-        for chunk in chunks:
-            # Calculate hash of chunk content for deduplication
-            chunk_content = chunk["content"]
-            chunk_metadata = chunk["metadata"]
-            chunk_hash = hashlib.md5(chunk_content.encode()).hexdigest()
+        for i, chunk in enumerate(chunks):
+            # Calculate hash for deduplication
+            chunk_hash = hashlib.md5(chunk["content"].encode("utf-8")).hexdigest()
             
-            # Skip duplicate chunks
+            # Skip if we've already processed this exact chunk
             if chunk_hash in self._processed_chunk_hashes:
-                logger.debug(f"Skipping duplicate chunk (hash: {chunk_hash})")
                 skipped_chunks += 1
                 continue
+                
+            # Prepare metadata for this chunk
+            chunk_metadata = {
+                **combined_metadata,
+                "chunk_index": i,
+                "total_chunks": len(chunks),
+                "source_file": file_path
+            }
             
-            # Try up to max_retries times to store each chunk
-            for attempt in range(max_retries):
-                try:
-                    # Add small delay between chunks to avoid SQLite concurrency issues
-                    if attempt > 0:
-                        await asyncio.sleep(0.5)
-                    
-                    result = await self.memory_service.add(
-                        content=chunk_content,
-                        user_id=user_id,
-                        metadata=chunk_metadata,
-                        infer=False  # Disable inference to reduce OpenAI API calls
-                    )
-                    
-                    if "error" in result:
-                        logger.warning(f"Error storing chunk in Mem0: {result['error']}")
-                        
-                        # Only count specific errors that likely won't be resolved by retrying
-                        if "Empty content" in str(result.get('error', '')):
-                            failures += 1
-                            break  # Don't retry for empty content
-                            
-                        # If this was the last attempt, count as failure
-                        if attempt == max_retries - 1:
-                            failures += 1
-                        else:
-                            retries += 1
-                            # Continue to the next attempt
-                            continue
-                    else:
-                        mem0_results.append(result)
-                        # Add chunk hash to processed set
-                        self._processed_chunk_hashes.add(chunk_hash)
-                        logger.debug(f"Stored chunk {chunk_metadata['chunk_index']} in Mem0")
-                        break  # Success, don't need to retry
-                except Exception as e:
-                    logger.error(f"Error storing chunk in Mem0: {e}")
-                    
-                    # If this was the last attempt, count as failure
-                    if attempt == max_retries - 1:
-                        failures += 1
-                    else:
-                        retries += 1
-                        # Sleep before retrying
-                        await asyncio.sleep(1)
+            try:
+                # Add to memory
+                result = await self.memory_service.add(
+                    content=chunk["content"],
+                    metadata=chunk_metadata,
+                    user_id=user_id
+                )
+                
+                # Remember we've processed this chunk
+                self._processed_chunk_hashes.add(chunk_hash)
+                
+                # Add result to list
+                mem0_results.append({
+                    "chunk_index": i,
+                    "memory_id": result.get("id"),
+                    "content_hash": chunk_hash
+                })
+                
+            except Exception as e:
+                logger.error(f"Error adding chunk to memory: {e}")
+                failures += 1
         
-        # Log a summary of retries and failures
-        if retries > 0:
-            logger.info(f"Required {retries} retries when storing chunks")
-        if failures > 0:
-            logger.warning(f"Failed to store {failures} chunks after all retries")
-        if skipped_chunks > 0:
-            logger.info(f"Skipped {skipped_chunks} duplicate chunks")
+        # Extract entities and relationships using NLP
+        extraction_results = {"entities": [], "relationships": []}
+        try:
+            extraction_results = self.entity_extractor.process_document(parsed_content)
+            logger.info(f"Extracted {len(extraction_results['entities'])} entities and {len(extraction_results['relationships'])} relationships")
+        except Exception as e:
+            logger.error(f"Error extracting entities: {e}")
         
         # Create episode in Graphiti and add entities/relationships
         graphiti_result = {}
@@ -198,9 +191,11 @@ class IngestionService:
                         "failed_chunks": failures,
                         "skipped_chunks": skipped_chunks,
                         "keywords": combined_metadata.get("keywords", [])
-                    }
+                    },
+                    scope=scope,
+                    owner_id=owner_id
                 )
-                logger.info(f"Created episode in Graphiti: {graphiti_result.get('episode_id')}")
+                logger.info(f"Created episode in Graphiti: {graphiti_result.get('episode_id')} with scope {scope}")
                 
                 # 2. Process entities if we have any
                 if extraction_results["entities"]:
@@ -228,7 +223,9 @@ class IngestionService:
                                 "source_file": file_path,
                                 "label": entity["label"],
                                 "user_id": user_id,
-                                "context": entity["context"][:255] if "context" in entity else ""
+                                "context": entity["context"][:255] if "context" in entity else "",
+                                "scope": scope,
+                                "owner_id": owner_id
                             }
                             
                             # Add the appropriate name/title property based on entity type
@@ -239,7 +236,9 @@ class IngestionService:
                             
                             entity_id = await self.graphiti_service.create_entity(
                                 entity_type=entity_type,
-                                properties=entity_properties
+                                properties=entity_properties,
+                                scope=scope,
+                                owner_id=owner_id
                             )
                             
                             # Remember this entity has been registered
@@ -249,7 +248,9 @@ class IngestionService:
                             entity_results.append({
                                 "entity_id": entity_id,
                                 "text": entity_text,
-                                "type": entity_type
+                                "type": entity_type,
+                                "scope": scope,
+                                "owner_id": owner_id
                             })
                         except Exception as e:
                             logger.error(f"Error creating entity in Graphiti: {e}")
@@ -285,8 +286,12 @@ class IngestionService:
                                         properties={
                                             "context": rel["context"][:255] if "context" in rel else "",
                                             "source_file": file_path,
-                                            "user_id": user_id
-                                        }
+                                            "user_id": user_id,
+                                            "scope": scope,
+                                            "owner_id": owner_id
+                                        },
+                                        scope=scope,
+                                        owner_id=owner_id
                                     )
                                     
                                     processed_rels.add(rel_key)
@@ -295,7 +300,9 @@ class IngestionService:
                                         "relationship_id": rel_id,
                                         "source": source_text,
                                         "target": target_text,
-                                        "type": rel_type
+                                        "type": rel_type,
+                                        "scope": scope,
+                                        "owner_id": owner_id
                                     })
                                 except Exception as e:
                                     logger.error(f"Error creating relationship in Graphiti: {e}")
@@ -328,29 +335,35 @@ class IngestionService:
             "relationships": {
                 "count": len(relationship_results),
                 "created": relationship_results
-            }
+            },
+            "scope": scope,
+            "owner_id": owner_id
         }
     
     async def process_directory(
         self, 
+        user_id: str,
         directory: Optional[str] = None, 
-        user_id: str = "system"
+        scope: ContentScope = "user",
+        owner_id: str = None
     ) -> Dict[str, Any]:
         """Process all files in a directory.
         
         Args:
-            directory: Optional subdirectory to process (relative to data dir)
             user_id: User ID to associate with the content
+            directory: Optional subdirectory to process (relative to data dir)
+            scope: Content scope ("user", "twin", or "global")
+            owner_id: ID of the owner (user or twin ID, or None for global)
             
         Returns:
             Processing summary
         """
-        logger.info(f"Processing directory: {directory or 'data'} for user: {user_id}")
+        logger.info(f"Processing directory: {directory or 'data'} for user: {user_id}, scope: {scope}")
         
         # List files
         files = self.file_service.list_files(directory)
         
-        # Filter for supported files
+        # Filter for supported
         supported_files = [f for f in files if f.get("supported", False)]
         logger.info(f"Found {len(supported_files)} supported files out of {len(files)} total")
         
@@ -374,7 +387,12 @@ class IngestionService:
                 
             try:
                 logger.info(f"Processing file {index+1}/{len(supported_files)}: {file_path}")
-                result = await self.process_file(file_path, user_id)
+                result = await self.process_file(
+                    file_path, 
+                    user_id, 
+                    scope=scope, 
+                    owner_id=owner_id
+                )
                 
                 # Track status counts
                 if result.get("status") == "success":
@@ -396,15 +414,18 @@ class IngestionService:
                 results.append({"status": "error", "file": file_path, "error": str(e)})
                 error_count += 1
         
-        # Summarize results
+        # Return summary
         return {
             "status": "completed",
+            "directory": directory or "data",
             "total_files": len(supported_files),
             "successful": success_count,
-            "partial": partial_count,
             "skipped": skipped_count,
             "failed": error_count,
-            "entities_created": entity_count,
-            "relationships_created": relationship_count,
-            "results": results
+            "partial": partial_count,
+            "entities": entity_count,
+            "relationships": relationship_count,
+            "results": results,
+            "scope": scope,
+            "owner_id": owner_id
         } 

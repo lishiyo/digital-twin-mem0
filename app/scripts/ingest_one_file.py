@@ -25,21 +25,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def ingest_file(file_path: str, user_id: str = "test-user"):
+async def ingest_file(file_path: str, user_id: str = "test-user", scope: str = "user", owner_id: str = None):
     """Ingest a single file.
     
     Args:
         file_path: Path to the file (relative to data directory)
         user_id: User ID to associate with the content
+        scope: Content scope ("user", "twin", or "global")
+        owner_id: ID of the owner (user or twin ID, or None for global)
     """
     # Initialize services
     ingestion_service = IngestionService()
     memory_service = MemoryService()
     graphiti_service = GraphitiService()
     
+    # For user scope, the owner_id should be the user_id if not explicitly provided
+    if scope == "user" and owner_id is None:
+        owner_id = user_id
+    
     # Process the file
-    logger.info(f"Processing file: {file_path}")
-    result = await ingestion_service.process_file(file_path, user_id)
+    logger.info(f"Processing file: {file_path} with scope: {scope}, owner_id: {owner_id}")
+    result = await ingestion_service.process_file(file_path, user_id, scope=scope, owner_id=owner_id)
     
     # Log basic processing results
     logger.info(f"Processing status: {result.get('status')}")
@@ -113,7 +119,10 @@ if __name__ == "__main__":
         file_path = "5 Things A Day.md"
     
     user_id = f"ingest-test-{Path(file_path).stem.replace(' ', '_')}"
-    result = asyncio.run(ingest_file(file_path, user_id))
+    scope = "user"  # Default scope
+    owner_id = user_id  # For user scope, owner_id is the user_id
+    
+    result = asyncio.run(ingest_file(file_path, user_id, scope=scope, owner_id=owner_id))
     
     # Print summary
     logger.info("-" * 60)
@@ -125,8 +134,12 @@ if __name__ == "__main__":
         logger.info(f"  Stored in Mem0: {result.get('stored_chunks')}")
         logger.info(f"  Entities extracted: {result.get('entities', {}).get('count', 0)}")
         logger.info(f"  Relationships created: {result.get('relationships', {}).get('count', 0)}")
+        logger.info(f"  Scope: {result.get('scope')}")
+        logger.info(f"  Owner ID: {result.get('owner_id')}")
     elif result.get("status") == "partial":
         logger.info("⚠️ File ingestion partially successful!")
+        logger.info(f"  Scope: {result.get('scope')}")
+        logger.info(f"  Owner ID: {result.get('owner_id')}")
     else:
         logger.error("❌ File ingestion failed!")
         logger.error(f"  Error: {result.get('error', 'Unknown error')}")

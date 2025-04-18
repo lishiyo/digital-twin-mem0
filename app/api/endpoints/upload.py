@@ -39,6 +39,7 @@ async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...), 
     async_processing: bool = Form(True),
+    scope: str = Form("user"),
     current_user: dict = Depends(get_current_user_or_mock)  # Use the optional auth
 ):
     """
@@ -47,6 +48,7 @@ async def upload_file(
     Args:
         file: The file to upload
         async_processing: Whether to process the file asynchronously (default: True)
+        scope: Content scope ("user", "twin", or "global", default: "user")
         current_user: Current authenticated user or mock user for development
         
     Returns:
@@ -114,7 +116,7 @@ async def upload_file(
         # Process file
         if async_processing:
             # Launch Celery task for processing
-            task = process_file.delay(rel_file_path, user_id)
+            task = process_file.delay(rel_file_path, user_id, scope=scope, owner_id=user_id if scope == "user" else None)
             
             return {
                 "status": "accepted",
@@ -128,6 +130,7 @@ async def upload_file(
                 },
                 "task_id": task.id,
                 "user_id": user_id,
+                "scope": scope,
             }
         else:
             # Run synchronously in request
@@ -136,7 +139,9 @@ async def upload_file(
             background_tasks.add_task(
                 process_file,
                 rel_file_path,
-                user_id
+                user_id,
+                scope=scope,
+                owner_id=user_id if scope == "user" else None
             )
             
             return {
@@ -150,6 +155,7 @@ async def upload_file(
                     "content_type": file.content_type,
                 },
                 "user_id": user_id,
+                "scope": scope,
             }
             
     except HTTPException:
@@ -164,6 +170,7 @@ async def upload_file(
 async def upload_files(
     files: List[UploadFile] = File(...),
     async_processing: bool = Form(True),
+    scope: str = Form("user"),
     current_user: dict = Depends(get_current_user_or_mock)
 ):
     """
@@ -172,6 +179,7 @@ async def upload_files(
     Args:
         files: List of files to upload
         async_processing: Whether to process the files asynchronously (default: True)
+        scope: Content scope ("user", "twin", or "global", default: "user")
         current_user: Current authenticated user or mock user for development
         
     Returns:
@@ -192,6 +200,7 @@ async def upload_files(
                 background_tasks=BackgroundTasks(),
                 file=file,
                 async_processing=async_processing,
+                scope=scope,
                 current_user=current_user
             )
             results.append(result)
@@ -276,6 +285,7 @@ async def get_task_status(
 async def trigger_directory_processing(
     directory: Optional[str] = Form(None),
     async_processing: bool = Form(True),
+    scope: str = Form("user"),
     current_user: dict = Depends(get_current_user_or_mock)
 ):
     """
@@ -284,6 +294,7 @@ async def trigger_directory_processing(
     Args:
         directory: Optional subdirectory to process (relative to data dir)
         async_processing: Whether to process the directory asynchronously (default: True)
+        scope: Content scope ("user", "twin", or "global", default: "user")
         current_user: Current authenticated user or mock user for development
         
     Returns:
@@ -295,27 +306,36 @@ async def trigger_directory_processing(
     try:
         if async_processing:
             # Launch Celery task
-            task = process_directory.delay(directory, user_id)
+            task = process_directory.delay(
+                user_id,
+                directory,
+                scope=scope,
+                owner_id=user_id if scope == "user" else None
+            )
             
             return {
                 "status": "accepted",
                 "message": f"Directory processing queued: {directory or 'data'}",
                 "task_id": task.id,
                 "user_id": user_id,
+                "scope": scope,
             }
         else:
             # Directly process directory
             background_tasks = BackgroundTasks()
             background_tasks.add_task(
                 process_directory,
+                user_id,
                 directory,
-                user_id
+                scope=scope,
+                owner_id=user_id if scope == "user" else None
             )
             
             return {
                 "status": "processing",
                 "message": f"Directory processing started: {directory or 'data'}",
                 "user_id": user_id,
+                "scope": scope,
             }
     except Exception as e:
         logger.error(f"Error triggering directory processing: {e}")

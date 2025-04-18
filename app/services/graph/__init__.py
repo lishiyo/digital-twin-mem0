@@ -1,6 +1,6 @@
 """Graphiti service for knowledge graph operations."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 from datetime import datetime, timezone, timedelta
 import json
 import uuid
@@ -12,6 +12,10 @@ from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from app.core.config import settings
+
+
+# Define content scope types
+ContentScope = Literal["user", "twin", "global"]
 
 
 class GraphitiService:
@@ -81,7 +85,8 @@ class GraphitiService:
             raise
 
     async def add_episode(
-        self, content: str, user_id: str, metadata: dict[str, Any] | None = None
+        self, content: str, user_id: str, metadata: dict[str, Any] | None = None,
+        scope: ContentScope = "user", owner_id: str = None
     ) -> dict[str, Any]:
         """Add an episode to the knowledge graph.
 
@@ -89,6 +94,8 @@ class GraphitiService:
             content: The content of the episode
             user_id: The user ID associated with the episode
             metadata: Optional metadata for the episode
+            scope: The scope of the episode ("user", "twin", or "global")
+            owner_id: The ID of the owner (user or twin ID, or None for global)
 
         Returns:
             Dictionary with episode information
@@ -100,9 +107,13 @@ class GraphitiService:
         # Add user_id to metadata
         metadata["user_id"] = user_id
         
+        # Add scope and owner_id to metadata
+        metadata["scope"] = scope
+        metadata["owner_id"] = owner_id if owner_id else user_id if scope == "user" else None
+        
         # Prepare name for the episode (include metadata info in the name)
-        meta_info = "-".join(f"{k}_{v}" for k, v in metadata.items() if k != "user_id")
-        episode_name = f"Episode-{user_id}-{meta_info}-{datetime.now(timezone.utc).isoformat()}"
+        meta_info = "-".join(f"{k}_{v}" for k, v in metadata.items() if k != "user_id" and k != "scope" and k != "owner_id")
+        episode_name = f"Episode-{scope}-{metadata['owner_id'] or 'global'}-{meta_info}-{datetime.now(timezone.utc).isoformat()}"
         
         try:
             # Add episode to Graphiti using the client
@@ -111,7 +122,7 @@ class GraphitiService:
                 name=episode_name,
                 episode_body=content,
                 source=EpisodeType.text,
-                source_description=f"User content from {user_id}",
+                source_description=f"{scope.capitalize()} content from {metadata['owner_id'] or 'global'}",
                 reference_time=datetime.now(timezone.utc)
             )
             
@@ -135,15 +146,26 @@ class GraphitiService:
             if not episode_id:
                 episode_id = str(uuid.uuid4())
                 
-            return {"episode_id": episode_id, "user_id": user_id}
+            return {
+                "episode_id": episode_id, 
+                "user_id": user_id,
+                "scope": scope,
+                "owner_id": metadata["owner_id"]
+            }
             
         except Exception as e:
             print(f"Error adding episode to Graphiti: {str(e)}")
             # For testing purposes, generate a mock ID
-            return {"episode_id": str(uuid.uuid4()), "user_id": user_id}
+            return {
+                "episode_id": str(uuid.uuid4()), 
+                "user_id": user_id,
+                "scope": scope,
+                "owner_id": owner_id
+            }
 
     async def search(self, query: str, user_id: str = None, limit: int = 5, 
-                    center_node_uuid: str = None) -> list[dict[str, Any]]:
+                    center_node_uuid: str = None, scope: ContentScope = None,
+                    owner_id: str = None) -> list[dict[str, Any]]:
         """Search the knowledge graph.
 
         Args:
@@ -151,21 +173,30 @@ class GraphitiService:
             user_id: Optional user ID to filter results by
             limit: Maximum number of results to return
             center_node_uuid: Optional UUID of node to use as center for reranking
+            scope: Optional scope to filter by ("user", "twin", or "global")
+            owner_id: Optional owner ID to filter by (user or twin ID)
 
         Returns:
             List of search results
         """
         try:
-            # Based on the Graphiti quickstart example, search only takes the query parameter
-            # and optionally center_node_uuid
-            # https://github.com/getzep/graphiti/blob/main/examples/quickstart/quickstart.py
-            
             # Start with the basic query
             search_query = query
             
-            # If we need to filter by user_id, add it to the query string
+            # Add filters if provided
             if user_id:
                 search_query = f"{search_query} user_id:{user_id}"
+            
+            if scope:
+                search_query = f"{search_query} scope:{scope}"
+            
+            if owner_id:
+                search_query = f"{search_query} owner_id:{owner_id}"
+                
+            # If searching for a specific user's content without a scope specified,
+            # include both user-scoped content owned by the user and global content
+            if user_id and not scope:
+                search_query = f"({search_query}) OR (scope:global)"
                 
             # Execute the search with the correct parameters
             if center_node_uuid:
@@ -194,6 +225,8 @@ class GraphitiService:
                     "score": result.score if hasattr(result, "score") else None,
                     "valid_from": result.valid_at if hasattr(result, "valid_at") else None,
                     "valid_to": result.invalid_at if hasattr(result, "invalid_at") else None,
+                    "scope": result.scope if hasattr(result, "scope") else None,
+                    "owner_id": result.owner_id if hasattr(result, "owner_id") else None,
                 }
                 formatted_results.append(formatted_result)
                 count += 1
@@ -208,16 +241,85 @@ class GraphitiService:
                     "uuid": str(uuid.uuid4()),
                     "fact": f"Mock result for query: {query}",
                     "score": 0.95,
-                    "metadata": {"user_id": user_id}
+                    "metadata": {"user_id": user_id},
+                    "scope": scope or "user",
+                    "owner_id": owner_id or user_id
+                }
+            ]
+
+    async def get_accessible_content(self, user_id: str, query: str = None, limit: int = 10) -> list[dict[str, Any]]:
+        """Get all content accessible to a user (personal + global).
+        
+        Args:
+            user_id: The user ID to get accessible content for
+            query: Optional search query to filter results
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of accessible content items
+        """
+        try:
+            # Build the search query
+            search_query = ""
+            if query:
+                search_query = f"{query} "
+                
+            # Add scope filters: ((scope:user AND owner_id:user_id) OR (scope:global))
+            search_query = f"{search_query}((scope:user AND owner_id:{user_id}) OR (scope:global))"
+            
+            # Execute the search
+            search_results = await self.client.search(query=search_query)
+            
+            # Process results
+            formatted_results = []
+            count = 0
+            for result in search_results:
+                if count >= limit:
+                    break
+                    
+                formatted_result = {
+                    "uuid": result.uuid if hasattr(result, "uuid") else None,
+                    "fact": result.fact if hasattr(result, "fact") else None,
+                    "score": result.score if hasattr(result, "score") else None,
+                    "scope": result.scope if hasattr(result, "scope") else None,
+                    "owner_id": result.owner_id if hasattr(result, "owner_id") else None,
+                }
+                formatted_results.append(formatted_result)
+                count += 1
+                
+            return formatted_results
+            
+        except Exception as e:
+            print(f"Error getting accessible content: {str(e)}")
+            # For testing purposes, return mock results
+            return [
+                {
+                    "uuid": str(uuid.uuid4()),
+                    "fact": f"Mock personal result for user: {user_id}",
+                    "score": 0.95,
+                    "scope": "user",
+                    "owner_id": user_id
+                },
+                {
+                    "uuid": str(uuid.uuid4()),
+                    "fact": "Mock global knowledge result",
+                    "score": 0.85,
+                    "scope": "global",
+                    "owner_id": None
                 }
             ]
             
-    async def node_search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    async def node_search(self, query: str, limit: int = 5, 
+                         scope: ContentScope = None, owner_id: str = None,
+                         user_id: str = None) -> list[dict[str, Any]]:
         """Search for nodes in the knowledge graph.
         
         Args:
             query: The search query
             limit: Maximum number of results to return
+            scope: Optional scope to filter by ("user", "twin", or "global")
+            owner_id: Optional owner ID to filter by
+            user_id: Optional user ID to filter by (for backward compatibility)
             
         Returns:
             List of node search results
@@ -227,9 +329,23 @@ class GraphitiService:
             node_search_config = NODE_HYBRID_SEARCH_RRF.model_copy(deep=True)
             node_search_config.limit = limit
             
+            # Build a more complex query with scope and owner filters if provided
+            search_query = query
+            
+            if scope:
+                search_query = f"{search_query} scope:{scope}"
+                
+            if owner_id:
+                search_query = f"{search_query} owner_id:{owner_id}"
+                
+            if user_id and not owner_id and not scope:
+                # For backward compatibility - if only user_id is provided, search for
+                # user's personal content and global content
+                search_query = f"{search_query} ((scope:user AND owner_id:{user_id}) OR (scope:global))"
+            
             # Execute the node search
             search_results = await self.client._search(
-                query=query,
+                query=search_query,
                 config=node_search_config,
             )
             
@@ -242,6 +358,8 @@ class GraphitiService:
                     "summary": node.summary,
                     "labels": node.labels,
                     "created_at": node.created_at,
+                    "scope": getattr(node, "scope", None),
+                    "owner_id": getattr(node, "owner_id", None),
                 }
                 
                 if hasattr(node, "attributes") and node.attributes:
@@ -260,22 +378,36 @@ class GraphitiService:
                     "name": f"Mock node for {query}",
                     "summary": f"This is a mock node result for the query: {query}",
                     "labels": ["MockNode"],
-                    "created_at": datetime.now(timezone.utc).isoformat()
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "scope": scope or "user",
+                    "owner_id": owner_id or user_id
                 }
             ]
     
     async def create_entity(self, entity_type: str, properties: dict[str, Any], 
-                           transaction_id: str | None = None) -> str:
+                           transaction_id: str | None = None,
+                           scope: ContentScope = "user", owner_id: str = None) -> str:
         """Create a new entity in the knowledge graph.
         
         Args:
             entity_type: The type of entity to create
             properties: The properties of the entity
             transaction_id: Optional transaction ID for data consistency
+            scope: Content scope ("user", "twin", or "global")
+            owner_id: ID of the owner (user or twin ID, or None for global)
             
         Returns:
             The ID of the created entity
         """
+        # Add scope and owner_id to properties
+        if "scope" not in properties:
+            properties["scope"] = scope
+            
+        if "owner_id" not in properties:
+            properties["owner_id"] = owner_id or (
+                properties.get("user_id") if scope == "user" else None
+            )
+        
         # Validate entity schema
         self._validate_entity_schema(entity_type, properties)
         
@@ -363,7 +495,8 @@ class GraphitiService:
     
     async def create_relationship(self, source_id: str, target_id: str, rel_type: str,
                                  properties: dict[str, Any] | None = None,
-                                 transaction_id: str | None = None) -> str:
+                                 transaction_id: str | None = None,
+                                 scope: ContentScope = None, owner_id: str = None) -> str:
         """Create a relationship between two entities.
         
         Args:
@@ -372,12 +505,24 @@ class GraphitiService:
             rel_type: The type of relationship
             properties: Optional properties for the relationship
             transaction_id: Optional transaction ID for data consistency
+            scope: Optional content scope for the relationship
+            owner_id: Optional owner ID for the relationship
             
         Returns:
             The ID of the created relationship
         """
         if properties is None:
             properties = {}
+            
+        # Add scope and owner_id to properties if provided
+        if scope:
+            properties["scope"] = scope
+            
+        if owner_id:
+            properties["owner_id"] = owner_id
+        elif "user_id" in properties and scope == "user":
+            # If scope is user and we have user_id, use it as owner_id
+            properties["owner_id"] = properties["user_id"]
             
         # Add temporal metadata (valid from now)
         properties["valid_from"] = datetime.now(timezone.utc).isoformat()
@@ -553,83 +698,83 @@ class GraphitiService:
         schemas = {
             "Person": {
                 "required": ["name"],
-                "optional": ["age", "email", "location", "source_file", "label", "user_id", "context"]
+                "optional": ["age", "email", "location", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Organization": {
                 "required": ["name"],
-                "optional": ["industry", "founded", "location", "source_file", "label", "user_id", "context"]
+                "optional": ["industry", "founded", "location", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Document": {
                 "required": [],  # Modified to allow documents without title
-                "optional": ["title", "content", "author", "created_at", "tags", "source_file", "label", "user_id", "context"]
+                "optional": ["title", "content", "author", "created_at", "tags", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Proposal": {
                 "required": ["title", "description"],
-                "optional": ["author", "created_at", "deadline", "status", "source_file", "label", "user_id", "context"]
+                "optional": ["author", "created_at", "deadline", "status", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Vote": {
                 "required": ["value", "proposal_id"],
-                "optional": ["voter_id", "timestamp", "weight", "source_file", "label", "user_id", "context"]
+                "optional": ["voter_id", "timestamp", "weight", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Location": {
                 "required": ["name"],
-                "optional": ["country", "city", "address", "source_file", "label", "user_id", "context"]
+                "optional": ["country", "city", "address", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Event": {
                 "required": ["name"],
-                "optional": ["date", "location", "description", "source_file", "label", "user_id", "context"]
+                "optional": ["date", "location", "description", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Date": {
                 "required": ["name"],
-                "optional": ["date", "source_file", "label", "user_id", "context"]
+                "optional": ["date", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Time": {
                 "required": ["name"],
-                "optional": ["time", "source_file", "label", "user_id", "context"]
+                "optional": ["time", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Money": {
                 "required": ["name"],
-                "optional": ["amount", "currency", "source_file", "label", "user_id", "context"]
+                "optional": ["amount", "currency", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Percent": {
                 "required": ["name"],
-                "optional": ["value", "source_file", "label", "user_id", "context"]
+                "optional": ["value", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Group": {
                 "required": ["name"],
-                "optional": ["members", "description", "source_file", "label", "user_id", "context"]
+                "optional": ["members", "description", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Facility": {
                 "required": ["name"],
-                "optional": ["location", "type", "source_file", "label", "user_id", "context"]
+                "optional": ["location", "type", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Legal": {
                 "required": ["name"],
-                "optional": ["jurisdiction", "date", "source_file", "label", "user_id", "context"]
+                "optional": ["jurisdiction", "date", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Language": {
                 "required": ["name"],
-                "optional": ["region", "family", "source_file", "label", "user_id", "context"]
+                "optional": ["region", "family", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Ordinal": {
                 "required": ["name"],
-                "optional": ["value", "source_file", "label", "user_id", "context"]
+                "optional": ["value", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Cardinal": {
                 "required": ["name"],
-                "optional": ["value", "source_file", "label", "user_id", "context"]
+                "optional": ["value", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Quantity": {
                 "required": ["name"],
-                "optional": ["value", "unit", "source_file", "label", "user_id", "context"]
+                "optional": ["value", "unit", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Product": {
                 "required": ["name"],
-                "optional": ["manufacturer", "price", "source_file", "label", "user_id", "context"]
+                "optional": ["manufacturer", "price", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Unknown": {
                 "required": ["name"],
-                "optional": ["source_file", "label", "user_id", "context"]
+                "optional": ["source_file", "label", "user_id", "context", "scope", "owner_id"]
             }
         }
         

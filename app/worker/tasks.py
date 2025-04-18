@@ -13,17 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="process_file")
-def process_file(file_path: str, user_id: str) -> dict:
+def process_file(file_path: str, user_id: str, scope: str = "user", owner_id: str = None) -> dict:
     """Process an uploaded file and store in Mem0.
     
     Args:
         file_path: Path to the file (relative to data directory)
         user_id: User ID to associate with the content
+        scope: Content scope ("user", "twin", or "global")
+        owner_id: ID of the owner (user or twin ID, or None for global)
         
     Returns:
         Processing results
     """
-    logger.info(f"Processing file: {file_path} for user: {user_id}")
+    logger.info(f"Processing file: {file_path} for user: {user_id}, scope: {scope}")
     
     # We need to run our async code in a synchronous context
     ingestion_service = IngestionService()
@@ -39,7 +41,12 @@ def process_file(file_path: str, user_id: str) -> dict:
     # Process the file
     try:
         result = loop.run_until_complete(
-            ingestion_service.process_file(file_path, user_id)
+            ingestion_service.process_file(
+                file_path, 
+                user_id,
+                scope=scope,
+                owner_id=owner_id
+            )
         )
         return result
     except Exception as e:
@@ -48,17 +55,24 @@ def process_file(file_path: str, user_id: str) -> dict:
 
 
 @celery_app.task(name="process_directory")
-def process_directory(directory: Optional[str] = None, user_id: str = "system") -> dict:
+def process_directory(
+    user_id: str,
+    directory: Optional[str] = None, 
+    scope: str = "user",
+    owner_id: str = None
+) -> dict:
     """Process all files in a directory.
     
     Args:
-        directory: Optional subdirectory to process (relative to data dir)
         user_id: User ID to associate with the content
+        directory: Optional subdirectory to process (relative to data dir)
+        scope: Content scope ("user", "twin", or "global")
+        owner_id: ID of the owner (user or twin ID, or None for global)
         
     Returns:
         Processing summary
     """
-    logger.info(f"Processing directory: {directory or 'data'} for user: {user_id}")
+    logger.info(f"Processing directory: {directory or 'data'} for user: {user_id}, scope: {scope}")
     
     # We need to run our async code in a synchronous context
     ingestion_service = IngestionService()
@@ -74,7 +88,12 @@ def process_directory(directory: Optional[str] = None, user_id: str = "system") 
     # Process the directory
     try:
         result = loop.run_until_complete(
-            ingestion_service.process_directory(directory, user_id)
+            ingestion_service.process_directory(
+                user_id,
+                directory, 
+                scope=scope, 
+                owner_id=owner_id
+            )
         )
         return result
     except Exception as e:
