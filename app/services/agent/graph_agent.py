@@ -264,7 +264,7 @@ class TwinAgent:
                     relevance_str = f"{similarity:.2f}" if similarity is not None else "N/A"
                     
                     # Use a reasonable preview length - longer than before
-                    preview_length = 300
+                    preview_length = 1000
                     content_preview = content
                     if len(content) > preview_length:
                         content_preview = content[:preview_length] + "..."
@@ -302,7 +302,7 @@ class TwinAgent:
             
             state_obj.merged_context = merged_context
             logger.info("Successfully merged context from different sources")
-            logger.info(f"Final merged context:\n{merged_context}")
+            # logger.info(f"Final merged context:\n{merged_context}") # already logged in _generate_response
             
         except Exception as e:
             state_obj.error = f"Context merging error: {str(e)}"

@@ -10,12 +10,10 @@ import logging
 from app.api.deps import get_current_user, get_db, security
 from app.services.memory import MemoryService
 from app.services.graph import GraphitiService
+from app.core.constants import DEFAULT_USER
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Mock user for development/testing
-MOCK_USER = {"id": "dev-user-for-testing", "name": "Dev User"}
 
 # Optional security scheme that doesn't raise an error for missing credentials
 optional_security = HTTPBearer(auto_error=False)
@@ -31,11 +29,11 @@ async def get_current_user_or_mock(
         except HTTPException:
             # Fall back to mock user if authentication fails
             logger.warning("Authentication failed, using mock user")
-            return MOCK_USER
+            return DEFAULT_USER
     
     # No credentials provided, use mock user
     logger.warning("No authentication provided, using mock user")
-    return MOCK_USER
+    return DEFAULT_USER
 
 
 @router.get("")
@@ -57,7 +55,7 @@ async def search_content(
     - Or both combined
     """
     if not user_id:
-        user_id = current_user.get("id", "dev-user-for-testing")
+        user_id = current_user.get("id", DEFAULT_USER["id"])
     
     results = {}
     errors = []
@@ -129,7 +127,7 @@ async def list_ingested_documents(
     including metadata like titles, timestamps, and entity counts.
     """
     if not user_id:
-        user_id = current_user.get("id", "dev-user-for-testing")
+        user_id = current_user.get("id", DEFAULT_USER["id"])
     
     # Create mock data if requested
     if use_mock:

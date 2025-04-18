@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.core.config import settings
+from app.core.constants import DEFAULT_USER_ID
 from app.services.ingestion import IngestionService
 from app.services.memory import MemoryService
 from app.services.graph import GraphitiService
@@ -34,7 +35,7 @@ else:
     logger.warning("GEMINI_API_KEY not found in settings, will fall back to spaCy")
 
 
-async def ingest_file(file_path: str, user_id: str = "test-user", scope: str = "user", owner_id: str = None):
+async def ingest_file(file_path: str, user_id: str = DEFAULT_USER_ID, scope: str = "user", owner_id: str = None):
     """Ingest a single file.
     
     Args:
@@ -127,9 +128,10 @@ if __name__ == "__main__":
         # Default to a small Markdown file
         file_path = "5 Things A Day.md"
     
-    user_id = f"ingest-test-{Path(file_path).stem.replace(' ', '_')}"
-    scope = "user"  # Default scope
-    owner_id = user_id  # For user scope, owner_id is the user_id
+    # Always use the same DEFAULT_USER_ID for consistency with API endpoints
+    user_id = DEFAULT_USER_ID
+    scope = "user"
+    owner_id = user_id
     
     result = asyncio.run(ingest_file(file_path, user_id, scope=scope, owner_id=owner_id))
     

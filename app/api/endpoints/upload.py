@@ -9,15 +9,13 @@ from fastapi.responses import JSONResponse
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.constants import DEFAULT_USER
 from app.worker.tasks import process_file, process_directory
 from app.services.ingestion import FileService
 from app.services.ingestion.file_service import SUPPORTED_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Create a mock user for development/testing
-MOCK_USER = {"sub": "dev-user-for-testing", "name": "Dev User"}
 
 # Optional auth dependency for development
 def get_optional_user(current_user: dict = Depends(get_current_user)):
@@ -31,7 +29,7 @@ async def get_current_user_or_mock():
     # For now, just return the mock user directly without trying authentication
     # Remove this bypass and implement proper auth for production
     logger.warning("⚠️ AUTH BYPASSED - Using mock user - FOR DEVELOPMENT ONLY")
-    return MOCK_USER
+    return DEFAULT_USER
 
 
 @router.post("")
@@ -55,7 +53,7 @@ async def upload_file(
         Upload result with file info and task ID if async
     """
     # Get user ID from authenticated user
-    user_id = current_user.get("sub", "anonymous")
+    user_id = current_user.get("id", DEFAULT_USER["id"])
     
     # Initialize file service
     file_service = FileService()
@@ -189,7 +187,7 @@ async def upload_files(
         raise HTTPException(status_code=400, detail="No files provided")
     
     # Get user ID from authenticated user
-    user_id = current_user.get("sub", "anonymous")
+    user_id = current_user.get("id", DEFAULT_USER["id"])
     
     # Process each file
     results = []
@@ -301,7 +299,7 @@ async def trigger_directory_processing(
         Processing task details
     """
     # Get user ID from authenticated user
-    user_id = current_user.get("sub", "anonymous")
+    user_id = current_user.get("id", DEFAULT_USER["id"])
     
     try:
         if async_processing:

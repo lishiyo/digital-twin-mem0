@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.api.deps import get_current_user, get_db, security
 from app.services.agent.graph_agent import TwinAgent
 from app.core.config import settings
+from app.core.constants import DEFAULT_USER
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,9 +19,6 @@ router = APIRouter()
 # Model for the chat request
 class ChatRequest(BaseModel):
     message: str
-
-# Mock user for development/testing
-MOCK_USER = {"id": "dev-user-for-testing", "name": "Dev User"}
 
 # Optional security scheme that doesn't raise an error for missing credentials
 optional_security = HTTPBearer(auto_error=False)
@@ -36,11 +34,11 @@ async def get_current_user_or_mock(
         except HTTPException:
             # Fall back to mock user if authentication fails
             logger.warning("Authentication failed, using mock user")
-            return MOCK_USER
+            return DEFAULT_USER
     
     # No credentials provided, use mock user
     logger.warning("No authentication provided, using mock user")
-    return MOCK_USER
+    return DEFAULT_USER
 
 
 @router.post("")
@@ -58,7 +56,7 @@ async def chat_with_twin(
     to inform its responses.
     """
     if not user_id:
-        user_id = current_user.get("id", "dev-user-for-testing")
+        user_id = current_user.get("id", DEFAULT_USER["id"])
     
     try:
         # Initialize the agent
@@ -101,7 +99,7 @@ async def stream_chat_with_twin(
     # Will be implemented in the next task (Task 9: Chat Streaming)
     
     if not user_id:
-        user_id = current_user.get("id", "dev-user-for-testing")
+        user_id = current_user.get("id", DEFAULT_USER["id"])
     
     # For now, just use the regular chat and return a non-streaming response
     try:

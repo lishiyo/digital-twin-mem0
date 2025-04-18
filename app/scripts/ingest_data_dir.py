@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services.ingestion import IngestionService
 from app.worker.tasks import process_directory
+from app.core.constants import DEFAULT_USER_ID
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +32,7 @@ def parse_args():
     parser.add_argument(
         "--user-id", 
         type=str, 
-        default="system",
+        default=DEFAULT_USER_ID,
         help="User ID to associate with ingested content"
     )
     parser.add_argument(

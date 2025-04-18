@@ -10,6 +10,7 @@ from functools import wraps
 from mem0 import MemoryClient  # Import MemoryClient instead of Memory
 
 from app.core.config import settings
+from app.core.constants import DEFAULT_USER_ID
 
 logger = logging.getLogger(__name__)
 
@@ -208,9 +209,9 @@ class MemoryService:
                             if "results" in raw_results:
                                 if raw_results["results"] and len(raw_results["results"]) > 0:
                                     first_result = raw_results["results"][0]
-                                    logger.info(f"First result keys: {list(first_result.keys())}")
+                                    # logger.info(f"First result keys: {list(first_result.keys())}")
                                     # Print entire first result for detailed inspection
-                                    logger.info(f"FULL FIRST RESULT: {first_result}")
+                                    # logger.info(f"FULL FIRST RESULT: {first_result}")
                                     # Check for the message structure
                                     if "message" in first_result:
                                         logger.info(f"Message structure: {list(first_result['message'].keys()) if isinstance(first_result['message'], dict) else 'not a dict'}")
@@ -219,9 +220,9 @@ class MemoryService:
                         elif isinstance(raw_results, list) and raw_results:
                             logger.info(f"Mem0 raw results is a list with {len(raw_results)} items")
                             first_result = raw_results[0]
-                            logger.info(f"First result keys: {list(first_result.keys())}")
+                            # logger.info(f"First result keys: {list(first_result.keys())}")
                             # Print entire first result for detailed inspection
-                            logger.info(f"FULL FIRST RESULT: {first_result}")
+                            # logger.info(f"FULL FIRST RESULT: {first_result}")
                         else:
                             logger.info(f"Mem0 raw results type: {type(raw_results)}")
                         
@@ -696,7 +697,7 @@ class MemoryService:
                 # Fallback approach: use a predefined list of test users
                 test_users = [
                     "test-user", 
-                    "dev-user-for-testing", 
+                    DEFAULT_USER_ID, 
                     "anonymous",
                     "system"
                 ]
