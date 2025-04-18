@@ -197,3 +197,57 @@
 - Begin work on Task 7 (PoC: Basic LangGraph Agent).
 - Consider implementing unit tests for GraphitiService.
 - Investigate optimizing OpenAI API usage in Graphiti service. 
+
+## 2025-04-17 21:55 PDT
+
+**Status:**
+- Fixed issue with `clear_all` method in `MemoryService`.
+- Created utility script to clear data from Mem0 and Graphiti for testing.
+- Improved error handling in data clearing operations.
+
+**Commands Run:**
+- Created a cleanup utility script:
+  ```bash
+  # Create the script
+  touch app/scripts/clear_data.py
+  chmod +x app/scripts/clear_data.py
+  
+  # Test the script
+  python app/scripts/clear_data.py --all
+  python app/scripts/clear_data.py --user-id test-user --mem0
+  ```
+- Fixed bug in the Mem0 `clear_all` method:
+  ```python
+  # Updated clear_all method to try delete_users() first and fall back to test users
+  ```
+- Added command-line options to script:
+  ```
+  --mem0           # Clear Mem0 data only
+  --graphiti       # Clear Graphiti data only
+  --all            # Clear data for all users
+  --user-id USER   # Clear data for a specific user
+  --scope SCOPE    # Content scope to clear (user, twin, global)
+  --force          # Skip confirmation prompt
+  ```
+
+**Implementation Details:**
+- Added a new script `app/scripts/clear_data.py` with the following features:
+  - Command-line interface with argparse
+  - Support for clearing Mem0 data, Graphiti data, or both
+  - Options to clear data for all users or specific users
+  - Confirmation prompts for destructive operations
+  - Detailed logging of operations
+  - Error handling for each step
+- Fixed `clear_all` method in `MemoryService` to handle the case where `get_all_users` is not available:
+  - First tries to use `delete_users()` if available
+  - Falls back to deleting specific test users if the method is not available
+  - Provides proper error handling and logging
+
+**Errors & Fixes:**
+- **Missing `get_all_users` function**: Updated `clear_all` method to check for the existence of `delete_users()` and use it if available, otherwise fall back to using a predefined list of test users.
+- **Confirmation prompts**: Added user confirmation for destructive operations to prevent accidental data deletion.
+
+**Next Steps:**
+- Begin work on Task 7 (PoC: Basic LangGraph Agent).
+- Update README with usage instructions for the clear_data script.
+- Add examples for using the memory and graph search APIs. 

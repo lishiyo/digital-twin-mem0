@@ -80,6 +80,66 @@ This project builds a Python backend that:
    python -m app.scripts.ingest_one_file "path/to/file.md"
    ```
 
+5. Clear data for testing (optional)
+   ```
+   # Clear all data from both Mem0 and Graphiti
+   python -m app.scripts.clear_data --all
+
+   # Clear data for a specific user
+   python -m app.scripts.clear_data --user-id user123
+
+   # Clear only Mem0 data
+   python -m app.scripts.clear_data --all --mem0
+
+   # Clear Graphiti data with a specific scope
+   python -m app.scripts.clear_data --user-id user123 --graphiti --scope user
+   ```
+
+## Useful API Commands
+
+### File Upload
+```bash
+# Upload a single file
+curl -X POST http://localhost:8000/api/v1/upload \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@path/to/file.md" \
+  -F "async_processing=true"
+
+# Upload multiple files
+curl -X POST http://localhost:8000/api/v1/upload/batch \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "files=@path/to/file1.md" \
+  -F "files=@path/to/file2.md"
+
+# Process a directory
+curl -X POST http://localhost:8000/api/v1/upload/process-directory \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "directory=documents"
+
+# Check status of an async task
+curl -X GET http://localhost:8000/api/v1/upload/task/{task_id} \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Search
+```bash
+# General search (searches both memory and graph by default)
+curl -X GET "http://localhost:8000/api/v1/search?query=your%20search%20query" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Memory-only search
+curl -X GET "http://localhost:8000/api/v1/search?query=your%20search%20query&search_type=memory" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Graph-only search
+curl -X GET "http://localhost:8000/api/v1/search?query=your%20search%20query&search_type=graph" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# List ingested documents
+curl -X GET "http://localhost:8000/api/v1/search/ingested-documents" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
 ## Project Structure
 
 ```

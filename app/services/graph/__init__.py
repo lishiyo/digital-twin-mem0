@@ -13,6 +13,8 @@ from graphiti_core.nodes import EpisodeType
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from app.core.config import settings
 
+import logging
+logger = logging.getLogger(__name__)
 
 # Define content scope types
 ContentScope = Literal["user", "twin", "global"]
@@ -810,3 +812,89 @@ class GraphitiService:
                 
             if prop not in all_allowed_props:
                 raise ValueError(f"Unknown property '{prop}' for entity type '{entity_type}'")
+
+    async def clear_all(self) -> Dict[str, Any]:
+        """Clear all data from the knowledge graph.
+        
+        Returns:
+            Success status
+        """
+        try:
+            # Create query to delete all nodes and relationships
+            query = """
+            MATCH (n)
+            DETACH DELETE n
+            """
+            
+            # Execute query
+            await self.execute_cypher(query)
+            
+            logger.info("Cleared all data from knowledge graph")
+            return {"success": True, "message": "Cleared all graph data"}
+        except Exception as e:
+            logger.error(f"Error clearing knowledge graph: {e}")
+            return {"error": str(e), "success": False}
+    
+    async def clear_for_user(self, user_id: str, scope: ContentScope = None) -> Dict[str, Any]:
+        """Clear data for a specific user.
+        
+        Args:
+            user_id: The user ID to clear data for
+            scope: Optional content scope to limit deletion to
+            
+        Returns:
+            Success status
+        """
+        try:
+            # Base conditions for matching nodes
+            conditions = ["n.user_id = $user_id"]
+            
+            # Add scope condition if provided
+            if scope:
+                conditions.append("n.scope = $scope")
+            
+            # Join conditions with AND
+            node_conditions = " AND ".join(conditions)
+            
+            # Create query to delete user nodes and relationships
+            query = f"""
+            MATCH (n)
+            WHERE {node_conditions}
+            DETACH DELETE n
+            """
+            
+            # Build parameters
+            params = {"user_id": user_id}
+            if scope:
+                params["scope"] = scope
+            
+            # Execute query
+            await self.execute_cypher(query, params)
+            
+            # Also check for nodes where user is the owner
+            conditions = ["n.owner_id = $user_id"]
+            if scope:
+                conditions.append("n.scope = $scope")
+            
+            node_conditions = " AND ".join(conditions)
+            
+            query = f"""
+            MATCH (n)
+            WHERE {node_conditions}
+            DETACH DELETE n
+            """
+            
+            await self.execute_cypher(query, params)
+            
+            scope_msg = f" with scope '{scope}'" if scope else ""
+            logger.info(f"Cleared graph data for user {user_id}{scope_msg}")
+            
+            return {
+                "success": True, 
+                "message": f"Cleared graph data for user {user_id}{scope_msg}",
+                "user_id": user_id,
+                "scope": scope
+            }
+        except Exception as e:
+            logger.error(f"Error clearing graph data for user {user_id}: {e}")
+            return {"error": str(e), "success": False, "user_id": user_id}

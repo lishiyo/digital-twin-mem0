@@ -187,4 +187,115 @@ Common issues:
 1. **File upload fails with 415 error**: Check if the file type is supported
 2. **File exceeds size limit**: Files must be under 10MB
 3. **Celery task pending indefinitely**: Ensure Redis and Celery worker are running
-4. **File safety check failed**: The file failed security validation (may contain suspicious content) 
+4. **File safety check failed**: The file failed security validation (may contain suspicious content)
+
+## Utility Scripts
+
+### Data Cleanup
+
+The system includes a utility script for clearing data during testing and development:
+
+```bash
+# Location: app/scripts/clear_data.py
+
+# Clear all data from both Mem0 and Graphiti (will prompt for confirmation)
+python -m app.scripts.clear_data --all
+
+# Clear data for a specific user
+python -m app.scripts.clear_data --user-id user123
+
+# Clear only Mem0 data
+python -m app.scripts.clear_data --all --mem0
+
+# Clear only Graphiti data 
+python -m app.scripts.clear_data --all --graphiti
+
+# Clear Graphiti data with a specific scope
+python -m app.scripts.clear_data --user-id user123 --graphiti --scope user
+
+# Skip confirmation prompt (use with caution)
+python -m app.scripts.clear_data --all --force
+```
+
+### File Ingestion
+
+For testing file processing:
+
+```bash
+# Process a single file
+python -m app.scripts.ingest_one_file path/to/file.md
+
+# Default behavior: uses test-user ID and processes synchronously
+```
+
+## API Examples
+
+### File Upload
+
+```bash
+# Upload a single file
+curl -X POST \
+  http://localhost:8000/api/v1/upload \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@/path/to/your/file.txt" \
+  -F "async_processing=true"
+
+# Upload multiple files
+curl -X POST \
+  http://localhost:8000/api/v1/upload/batch \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "files=@/path/to/file1.txt" \
+  -F "files=@/path/to/file2.md"
+
+# Process a directory
+curl -X POST \
+  http://localhost:8000/api/v1/upload/process-directory \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "directory=documents"
+  
+# Check task status
+curl -X GET \
+  http://localhost:8000/api/v1/upload/task/{task_id} \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Search Operations
+
+```bash
+# Unified search (searches both memory and graph)
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=your%20search%20query" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Memory-only search
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=your%20query&search_type=memory&limit=10" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Graph-only search 
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=your%20query&search_type=graph&limit=10" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Use mock results for testing without actual data
+curl -X GET \
+  "http://localhost:8000/api/v1/search?query=test&use_mock=true" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# List all ingested documents
+curl -X GET \
+  "http://localhost:8000/api/v1/search/ingested-documents" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# List documents with limit
+curl -X GET \
+  "http://localhost:8000/api/v1/search/ingested-documents?limit=5" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Coming in Future Updates
+
+Future API endpoints will include:
+- Advanced filtering for search results
+- Digital twin interaction endpoints
+- Proposal and voting endpoints 

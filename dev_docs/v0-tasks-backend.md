@@ -166,6 +166,8 @@ Full Infrastructure + CI/CD
 - [x] Create content classification
 - [x] Create implementation test to verify Mem0 + Graphiti are working (create small fixture document with 1-2 named entities, add the chunk to Mem0, register mentions in Graphiti, search_entities in Graphiti)
 - [x] Implement CDC pipeline for consistency
+- [x] Partition Graphiti by user, twin, and global scope, by adding a tag to all nodes. This lets us separate user vs shared data.
+- [x] Add script to clear all data from Mem0 and Graphiti for ease of testing.
 
 **Testing:**
 - Integration tests across data stores

@@ -622,3 +622,72 @@ class MemoryService:
             
         # Call the regular add method with structured metadata
         return await self.add(content, user_id, metadata, infer=infer)
+
+    async def clear_all(self) -> Dict[str, Any]:
+        """Clear all memories for all users.
+        
+        Returns:
+            Success status
+        """
+        if not self.client:
+            logger.warning(f"Using mock response for clear_all - client unavailable")
+            return {"success": True, "message": "Cleared all memories (mock)"}
+            
+        # Acquire lock to prevent concurrent access issues
+        async with _mem0_lock:
+            try:
+                # First attempt: try to use delete_users() if available
+                if hasattr(self.client, 'delete_users'):
+                    try:
+                        # Convert synchronous call to async
+                        delete_users_func = async_wrap(self.client.delete_users)
+                        result = await delete_users_func()
+                        logger.info(f"Successfully called delete_users()")
+                        return {
+                            "success": True,
+                            "message": "Cleared memories for all users using delete_users()",
+                            "results": result
+                        }
+                    except Exception as e:
+                        logger.warning(f"Error using delete_users(): {e}, falling back to individual user deletion")
+                
+                # Fallback approach: use a predefined list of test users
+                test_users = [
+                    "test-user", 
+                    "dev-user-for-testing", 
+                    "anonymous",
+                    "system"
+                ]
+                
+                results = {}
+                for user_id in test_users:
+                    try:
+                        # Convert synchronous call to async
+                        delete_all_func = async_wrap(self.client.delete_all)
+                        await delete_all_func(user_id=user_id)
+                        logger.info(f"Deleted all memories for user {user_id}")
+                        results[user_id] = {"success": True}
+                    except Exception as e:
+                        logger.error(f"Error deleting memories for user {user_id}: {e}")
+                        results[user_id] = {"success": False, "error": str(e)}
+                
+                return {
+                    "success": True,
+                    "message": f"Cleared memories for {sum(1 for r in results.values() if r.get('success', False))}/{len(results)} users",
+                    "results": results
+                }
+            except Exception as e:
+                logger.error(f"Error clearing all memories: {e}")
+                return {"error": str(e), "success": False}
+    
+    async def clear_for_user(self, user_id: str) -> Dict[str, Any]:
+        """Clear all memories for a specific user.
+        
+        Args:
+            user_id: The user ID to clear memories for
+            
+        Returns:
+            Success status
+        """
+        # This is just a wrapper around delete_all with clearer naming
+        return await self.delete_all(user_id)
