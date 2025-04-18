@@ -94,8 +94,8 @@ async def test_file_ingestion_service():
                 
                 if result["status"] == "success":
                     assert "chunks" in result, "Success result should contain chunks info"
-                    assert "stored_chunks" in result, "Success result should contain stored_chunks info" 
-                    assert "mem0_results" in result, "Success result should contain mem0_results"
+                    assert "count" in result["chunks"], "Chunks should have a count field"
+                    assert "items" in result["chunks"], "Chunks should have an items field"
                     assert "graphiti_result" in result, "Success result should contain graphiti_result"
                 
                 results.append(result)
