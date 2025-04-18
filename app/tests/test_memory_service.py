@@ -30,11 +30,11 @@ async def test_memory_service():
         print(f"Using test user ID: {test_user_id}")
         
         # Test 1: Adding a memory
+        # add_result doesn't return anything
         print("\n=== Test 1: Adding a memory ===")
         add_result = await memory_service.add(
             content="This is a test memory from the test script.",
-            user_id=test_user_id,
-            metadata={"test": True, "source": "test_script"}
+            user_id=test_user_id
         )
         print(f"Add result: {add_result}")
         
@@ -48,7 +48,7 @@ async def test_memory_service():
         # Test 2: Search for memories
         print("\n=== Test 2: Searching for memories ===")
         search_results = await memory_service.search(
-            query="test memory",
+            query="do you have atest memory?",
             user_id=test_user_id,
             limit=5
         )

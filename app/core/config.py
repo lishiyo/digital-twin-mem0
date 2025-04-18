@@ -1,4 +1,5 @@
 from typing import Any
+import os
 
 from pydantic import PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -67,6 +68,9 @@ class Settings(BaseSettings):
     STORAGE_ENDPOINT: str = "https://s3.wasabisys.com"
     STORAGE_ACCESS_KEY: str
     STORAGE_SECRET_KEY: str
+    
+    # File ingestion
+    DATA_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")
 
     # Additional settings that might be in .env
     TELEGRAM_APP_ID: str | None = None
