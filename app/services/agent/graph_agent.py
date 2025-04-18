@@ -80,7 +80,7 @@ class AgentState:
 class TwinAgent:
     """LangGraph-based agent implementing the digital twin."""
     
-    def __init__(self, user_id: str, model_name: str = "gpt-4"):
+    def __init__(self, user_id: str, model_name: str = "gpt-4.1-2025-04-14"):
         """Initialize the twin agent.
         
         Args:
@@ -163,7 +163,7 @@ class TwinAgent:
                 metadata = result.get("metadata", {})
                 source = metadata.get("source_file", metadata.get("source", "unknown"))
                 content_preview = content[:100] + "..." if len(content) > 100 else content
-                logger.info(f"Mem0 result {i+1}: {content_preview} (relevance: {similarity:.2f}, source: {source})")
+                # logger.info(f"Mem0 result {i+1}: {content_preview} (relevance: {similarity:.2f}, source: {source})")
             
             state_obj.mem0_results = processed_results
             
@@ -209,7 +209,7 @@ class TwinAgent:
                 labels = entity.get("labels", [])
                 summary = entity.get("summary", "")
                 labels_str = ", ".join(labels) if labels else ""
-                logger.info(f"Entity {i+1}: {name} ({labels_str}): {summary}")
+                # logger.info(f"Entity {i+1}: {name} ({labels_str}): {summary}")
             
             # Log detailed graph facts
             logger.info(f"Retrieved {len(graph_results)} graph facts from Graphiti")
@@ -217,7 +217,7 @@ class TwinAgent:
                 fact_text = fact.get("fact", "")
                 score = fact.get("score", 0)
                 safe_score = 0.0 if score is None else score
-                logger.info(f"Fact {i+1}: {fact_text} (confidence: {safe_score:.2f})")
+                # logger.info(f"Fact {i+1}: {fact_text} (confidence: {safe_score:.2f})")
             
             # Combine the results
             state_obj.graphiti_results = {

@@ -1,18 +1,35 @@
-# Digital Twin & DAO Coordination Backend
+# Digital Twin with Coordination Backend
 
 This project builds a Python backend that:
 1. **Creates per‑member digital twins** with persistent memory in **Mem0**
 2. **Maintains a shared temporal knowledge graph** (policies, proposals, votes) in **Graphiti** with **Neo4j** as the backend
-3. Exposes REST / SSE endpoints for a Next.js frontend to consume
+3. Uses **LangGraph** to orchestrate multi-agent coordination
+4. Exposes REST / SSE endpoints for a Next.js frontend to consume
+
+The main user story:
+- User - upload docs & tweets	-> my twin learns my preferences
+- User - chat with my twin -> refine its memory & get advice, recommendations, answers
+- Twin agent - read shared wiki & proposals -> recommend votes
+- DAO admin - view resolution dashboard -> track consensus in real time
+
+See design docs in the `dev_docs` folder:
+- [`v0-instructions-backend.md`](./dev_docs/v0-instructions-backend.md) for initial PRD
+- [`v0-tasks-backend.md`](./dev_docs/v0-tasks-backend.md) for task list
+- Graphiti:
+   - [`CONTENT_SCOPING.md`](./dev_decs/CONTENT_SCOPING.md) for how graphs are scoped to user, twin, or global
+   - [`graphiti_filtering.md`](./dev_docs/graphiti_filtering.md) for how we filter and refine NER entities for graphiti
+- LangGraph:
+   - [`langgraph_workflow.md`](./dev_docs/langgraph_workflow.md) for how the basic langgraph agent works
+
 
 ## Setup
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
-- [VS Code](https://code.visualstudio.com/) with [Remote Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 - Python 3.12
+- [Docker](https://docs.docker.com/get-docker/) - optional
+- [Docker Compose](https://docs.docker.com/compose/install/) - optional
+- [VS Code](https://code.visualstudio.com/) with [Remote Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) - optional
 
 ### Local Development
 
@@ -125,6 +142,8 @@ To use the Gemini-based entity extraction:
    ```
 
 ## Useful API Commands
+
+See the api's [README](./app/README.md) for list of available endpoints. A sample:
 
 ### File Upload
 ```bash
@@ -251,6 +270,16 @@ The system processes documents through a sophisticated pipeline:
 5. **Mem0 Storage**: Chunks are stored in Mem0 with metadata and deduplication
 6. **Graphiti Integration**: Entities and relationships are registered in the knowledge graph
 
+To quickly test the ingestion pipeline:
+
+```bash
+# Process a sample file
+python -m app.scripts.ingest_one_file
+
+# Run the integration test
+python -m app.tests.integration.test_ingestion
+```
+
 ### Entity Extraction
 
 The system supports two entity extraction methods:
@@ -268,20 +297,6 @@ The system supports two entity extraction methods:
 
 You can switch between extractors using the `ENTITY_EXTRACTOR_TYPE` environment variable.
 
-## Getting Started
-
-### Installation
-
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Configure environment variables (see `.env.example`)
-4. Start services: `docker-compose up -d`
-5. Run migrations: `alembic upgrade head`
-6. Start the API: `uvicorn app.main:app --reload`
-7. Start the worker: `celery -A app.worker worker -l info`
-
-### Testing Entity Extraction
-
 To compare the entity extraction methods:
 
 ```bash
@@ -293,16 +308,4 @@ python -m app.services.ingestion.compare_extractors --input path/to/file.txt
 
 # Output in JSON format
 python -m app.services.ingestion.compare_extractors --format json
-```
-
-### Quick Test
-
-To quickly test the ingestion pipeline:
-
-```bash
-# Process a sample file
-python -m app.scripts.ingest_one_file
-
-# Run the integration test
-python -m app.tests.integration.test_ingestion
 ```

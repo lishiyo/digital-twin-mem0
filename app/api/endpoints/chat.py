@@ -1,17 +1,23 @@
 """Chat API endpoints for the digital twin."""
 
-from fastapi import APIRouter, Depends, Query, HTTPException, Request
+from fastapi import APIRouter, Depends, Query, HTTPException, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional, Any
 import asyncio
 import logging
+from pydantic import BaseModel
 
 from app.api.deps import get_current_user, get_db, security
 from app.services.agent.graph_agent import TwinAgent
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Model for the chat request
+class ChatRequest(BaseModel):
+    message: str
 
 # Mock user for development/testing
 MOCK_USER = {"id": "dev-user-for-testing", "name": "Dev User"}
@@ -39,9 +45,9 @@ async def get_current_user_or_mock(
 
 @router.post("")
 async def chat_with_twin(
-    message: str,
+    chat_request: ChatRequest,
     user_id: Optional[str] = Query(None, description="User ID to use (defaults to authenticated user)"),
-    model_name: str = Query("gpt-3.5-turbo", description="Model to use for response generation"),
+    model_name: str = Query(getattr(settings, "CHAT_MODEL", "gpt-4o-mini"), description="Model to use for response generation"),
     current_user: dict = Depends(get_current_user_or_mock),
 ):
     """
@@ -58,11 +64,11 @@ async def chat_with_twin(
         # Initialize the agent
         agent = TwinAgent(user_id=user_id, model_name=model_name)
         
-        # Process the message
-        response = await agent.chat(message)
+        # Process the message from the request body
+        response = await agent.chat(chat_request.message)
         
         return {
-            "user_message": message,
+            "user_message": chat_request.message,
             "twin_response": response,
             "user_id": user_id,
             "model_used": model_name
@@ -78,9 +84,9 @@ async def chat_with_twin(
 @router.post("/stream")
 async def stream_chat_with_twin(
     request: Request,
-    message: str,
+    chat_request: ChatRequest,
     user_id: Optional[str] = Query(None, description="User ID to use (defaults to authenticated user)"),
-    model_name: str = Query("gpt-3.5-turbo", description="Model to use for response generation"),
+    model_name: str = Query(getattr(settings, "CHAT_MODEL", "gpt-4o-mini"), description="Model to use for response generation"),
     current_user: dict = Depends(get_current_user_or_mock),
 ):
     """
@@ -102,11 +108,11 @@ async def stream_chat_with_twin(
         # Initialize the agent
         agent = TwinAgent(user_id=user_id, model_name=model_name)
         
-        # Process the message
-        response = await agent.chat(message)
+        # Process the message from the request body
+        response = await agent.chat(chat_request.message)
         
         return {
-            "user_message": message,
+            "user_message": chat_request.message,
             "twin_response": response,
             "user_id": user_id,
             "model_used": model_name,
