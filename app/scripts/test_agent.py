@@ -37,7 +37,6 @@ async def test_agent(user_id: str = "test-user"):
     test_questions = [
         "Who is Ming and what projects are they working on?",
         "Tell me about the people I'm working with on Frontier Tower",
-        "What is Ming and Clovis working on together?",
         "What projects am I involved with at Frontier Tower?",
         "What is Framework Zero?"
     ]

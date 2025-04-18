@@ -97,6 +97,11 @@ To use the Gemini-based entity extraction:
    python -m app.scripts.ingest_one_file "path/to/file.md"
    ```
 
+   Or run this script to upload all files in `data` directory, in a Celery worker:
+   ```
+   python app/scripts/ingest_data_dir.py
+   ```
+
 5. Clear data for testing (optional)
    ```
    # Clear all data from both Mem0 and Graphiti
@@ -110,6 +115,13 @@ To use the Gemini-based entity extraction:
 
    # Clear Graphiti data with a specific scope
    python -m app.scripts.clear_data --user-id user123 --graphiti --scope user
+   ```
+
+6. Test the LangGraph agent with queries
+
+   ```
+   // Update this with questions that should have been ingested
+   python app/scripts/test_agent.py
    ```
 
 ## Useful API Commands

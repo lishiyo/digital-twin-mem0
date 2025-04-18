@@ -313,3 +313,67 @@
 - Implement proper streaming for agent responses in chat endpoints.
 - Add vote parsing and intent detection to the agent.
 - Begin work on Task 8 (implementing Chat API). 
+
+## 2025-04-18 01:27 PDT
+
+**Status:**
+- Enhanced entity extraction by implementing Google Gemini API integration.
+- Fixed property mapping issues for Document entities in the Neo4j database.
+- Fixed missing package installation for Google Generative AI.
+
+**Commands Run:**
+- Created Gemini-based entity extraction:
+  ```python
+  # Created entity_extraction_gemini.py with same API as spaCy extractor
+  # Implemented EntityExtractorFactory for dynamic selection of extractors
+  ```
+- Updated configuration in `config.py`:
+  ```python
+  # Added GEMINI_API_KEY and ENTITY_EXTRACTOR_TYPE settings
+  ```
+- Fixed entity property mapping:
+  ```python
+  # Updated entity creation to use 'title' instead of 'name' for Document entities
+  if entity_type == "Document":
+      entity_properties = {"title": entity_text}
+  else:
+      entity_properties = {"name": entity_text}
+  ```
+- Fixed package installation:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Updated environment example:
+  ```bash
+  # Added GEMINI_API_KEY and ENTITY_EXTRACTOR_TYPE to .env.example
+  ```
+- Updated script to use centralized config:
+  ```python
+  # Modified ingest_one_file.py to use settings from config.py
+  ```
+
+**Implementation Details:**
+- Created a Google Gemini-based entity extraction system:
+  - Implemented the same API as the spaCy extractor for seamless integration
+  - Added a factory pattern (EntityExtractorFactory) for easy switching between extractors
+  - Used the Google Generative AI package to communicate with the Gemini API
+  - Configured robust error handling and fallback mechanisms
+- Fixed the entity property mapping in the ingestion service:
+  - Updated the entity creation logic to use 'title' for Document entities and 'name' for other entity types
+  - Aligned with Neo4j schema requirements in the GraphitiService
+- Implemented centralized configuration:
+  - Added entity extraction settings to the central config.py file
+  - Updated services to use these centralized settings
+  - Modified scripts to properly load and utilize configuration
+
+**Errors & Fixes:**
+- **"Unknown property 'name' for entity type 'Document'"**: Fixed by using 'title' property instead of 'name' for Document entities in the ingestion service.
+- **"ModuleNotFoundError: No module named 'google.generativeai'"**: Verified google-generativeai was in requirements.txt and ran pip install to properly install the package.
+- **Config Loading in Scripts**: Updated ingest_one_file.py to properly use the settings from config.py instead of directly loading environment variables.
+- **Entity Extractor Selection**: Created a factory pattern to select between spaCy and Gemini extractors with proper fallback mechanism.
+
+**Next Steps:**
+- Compare entity extraction quality between spaCy and Gemini.
+- Improve error handling for API rate limits and quotas.
+- Consider implementing a caching mechanism to reduce API calls.
+- Begin work on Task 8 (implementing Chat API). 

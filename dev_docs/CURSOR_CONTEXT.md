@@ -317,3 +317,57 @@
 - Add vote intent detection to the agent.
 - Re-enable and fix pre-commit hook issues.
 - Optimize OpenAI API usage in Graphiti service. 
+
+## 2025-04-18 01:27 PDT
+
+**Current Guide Section:** 
+- Enhanced entity extraction with Google Gemini integration.
+- Preparing to implement Task 8 (Basic Chat API).
+
+**What's Working:**
+- Local development environment setup (devcontainer/local Python).
+- Docker Compose setup for Postgres, Redis, Neo4j.
+- Basic FastAPI application (`app/main.py`) runs.
+- Configuration loading (`app/core/config.py`) from `.env` works.
+- `MemoryService` fully implemented with error handling and optimizations.
+- `GraphitiService` functioning with entity creation and relationship management.
+- File Upload API endpoints with Celery worker integration.
+- Enhanced entity extraction system:
+  - Original spaCy-based extractor (`app/services/ingestion/entity_extraction.py`)
+  - New Google Gemini-based extractor (`app/services/ingestion/entity_extraction_gemini.py`)
+  - Factory pattern for dynamically selecting extractors (`app/services/ingestion/entity_extraction_factory.py`)
+  - Centralized configuration for extractor selection
+- Intelligent document chunking respecting document structure.
+- Graphiti integration for storing entities and relationships with correct property mapping.
+- End-to-end tests for the ingestion pipeline.
+- Redis connection for Celery working properly.
+- Neo4j queries optimized to avoid performance warnings.
+- Data cleanup utility script (`app/scripts/clear_data.py`) for clearing Mem0 and Graphiti data.
+- LangGraph digital twin agent (`app/services/agent/graph_agent.py`).
+
+**What's Broken/Incomplete:**
+- Pre-commit hooks are currently disabled.
+- No streaming responses implemented yet.
+- Need improved relevance sorting in memory search.
+- No vote intent detection yet.
+
+**Current Blockers:**
+- None.
+
+**Database/Model State:**
+- PostgreSQL database `digitaltwin-mem0` exists.
+- Tables created via Alembic for User, ChatMessage, Proposal, Vote models.
+- Neo4j database is running and initialized with Graphiti indices/constraints.
+- Mem0 functionality is working, storing and retrieving memories.
+- Entity and relationship nodes are now stored in Neo4j with proper property mapping.
+- Now using correct property names based on entity type (title for Document entities).
+
+**Pending Tasks:**
+- Evaluate performance and quality differences between spaCy and Gemini entity extractors.
+- Implement Task 8 (Basic Chat API).
+- Consider caching for Gemini API calls to reduce costs/latency.
+- Add monitoring for API rate limits and quotas.
+- Improve memory relevance scoring in Mem0 search.
+- Add vote intent detection to the agent.
+- Re-enable and fix pre-commit hook issues.
+- Optimize OpenAI API usage in Graphiti service. 
