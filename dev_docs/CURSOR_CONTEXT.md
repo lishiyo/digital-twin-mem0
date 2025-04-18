@@ -258,3 +258,62 @@
   - Create prompting templates
 - Re-enable and fix pre-commit hook issues.
 - Optimize OpenAI API usage in Graphiti service. 
+
+## 2025-04-18 00:43 PDT
+
+**Current Guide Section:** 
+- Completed Task 7 (PoC: Basic LangGraph Agent) from `v0-tasks-backend.md`.
+- Preparing to implement Task 8 (Basic Chat API).
+
+**What's Working:**
+- Local development environment setup (devcontainer/local Python).
+- Docker Compose setup for Postgres, Redis, Neo4j.
+- Basic FastAPI application (`app/main.py`) runs.
+- Configuration loading (`app/core/config.py`) from `.env` works.
+- `MemoryService` fully implemented with error handling and optimizations.
+- `GraphitiService` functioning with entity creation and relationship management.
+- File Upload API endpoints with Celery worker integration.
+- Entity extraction with spaCy (`app/services/ingestion/entity_extraction.py`).
+- Intelligent document chunking respecting document structure.
+- Graphiti integration for storing entities and relationships with correct property mapping.
+- End-to-end tests for the ingestion pipeline.
+- Redis connection for Celery working properly.
+- Neo4j queries optimized to avoid performance warnings.
+- Data cleanup utility script (`app/scripts/clear_data.py`) for clearing Mem0 and Graphiti data.
+- LangGraph digital twin agent (`app/services/agent/graph_agent.py`):
+  - Multi-node workflow for retrieving and processing information
+  - Integration with Mem0 for personal memory retrieval
+  - Integration with Graphiti for knowledge graph search
+  - Context merging to combine information sources
+  - Response generation using LLM
+  - Asynchronous operation with proper error handling
+  - Test script for verification (`app/scripts/test_agent.py`)
+  - Documentation of workflow architecture (`dev_docs/langgraph_workflow.md`)
+
+**What's Broken/Incomplete:**
+- Pre-commit hooks are currently disabled.
+- No streaming responses implemented yet.
+- Need improved relevance sorting in memory search.
+- No vote intent detection yet.
+
+**Current Blockers:**
+- None.
+
+**Database/Model State:**
+- PostgreSQL database `digitaltwin-mem0` exists.
+- Tables created via Alembic for User, ChatMessage, Proposal, Vote models.
+- Neo4j database is running and initialized with Graphiti indices/constraints.
+- Mem0 functionality is working, storing and retrieving memories.
+- Entity and relationship nodes are now stored in Neo4j with proper property mapping.
+
+**Pending Tasks:**
+- Implement Task 8 (Basic Chat API):
+  - Create chat endpoints
+  - Integrate with TwinAgent
+  - Add streaming responses
+  - Implement chat history storage in Postgres
+  - Add session management
+- Improve memory relevance scoring in Mem0 search.
+- Add vote intent detection to the agent.
+- Re-enable and fix pre-commit hook issues.
+- Optimize OpenAI API usage in Graphiti service. 

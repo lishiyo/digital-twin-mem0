@@ -186,12 +186,12 @@ Full Infrastructure + CI/CD
 ### 7. PoC: Basic LangGraph Agent
 
 **Subtasks:**
-- [ ] Set up LangGraph agent framework
-- [ ] Create retrieval nodes for Mem0
-- [ ] Create retrieval nodes for Graphiti
-- [ ] Implement context merging
-- [ ] Create prompting templates
-- [ ] Set up OpenAI integration
+- [x] Set up LangGraph agent framework
+- [x] Create retrieval nodes for Mem0
+- [x] Create retrieval nodes for Graphiti
+- [x] Implement context merging
+- [x] Create prompting templates
+- [x] Set up OpenAI integration
 - [ ] Implement basic twin agent workflow
 - [ ] Verify this is working with our ingested docs
 - [ ] Create evaluation metrics

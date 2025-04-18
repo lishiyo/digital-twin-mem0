@@ -201,6 +201,30 @@ class MemoryService:
                             keyword_search=True  # Enable keyword search for better results
                         )
                         
+                        # DEBUG: Log the raw results structure
+                        if isinstance(raw_results, dict):
+                            logger.info(f"Mem0 raw results is a dict with keys: {list(raw_results.keys())}")
+                            # If there's a 'results' key, check its structure
+                            if "results" in raw_results:
+                                if raw_results["results"] and len(raw_results["results"]) > 0:
+                                    first_result = raw_results["results"][0]
+                                    logger.info(f"First result keys: {list(first_result.keys())}")
+                                    # Print entire first result for detailed inspection
+                                    logger.info(f"FULL FIRST RESULT: {first_result}")
+                                    # Check for the message structure
+                                    if "message" in first_result:
+                                        logger.info(f"Message structure: {list(first_result['message'].keys()) if isinstance(first_result['message'], dict) else 'not a dict'}")
+                                    # Check for similarity score
+                                    logger.info(f"Similarity present: {'similarity' in first_result}, Value: {first_result.get('similarity')}")
+                        elif isinstance(raw_results, list) and raw_results:
+                            logger.info(f"Mem0 raw results is a list with {len(raw_results)} items")
+                            first_result = raw_results[0]
+                            logger.info(f"First result keys: {list(first_result.keys())}")
+                            # Print entire first result for detailed inspection
+                            logger.info(f"FULL FIRST RESULT: {first_result}")
+                        else:
+                            logger.info(f"Mem0 raw results type: {type(raw_results)}")
+                        
                         # Normalize the results - Mem0 client might return different formats
                         # 1. If it's a dict with 'results' key (seems to be common for Mem0)
                         if isinstance(raw_results, dict) and "results" in raw_results:
@@ -214,6 +238,24 @@ class MemoryService:
                         else:
                             logger.warning(f"Unexpected result format from Mem0 search: {type(raw_results)}")
                             normalized_results = raw_results
+                        
+                        # DEBUG: Check normalized results structure
+                        if normalized_results and isinstance(normalized_results, list) and len(normalized_results) > 0:
+                            first_norm = normalized_results[0]
+                            logger.info(f"First normalized result keys: {list(first_norm.keys())}")
+                            # Find where content is stored
+                            if "content" not in first_norm:
+                                if "message" in first_norm:
+                                    msg = first_norm["message"]
+                                    logger.info(f"Content might be in 'message': {msg.get('content') if isinstance(msg, dict) else 'not a dict'}")
+                                    
+                                    # Add content extraction from message if needed
+                                    if isinstance(msg, dict) and "content" in msg:
+                                        # Process all results to extract content from message
+                                        for result in normalized_results:
+                                            if "message" in result and isinstance(result["message"], dict) and "content" in result["message"]:
+                                                result["content"] = result["message"]["content"]
+                                                logger.info(f"Extracted content from message: {result['content'][:50]}...")
                         
                         if normalized_results:
                             logger.info(f"Memory search for user {user_id} returned {len(normalized_results)} results")

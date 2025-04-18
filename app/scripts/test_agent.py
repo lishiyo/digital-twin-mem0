@@ -35,10 +35,11 @@ async def test_agent(user_id: str = "test-user"):
     
     # Define some test questions that might relate to ingested content
     test_questions = [
-        "What can you tell me about digital twins?",
-        "What is Frontier Tower",
-        "Who do you know?",
-        "Where do you live?",
+        "Who is Ming and what projects are they working on?",
+        "Tell me about the people I'm working with on Frontier Tower",
+        "What is Ming and Clovis working on together?",
+        "What projects am I involved with at Frontier Tower?",
+        "What is Framework Zero?"
     ]
     
     for i, question in enumerate(test_questions):

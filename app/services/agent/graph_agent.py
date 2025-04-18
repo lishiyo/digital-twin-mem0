@@ -124,8 +124,48 @@ class TwinAgent:
                 limit=5
             )
             
-            state_obj.mem0_results = mem0_results
-            logger.info(f"Retrieved {len(mem0_results)} results from Mem0")
+            # Process the Mem0 results to handle potential format issues
+            processed_results = []
+            for result in mem0_results:
+                # Create a processed copy
+                processed = dict(result)
+                
+                # Handle content extraction based on Mem0 API response format
+                if "content" not in processed or not processed["content"]:
+                    # Check for memory field (primary content field in the API response)
+                    if "memory" in processed:
+                        processed["content"] = processed["memory"]
+                    # Fallback to message field if present
+                    elif "message" in processed:
+                        if isinstance(processed["message"], dict) and "content" in processed["message"]:
+                            processed["content"] = processed["message"]["content"]
+                        elif isinstance(processed["message"], str):
+                            processed["content"] = processed["message"]
+                
+                # Get similarity score from the appropriate field
+                if "similarity" not in processed or processed["similarity"] is None:
+                    if "score" in processed and processed["score"] is not None:
+                        processed["similarity"] = processed["score"]
+                    else:
+                        processed["similarity"] = 0.5  # Default reasonable value
+                
+                # Ensure metadata is a dict
+                if "metadata" not in processed or processed["metadata"] is None:
+                    processed["metadata"] = {}
+                
+                processed_results.append(processed)
+            
+            # Log detailed results for debugging
+            logger.info(f"Retrieved {len(processed_results)} results from Mem0")
+            for i, result in enumerate(processed_results):
+                content = result.get("content", "")
+                similarity = result.get("similarity", 0)
+                metadata = result.get("metadata", {})
+                source = metadata.get("source_file", metadata.get("source", "unknown"))
+                content_preview = content[:100] + "..." if len(content) > 100 else content
+                logger.info(f"Mem0 result {i+1}: {content_preview} (relevance: {similarity:.2f}, source: {source})")
+            
+            state_obj.mem0_results = processed_results
             
         except Exception as e:
             state_obj.error = f"Mem0 retrieval error: {str(e)}"
@@ -162,13 +202,28 @@ class TwinAgent:
                 limit=5
             )
             
+            # Log detailed entity results
+            logger.info(f"Retrieved {len(entity_results)} entities from Graphiti")
+            for i, entity in enumerate(entity_results):
+                name = entity.get("name", "")
+                labels = entity.get("labels", [])
+                summary = entity.get("summary", "")
+                labels_str = ", ".join(labels) if labels else ""
+                logger.info(f"Entity {i+1}: {name} ({labels_str}): {summary}")
+            
+            # Log detailed graph facts
+            logger.info(f"Retrieved {len(graph_results)} graph facts from Graphiti")
+            for i, fact in enumerate(graph_results):
+                fact_text = fact.get("fact", "")
+                score = fact.get("score", 0)
+                safe_score = 0.0 if score is None else score
+                logger.info(f"Fact {i+1}: {fact_text} (confidence: {safe_score:.2f})")
+            
             # Combine the results
             state_obj.graphiti_results = {
                 "entities": entity_results,
                 "graph": graph_results
             }
-            
-            logger.info(f"Retrieved {len(entity_results)} entities and {len(graph_results)} graph results from Graphiti")
             
         except Exception as e:
             state_obj.error = f"Graphiti retrieval error: {str(e)}"
@@ -190,9 +245,31 @@ class TwinAgent:
                     content = result.get("content", "")
                     similarity = result.get("similarity", 0)
                     metadata = result.get("metadata", {})
-                    source = metadata.get("source", "unknown")
                     
-                    merged_context += f"{i+1}. {content[:200]}... (relevance: {similarity:.2f}, source: {source})\n\n"
+                    # Extract better source information
+                    source = "unknown"
+                    if "source_file" in metadata:
+                        source = metadata["source_file"]
+                    elif "source" in metadata:
+                        source = metadata["source"]
+                    
+                    # Include more metadata if available
+                    meta_str = f"source: {source}"
+                    if "title" in metadata:
+                        meta_str += f", title: {metadata['title']}"
+                    if "categories" in result and result["categories"]:
+                        meta_str += f", categories: {', '.join(result['categories'])}"
+                    
+                    # Format relevance with two decimal places
+                    relevance_str = f"{similarity:.2f}" if similarity is not None else "N/A"
+                    
+                    # Use a reasonable preview length - longer than before
+                    preview_length = 300
+                    content_preview = content
+                    if len(content) > preview_length:
+                        content_preview = content[:preview_length] + "..."
+                    
+                    merged_context += f"{i+1}. {content_preview} (relevance: {relevance_str}, {meta_str})\n\n"
             
             # Add Graphiti entity results
             if state_obj.graphiti_results and "entities" in state_obj.graphiti_results:
@@ -225,6 +302,7 @@ class TwinAgent:
             
             state_obj.merged_context = merged_context
             logger.info("Successfully merged context from different sources")
+            logger.info(f"Final merged context:\n{merged_context}")
             
         except Exception as e:
             state_obj.error = f"Context merging error: {str(e)}"
@@ -245,6 +323,9 @@ class TwinAgent:
             
             {state_obj.merged_context}
             """
+            
+            # Log the full system prompt for debugging
+            logger.info(f"System prompt sent to LLM:\n{system_content}")
             
             # Prepare messages
             messages = [SystemMessage(content=system_content)]
