@@ -392,25 +392,28 @@ class MemoryService:
             logger.info(f"Added {success_count}/{len(items)} items in batch for user {user_id}")
             return {"success": success_count > 0, "count": success_count, "results": results}
     
-    async def get_all(self, user_id: str, metadata_filter: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def get_all(self, user_id: str, metadata_filter: Optional[Dict[str, Any]] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all memories for a user.
         
         Args:
             user_id: The user ID to filter by
             metadata_filter: Optional metadata filter to retrieve only memories matching specific criteria
+            limit: Optional maximum number of results to return
             
         Returns:
             List of all memories for the user
         """
         if not self.client:
             logger.warning(f"Using mock response for get_all - client unavailable")
+            # Respect the limit in mock response
+            mock_count = 3 if limit is None or limit > 3 else limit
             return [
                 {
                     "memory_id": f"mock-memory-id-{user_id}-{i}",
                     "content": f"This is mock memory {i}",
                     "metadata": {"user_id": user_id, "source": "chat"},
                 }
-                for i in range(3)
+                for i in range(mock_count)
             ]
             
         # Acquire lock to prevent concurrent access issues
@@ -451,8 +454,38 @@ class MemoryService:
                             logger.warning(f"Unexpected result format from Mem0 get_all: {type(raw_results)}")
                             normalized_results = raw_results
                         
+                        # Process all results to ensure memory_id field exists
+                        if normalized_results and isinstance(normalized_results, list):
+                            for result in normalized_results:
+                                # If id exists but memory_id doesn't, copy it
+                                if isinstance(result, dict):
+                                    if "id" in result and "memory_id" not in result:
+                                        result["memory_id"] = result["id"]
+                                        logger.info(f"Copied id to memory_id: {result['id']}")
+                                    # If neither exists, generate a UUID
+                                    elif "memory_id" not in result and "id" not in result:
+                                        result["memory_id"] = f"generated-{uuid.uuid4()}"
+                                        logger.warning(f"Generated memory_id for result with missing ID")
+                                    # Log when memory has both id and memory_id
+                                    elif "id" in result and "memory_id" in result:
+                                        logger.info(f"Memory has both id ({result['id']}) and memory_id ({result['memory_id']})")
+                                    # Log metadata for debugging
+                                    if "metadata" in result:
+                                        logger.info(f"Memory metadata keys: {list(result['metadata'].keys()) if isinstance(result['metadata'], dict) else 'not a dict'}")
+                                        if isinstance(result['metadata'], dict) and "filename" in result['metadata']:
+                                            logger.info(f"Memory filename: {result['metadata']['filename']} with ID: {result.get('memory_id', 'unknown')}")
+                                    
+                                    # Extract content from message structure if needed
+                                    if "content" not in result and "message" in result:
+                                        if isinstance(result["message"], dict) and "content" in result["message"]:
+                                            result["content"] = result["message"]["content"]
+                        
+                        # Apply limit if specified
+                        if limit is not None and normalized_results and isinstance(normalized_results, list):
+                            normalized_results = normalized_results[:limit]
+                        
                         if normalized_results:
-                            logger.info(f"Retrieved all memories for user {user_id}: {len(normalized_results)} memories")
+                            logger.info(f"Retrieved memories for user {user_id}: {len(normalized_results)} memories")
                         else:
                             logger.info(f"No memories found for user {user_id}")
                         

@@ -13,6 +13,7 @@ from app.db.models.user import User
 from app.db.models.chat_message import ChatMessage
 from app.db.models.proposal import Proposal
 from app.db.models.vote import Vote
+from app.db.models.ingested_document import IngestedDocument
 # Add additional models as they are created
 
 class Base(DeclarativeBase):

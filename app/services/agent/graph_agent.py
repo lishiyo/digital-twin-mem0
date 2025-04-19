@@ -157,12 +157,12 @@ class TwinAgent:
             
             # Log detailed results for debugging
             logger.info(f"Retrieved {len(processed_results)} results from Mem0")
-            for i, result in enumerate(processed_results):
-                content = result.get("content", "")
-                similarity = result.get("similarity", 0)
-                metadata = result.get("metadata", {})
-                source = metadata.get("source_file", metadata.get("source", "unknown"))
-                content_preview = content[:100] + "..." if len(content) > 100 else content
+            # for i, result in enumerate(processed_results):
+            #     content = result.get("content", "")
+            #     similarity = result.get("similarity", 0)
+            #     metadata = result.get("metadata", {})
+            #     source = metadata.get("source_file", metadata.get("source", "unknown"))
+            #     content_preview = content[:100] + "..." if len(content) > 100 else content
                 # logger.info(f"Mem0 result {i+1}: {content_preview} (relevance: {similarity:.2f}, source: {source})")
             
             state_obj.mem0_results = processed_results

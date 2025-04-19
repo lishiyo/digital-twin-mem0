@@ -10,6 +10,10 @@ from alembic import context
 # Import all models here
 from app.db.base import Base
 from app.db.models.chat_message import ChatMessage  # noqa
+from app.db.models.user import User  # noqa
+from app.db.models.proposal import Proposal  # noqa
+from app.db.models.vote import Vote  # noqa
+from app.db.models.ingested_document import IngestedDocument  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
