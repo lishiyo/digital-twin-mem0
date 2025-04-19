@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.asyncio
 async def test_file_ingestion_service():
-    """Test the file ingestion service."""
+    """Test the file ingestion service by ingesting all files in data directory."""
     
     # Generate a unique test identifier
     test_id = str(uuid.uuid4())[:8]

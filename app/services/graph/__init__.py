@@ -257,15 +257,61 @@ class GraphitiService:
                 # Apply limit in our code since API doesn't support it
                 if count >= limit:
                     break
-                    
+                
+                # Get the UUID of the relationship from the search result
+                rel_uuid = result.uuid if hasattr(result, "uuid") else None
+                
+                # If we have a UUID, fetch the full relationship properties directly from Neo4j
+                rel_properties = {}
+                if rel_uuid:
+                    try:
+                        # Query to get all properties of the relationship with this UUID
+                        cypher_query = """
+                        MATCH ()-[r]->()
+                        WHERE r.uuid = $uuid
+                        RETURN properties(r) as properties
+                        """
+                        
+                        cypher_result = await self.execute_cypher(cypher_query, {"uuid": rel_uuid})
+                        if cypher_result and len(cypher_result) > 0 and cypher_result[0].get("properties"):
+                            rel_properties = cypher_result[0]["properties"]
+                    except Exception as e:
+                        logger.warning(f"Error fetching relationship properties for UUID {rel_uuid}: {e}")
+                
+                # Get default values from result object attributes
+                result_scope = result.scope if hasattr(result, "scope") else None
+                result_owner_id = result.owner_id if hasattr(result, "owner_id") else None
+                result_score = result.score if hasattr(result, "score") else 0.7  # Default confidence
+                result_valid_to = result.invalid_at if hasattr(result, "invalid_at") else None
+                
+                # Override with properties from Neo4j if available
+                if "scope" in rel_properties:
+                    result_scope = rel_properties["scope"]
+                if "owner_id" in rel_properties:
+                    result_owner_id = rel_properties["owner_id"]
+                if "score" in rel_properties:
+                    result_score = rel_properties["score"]
+                if "valid_to" in rel_properties:
+                    result_valid_to = rel_properties["valid_to"]
+                
+                # Fall back to user_id for owner_id if available
+                if result_owner_id is None and user_id:
+                    result_owner_id = user_id
+                
+                # Fall back to "user" for scope if we have owner_id
+                if result_scope is None and result_owner_id:
+                    result_scope = "user"
+                elif result_scope is None:
+                    result_scope = "global"
+                
                 formatted_result = {
-                    "uuid": result.uuid if hasattr(result, "uuid") else None,
+                    "uuid": rel_uuid,
                     "fact": result.fact if hasattr(result, "fact") else None,
-                    "score": result.score if hasattr(result, "score") else None,
+                    "score": result_score,
                     "valid_from": result.valid_at if hasattr(result, "valid_at") else None,
-                    "valid_to": result.invalid_at if hasattr(result, "invalid_at") else None,
-                    "scope": result.scope if hasattr(result, "scope") else None,
-                    "owner_id": result.owner_id if hasattr(result, "owner_id") else None,
+                    "valid_to": result_valid_to,
+                    "scope": result_scope,
+                    "owner_id": result_owner_id,
                 }
                 formatted_results.append(formatted_result)
                 count += 1
@@ -273,7 +319,7 @@ class GraphitiService:
             return formatted_results
             
         except Exception as e:
-            print(f"Error searching Graphiti: {str(e)}")
+            logger.error(f"Error searching Graphiti: {str(e)}")
             # For testing purposes, return mock results
             return [
                 {
