@@ -364,3 +364,198 @@ Submits user feedback about recommendations or digital twin interactions to impr
   }
 }
 ```
+
+## Data Sources (Upcoming in V1)
+
+Endpoints for managing data sources that feed the digital twin.
+
+### GET /api/v1/sources
+
+Retrieves all data sources connected to the user's digital twin.
+
+**Request:**
+```
+GET /api/v1/sources
+```
+
+**Response:**
+```json
+{
+  "sources": [
+    {
+      "id": "uuid",
+      "type": "twitter",
+      "name": "@username",
+      "status": "active",
+      "last_sync": "ISO-8601 timestamp",
+      "metadata": {
+        "items_count": 250,
+        "traits_extracted": 15,
+        "confidence_overall": 0.72
+      },
+      "settings": {
+        "sync_frequency": "daily"
+      }
+    },
+    {
+      "id": "uuid",
+      "type": "calendar",
+      "name": "Work Calendar",
+      "status": "active",
+      "last_sync": "ISO-8601 timestamp",
+      "metadata": {
+        "items_count": 128,
+        "traits_extracted": 8,
+        "confidence_overall": 0.85
+      },
+      "settings": {
+        "sync_frequency": "hourly",
+        "earliest_date": "2023-01-01",
+        "include_details": true
+      }
+    },
+    {
+      "id": "uuid",
+      "type": "file_upload",
+      "name": "resume.pdf",
+      "status": "processed",
+      "created_at": "ISO-8601 timestamp",
+      "metadata": {
+        "size": "125kb",
+        "traits_extracted": 12,
+        "confidence_overall": 0.91
+      }
+    }
+  ],
+  "metadata": {
+    "total_count": 3,
+    "source_diversity": 0.8,
+    "last_updated": "ISO-8601 timestamp"
+  }
+}
+```
+
+### POST /api/v1/sources
+
+Adds a new data source to the user's digital twin.
+
+**Request:**
+```json
+{
+  "type": "calendar",
+  "credentials": {
+    "token": "oauth_token",
+    "refresh_token": "refresh_token"
+  },
+  "settings": {
+    "sync_frequency": "daily",
+    "earliest_date": "2023-01-01",
+    "include_details": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "type": "calendar",
+  "name": "Google Calendar",
+  "status": "connected",
+  "created_at": "ISO-8601 timestamp",
+  "settings": {
+    "sync_frequency": "daily",
+    "earliest_date": "2023-01-01",
+    "include_details": true
+  },
+  "next_sync": "ISO-8601 timestamp"
+}
+```
+
+### PUT /api/v1/sources/{source_id}
+
+Updates settings for an existing data source.
+
+**Request:**
+```json
+{
+  "settings": {
+    "sync_frequency": "hourly",
+    "include_details": false
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "type": "calendar",
+  "updated_fields": ["settings.sync_frequency", "settings.include_details"],
+  "metadata": {
+    "updated_at": "ISO-8601 timestamp"
+  }
+}
+```
+
+### DELETE /api/v1/sources/{source_id}
+
+Removes a data source from the user's digital twin.
+
+**Request:**
+```
+DELETE /api/v1/sources/{source_id}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Data source removed",
+  "id": "uuid"
+}
+```
+
+### GET /api/v1/sources/{source_id}/status
+
+Retrieves the current status of a data source, including sync progress.
+
+**Request:**
+```
+GET /api/v1/sources/{source_id}/status
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "type": "twitter",
+  "status": "syncing",
+  "progress": {
+    "percent_complete": 75,
+    "items_processed": 150,
+    "estimated_completion": "ISO-8601 timestamp"
+  },
+  "last_successful_sync": "ISO-8601 timestamp",
+  "error": null
+}
+```
+
+### POST /api/v1/sources/{source_id}/sync
+
+Triggers an immediate sync for a data source.
+
+**Request:**
+```
+POST /api/v1/sources/{source_id}/sync
+```
+
+**Response:**
+```json
+{
+  "status": "accepted",
+  "message": "Sync initiated",
+  "task_id": "task-uuid",
+  "estimated_completion": "ISO-8601 timestamp"
+}
+```
