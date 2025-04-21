@@ -45,10 +45,12 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 - [ ] Ensure proper upgrade and downgrade paths
 
 **1.5. Test database migrations**
+- [ ] Define overall testing strategy (unit, integration, e2e) in a new file TESTING.md 
+- [ ] Setup necessary base test configurations/fixtures
 - [ ] Run upgrade migration on test database
 - [ ] Verify schema changes
 - [ ] Test downgrade path
-- [ ] Validate with actual data if available
+- [ ] Validate with actual data 
 
 *Dependencies: 1.4 depends on 1.1, 1.2, and 1.3; 1.5 depends on 1.4*
 
@@ -227,7 +229,9 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 - [ ] Create prompt templates
 - [ ] Implement profile-aware logic
 - [ ] Add recommendation diversity
-- [ ] Create fallbacks
+- [ ] Create the fallback loop:
+    - [ ] Implement logic for the agent to detect insufficient information and generate targeted clarification questions for the user.
+    - [ ] Design the agent flow to process user answers to clarification questions. The flow looks like "insufficient info -> ask clarifying question -> process answer -> end when all info collected -> generate recommendation".
 
 **4.3.4. Add justification and confidence scoring**
 - [ ] Implement reasoning generation
@@ -302,11 +306,12 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 - [ ] Create consent screen
 - [ ] Implement authorization
 - [ ] Create token handling
+- [ ] Define error handling strategy for ingestion pipelines (e.g., retries, logging, DLQ).
 
 **3.2.2. Create data fetcher for calendar events**
 - [ ] Implement API client
 - [ ] Create pagination handling
-- [ ] Add error handling
+- [ ] Implement circuit breakers or robust error handling for external API calls
 - [ ] Implement incremental sync
 
 **3.2.3. Develop parser for calendar data**
@@ -325,25 +330,17 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 
 ### 3.3. Social Media Integration
 
-**3.3.1. Set up Twitter API access**
-- [ ] Register developer account
-- [ ] Create credentials
-- [ ] Implement authentication
-- [ ] Set up rate limiting
+**3.3.1. Fetch scraped data from Twitter**
+- [ ] There is an api service at `https://twitter-scraper-finetune.onrender.com` that we can use, just need to send it the handle
+- [ ] Poll the job at `https://twitter-scraper-finetune.onrender.com/twitter_scrape_jobs/{ID}/status` until it is done, then download the results (zip file of tweets in json)
 
-**3.3.2. Create tweet fetcher**
-- [ ] Implement API client
-- [ ] Create pagination
-- [ ] Add filtering
-- [ ] Implement thread collection
-
-**3.3.3. Develop tweet parser/analyzer**
+**3.3.2; Develop tweet parser/analyzer**
 - [ ] Create content extraction
 - [ ] Implement sentiment analysis
 - [ ] Add topic classification
 - [ ] Create entity extraction
 
-**3.3.4. Create Mem0 and Graphiti ingestion pipelines**
+**3.3.3. Create Mem0 and Graphiti ingestion pipelines**
 - [ ] Develop transformers
 - [ ] Implement conversion
 - [ ] Create relationship extraction
