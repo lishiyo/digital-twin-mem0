@@ -234,7 +234,8 @@ Parameters:
 - `directory`: Optional subdirectory to process (relative to data dir)
 - `async_processing`: Boolean (default: true) - Whether to process the directory asynchronously
 
-### Search API (already in v0)
+
+## Search API (already in v0)
 
 #### GET /api/v1/search
 
