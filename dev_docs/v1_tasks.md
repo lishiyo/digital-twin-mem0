@@ -209,7 +209,86 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 
 *Dependencies: 5.4.x depends on chat ingestion (3.1.x)*
 
-## Phase 3: Recommendation System
+## Phase 3: Additional Data Sources
+
+### 3.2. Calendar Integration
+
+**3.2.1. Implement Google Calendar OAuth flow**
+- [ ] Set up API credentials
+- [ ] Create consent screen
+- [ ] Implement authorization
+- [ ] Create token handling
+- [ ] Define error handling strategy for ingestion pipelines (e.g., retries, logging, DLQ).
+
+**3.2.2. Create data fetcher for calendar events**
+- [ ] Implement API client
+- [ ] Create pagination handling
+- [ ] Implement circuit breakers or robust error handling for external API calls
+- [ ] Implement incremental sync
+
+**3.2.3. Develop parser for calendar data**
+- [ ] Create event parser
+- [ ] Implement recurrence handling
+- [ ] Add location extraction
+- [ ] Create entity recognition
+
+**3.2.4. Create Mem0 and Graphiti ingestion pipelines**
+- [ ] Develop transformers
+- [ ] Implement event-to-memory conversion
+- [ ] Create relationship extraction
+- [ ] Add pattern detection
+
+*Dependencies: 3.2.x can be done after Phase 1*
+
+### 3.3. Social Media Integration
+
+**3.3.1. Fetch scraped data from Twitter**
+- [ ] There is an api service at `https://twitter-scraper-finetune.onrender.com` that we can use, just need to send it the handle
+- [ ] Poll the job at `https://twitter-scraper-finetune.onrender.com/twitter_scrape_jobs/{ID}/status` until it is done, then download the results (zip file of tweets in json)
+
+**3.3.2. Develop tweet parser/analyzer**
+- [ ] Create content extraction
+- [ ] Implement sentiment analysis
+- [ ] Add topic classification
+- [ ] Create entity extraction
+
+**3.3.3. Create Mem0 and Graphiti ingestion pipelines**
+- [ ] Develop transformers
+- [ ] Implement conversion
+- [ ] Create relationship extraction
+- [ ] Add interest detection
+
+*Dependencies: 3.3.x can be done after Phase 1*
+
+### 4.5. Trait Extraction Agent
+
+**4.5.1. Develop targeted LLM prompts**
+- [ ] Create prompt templates
+- [ ] Implement specific prompts
+- [ ] Add few-shot examples
+- [ ] Create prompt chaining
+
+**4.5.2. Implement confidence scoring**
+- [ ] Design calculation algorithm
+- [ ] Create validation rules
+- [ ] Implement cross-reference checking
+- [ ] Add thresholds
+
+**4.5.3. Create UserProfile update logic**
+- [ ] Implement update service
+- [ ] Create merge strategies
+- [ ] Add conflict resolution
+- [ ] Implement batch processing
+
+**4.5.4. Add Graphiti relationship creation**
+- [ ] Develop trait-to-graph mapping
+- [ ] Implement batch creation
+- [ ] Add validation
+- [ ] Create cleanup
+
+*Dependencies: 4.5.x can be developed in parallel with 4.2.x, but integration depends on 4.2.x*
+
+## Phase 4: Recommendation System
 
 ### 4.3. Recommendation Engine
 
@@ -296,85 +375,6 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 - [ ] Create multiple formats
 
 *Dependencies: 5.3.x depends on recommendation engine (4.3.x)*
-
-## Phase 4: Additional Data Sources
-
-### 3.2. Calendar Integration
-
-**3.2.1. Implement Google Calendar OAuth flow**
-- [ ] Set up API credentials
-- [ ] Create consent screen
-- [ ] Implement authorization
-- [ ] Create token handling
-- [ ] Define error handling strategy for ingestion pipelines (e.g., retries, logging, DLQ).
-
-**3.2.2. Create data fetcher for calendar events**
-- [ ] Implement API client
-- [ ] Create pagination handling
-- [ ] Implement circuit breakers or robust error handling for external API calls
-- [ ] Implement incremental sync
-
-**3.2.3. Develop parser for calendar data**
-- [ ] Create event parser
-- [ ] Implement recurrence handling
-- [ ] Add location extraction
-- [ ] Create entity recognition
-
-**3.2.4. Create Mem0 and Graphiti ingestion pipelines**
-- [ ] Develop transformers
-- [ ] Implement event-to-memory conversion
-- [ ] Create relationship extraction
-- [ ] Add pattern detection
-
-*Dependencies: 3.2.x can be done after Phase 1*
-
-### 3.3. Social Media Integration
-
-**3.3.1. Fetch scraped data from Twitter**
-- [ ] There is an api service at `https://twitter-scraper-finetune.onrender.com` that we can use, just need to send it the handle
-- [ ] Poll the job at `https://twitter-scraper-finetune.onrender.com/twitter_scrape_jobs/{ID}/status` until it is done, then download the results (zip file of tweets in json)
-
-**3.3.2; Develop tweet parser/analyzer**
-- [ ] Create content extraction
-- [ ] Implement sentiment analysis
-- [ ] Add topic classification
-- [ ] Create entity extraction
-
-**3.3.3. Create Mem0 and Graphiti ingestion pipelines**
-- [ ] Develop transformers
-- [ ] Implement conversion
-- [ ] Create relationship extraction
-- [ ] Add interest detection
-
-*Dependencies: 3.3.x can be done after Phase 1*
-
-### 4.5. Trait Extraction Agent
-
-**4.5.1. Develop targeted LLM prompts**
-- [ ] Create prompt templates
-- [ ] Implement specific prompts
-- [ ] Add few-shot examples
-- [ ] Create prompt chaining
-
-**4.5.2. Implement confidence scoring**
-- [ ] Design calculation algorithm
-- [ ] Create validation rules
-- [ ] Implement cross-reference checking
-- [ ] Add thresholds
-
-**4.5.3. Create UserProfile update logic**
-- [ ] Implement update service
-- [ ] Create merge strategies
-- [ ] Add conflict resolution
-- [ ] Implement batch processing
-
-**4.5.4. Add Graphiti relationship creation**
-- [ ] Develop trait-to-graph mapping
-- [ ] Implement batch creation
-- [ ] Add validation
-- [ ] Create cleanup
-
-*Dependencies: 4.5.x can be developed in parallel with 4.2.x, but integration depends on 4.2.x*
 
 ## Phase 5: Metrics & Evaluation
 
