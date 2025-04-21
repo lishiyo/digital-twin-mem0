@@ -11,7 +11,17 @@ We're pivoting from the DAO multi-agent approach to focus entirely on creating a
 3. Generate personalized recommendations based on external context
 4. Update its knowledge based on user feedback and interactions
 
-The implementation is organized into 6 phases, with **phases 1-3 forming the critical path**:
+The implementation is organized into 6 phases, with **phases 1-3 forming the critical path**. The tasks are numbered by:
+- Phases (1-5) - High-level grouping by implementation timeline
+- Task categories (1.x-6.x) - Functional groupings regardless of phase:
+    - 1.x: Database Schema Changes
+    - 2.x: Graphiti Schema
+    - 3.x: Data Ingestion
+    - 4.x: Agent Components
+    - 5.x: API Endpoints
+    - 6.x: Metrics
+
+This approach allows tracking both when a task should be done (phase) and what functional area it belongs to (category number).
 
 ## Phase 1: Foundation
 
@@ -93,23 +103,45 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 ### 3. Basic Chat Log Ingestion
 
 **3.1.1. Implement chat message persistence**
-- [ ] Update chat message model if needed
-- [ ] Create database service for CRUD operations
-- [ ] Implement transaction handling and logging
+- [ ] Create database models for `Conversation`, `ChatMessage`, and `MessageFeedback`
+- [ ] Implement necessary indexes for efficient querying 
+- [ ] Set up relationships between models and User
+- [ ] Create Alembic migration scripts
+- [ ] Implement conversation service for CRUD operations
+- [ ] Add transaction handling and robust error logging
+
 
 **3.1.2. Create Mem0 ingestion pipeline**
-- [ ] Develop chat transformer for Mem0
-- [ ] Implement metadata tagging
-- [ ] Create batch processing
-- [ ] Add error handling and retries
+- [ ] Develop chat transformer for Mem0 to process raw messages
+- [ ] Implement tiered memory approach (recent messages vs summaries)
+- [ ] Add metadata tagging with source, confidence, and context
+- [ ] Create batch processing for efficient handling
+- [ ] Set up TTL policies for memory management
+- [ ] Implement error handling and retry mechanisms
 
 **3.1.3. Extract entity information**
-- [ ] Implement LLM-based entity extraction
-- [ ] Create mappers to UserProfile fields
-- [ ] Develop confidence scoring
-- [ ] Implement Graphiti node/relationship creation
+- [ ] Implement LLM-based entity and trait extraction
+- [ ] Create mappers to UserProfile fields (preferences, interests, skills)
+- [ ] Develop confidence scoring for extracted traits
+- [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
+- [ ] Implement conflict resolution for contradictory information
+- [ ] Create Graphiti node/relationship creation service
 
-*Dependencies: 3.1.2 and 3.1.3 depend on 3.1.1; All 3.1.x tasks depend on 1.x and 2.x*
+**3.1.4. Implement session management**
+- [ ] Create conversation boundary detection
+- [ ] Implement conversation summarization service
+- [ ] Add automatic title generation for conversations
+- [ ] Develop context preservation between sessions
+- [ ] Create conversation pruning/archiving strategy
+
+**3.1.5. Set up background processing**
+- [ ] Configure Celery task queue for async processing
+- [ ] Implement periodic tasks for processing pending messages
+- [ ] Create scheduled tasks for conversation summarization
+- [ ] Add monitoring and task status reporting
+- [ ] Implement graceful failure handling
+
+*Dependencies: 3.1.2, 3.1.3, and 3.1.4 depend on 3.1.1; 3.1.5 depends on 3.1.2, 3.1.3, and 3.1.4; All 3.1.x tasks depend on 1.x and 2.x*
 
 ### 4. Remove DAO Components
 
@@ -188,24 +220,41 @@ The implementation is organized into 6 phases, with **phases 1-3 forming the cri
 ### 5.4. Enhanced Chat Endpoints
 
 **5.4.1. Update POST /api/v1/chat**
-- [ ] Modify endpoint to store history
-- [ ] Implement transaction handling
-- [ ] Add metadata capture
-- [ ] Ensure compatibility
+- [ ] Modify endpoint to create/use Conversation records
+- [ ] Add conversation_id parameter (optional, creates new if absent)
+- [ ] Implement context capture from request (project, task, etc.)
+- [ ] Add support for streaming responses
+- [ ] Ensure compatibility with existing clients
 
 **5.4.2. Implement Mem0 feedback loop**
-- [ ] Create background task for ingestion
-<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
-
-- [ ] Implement duplicate detection
-- [ ] Add importance scoring
-- [ ] Create TTL management
+- [ ] Create background task triggering for message ingestion
+- [ ] Ensure all messages are stored in Postgres before response
+- [ ] Implement duplicate detection and deduplication logic
+- [ ] Add importance scoring for prioritization
+- [ ] Optimize TTL management based on message importance
+- [ ] Create metadata enrichment from conversation context
 
 **5.4.3. Add background tasks for trait extraction**
-- [ ] Implement task queue integration
-- [ ] Create extraction service
-- [ ] Develop UserProfile updates
-- [ ] Add conflict resolution
+- [ ] Implement LLM-based profile insight extraction
+- [ ] Create message chunking for efficient processing
+- [ ] Develop category-specific extractors (preferences, interests, etc.)
+- [ ] Add confidence scoring with supporting evidence
+- [ ] Implement automatic UserProfile updates
+- [ ] Create conflict resolution with source confidence weighting
+
+**5.4.4. Add conversational UX endpoints**
+- [ ] Create endpoints for conversation history retrieval
+- [ ] Implement conversation title management
+- [ ] Add message reaction/feedback support
+- [ ] Create endpoints for conversation search
+- [ ] Implement pagination and filtering
+
+**5.4.5. Implement real-time chat capability**
+- [ ] Setup WebSocket server for bidirectional communication
+- [ ] Create connection management for multiple concurrent users
+- [ ] Implement authentication and session handling
+- [ ] Add message protocol with typing indicators and read receipts
+- [ ] Create client helpers for main app integration
 
 *Dependencies: 5.4.x depends on chat ingestion (3.1.x)*
 

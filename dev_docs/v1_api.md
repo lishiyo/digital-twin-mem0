@@ -91,7 +91,7 @@ Updates the user's profile information. Supports partial updates.
 
 ### POST /api/v1/chat (already in v0, without context/metadata support)
 
-Sends a message to the digital twin and receives a response. All conversations are stored for profile learning.
+Sends a message to the digital twin and receives a response. All conversations are stored for search/retrieval and profile learning. **IMPORTANT**: The REST endpoint is for MVP, we will switch to a real-time websockets implementation later (see [v1_chat_implementation.md](./v1_chat_implementation.md)).
 
 **Request:**
 ```json
