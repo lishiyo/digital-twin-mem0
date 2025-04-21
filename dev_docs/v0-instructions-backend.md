@@ -1,11 +1,28 @@
-# Frontier Tower Digital‑Twin & DAO Coordination
+# Digital Twins
 
-Build a Python prototype that turns each user's heterogeneous footprint — personal docs, chats, votes, socials - into a Digital Twin able to:
-1. Answer questions and give recommendations in the user's voice.
-2. Take actions like casting votes inside an autonomous organization (e.g., a robot‑run 3‑D‑printing micro‑factory) while coordinating with up to 99 other twins through a multi‑agent planner.
+We are building a multi-coordination project that allows users to work together with others on a project (an app, a website, a simple question with competing views) with agents ("digital twins") that represent them making recommendations to them and injecting their preferences into the ultimate planner agent who will come up with proposals on how to implement the project.
 
-This is the backend PRD. This backend (1) builds per‑member digital twins with persistent memory (Mem0) and (2) maintains a shared temporal knowledge graph of proposals, votes, and policies (Graphiti).
-The web front‑end will be a thin Next.js layer that calls these back‑end APIs.
+This repo focuses on the digital twin piece. We will focus on generating the most faithful twin as possible. Build a Python prototype that turns each user's heterogeneous footprint — personal docs, chats, previous decisions, social media, google calendar - into a Digital Twin able to:
+1. Answer questions from the user about anything in the global context and in their own memory
+2. Make recommendations (proposals) on the project that the user is part of (context on the project will be given through api), and integrate the user's choice into memory
+3. Coordinate with other agents on behalf the user, representing them as faithfully as possible
+
+This is the backend PRD. This backend builds per‑member digital twins with (1) persistent memory (Mem0) and (2) maintains a shared temporal knowledge graph of global knowledge, recommendations, proposals, votes on those proposals (Graphiti).
+
+Example proposals/questions that the twin will make recommendations on will look like:
+- (app design decision) what kinds of fields should be in a user's profile on a dating site?
+- what would be the best day to host a barbecue at my house, and what should be on the menu?
+- where should we go on vacation next month? (twin must represent my personal preferences and schedule)
+- how should we split up this project's tasks between members of our team? (twins must know their skillsets, roles, time availability)
+
+In order to create the most representative digital twin, the twin needs to know as much about the user as possible. We need to ingest a variety of sources from the user:
+- personal documents the user uploads
+- twitter feed
+- google calendar
+- personal website (scraped)
+- chats with the twin
+- chats on the shared projects that the user is part of
+- chat logs from elsewhere (texts, discord, telegram etc)
 
 ---
 
@@ -13,15 +30,14 @@ The web front‑end will be a thin Next.js layer that calls these back‑end API
 
 Build a backend that:
 1. **Creates per‑member digital twins** with persistent memory in **Mem0**
-2. **Maintains a shared temporal knowledge graph** (policies, proposals, votes) in **Graphiti**
-3. Exposes REST / SSE endpoints a simple Next.js front‑end can consume.
+2. **Maintains a shared temporal knowledge graph** (proposals, votes) in **Graphiti**
+3. Exposes REST / WS endpoints a simple Next.js front‑end can consume.
 
 ## 1 | Goals & Success Metrics
 
 | Goal | KPI | Target |
 |------|-----|--------|
 | Twins recall user preferences | Eval success rate | ≥ 90 % |
-| Vote → DAO‑resolution latency | Minutes | < 2 min |
 | Retrieval P95 (Mem0 + Graphiti) | ms | < 200 ms |
 | Dev on‑boarding | Hours | < 2 h |
 | Entity extraction accuracy | NER F1-score | ≥ 85% |
@@ -56,21 +72,6 @@ Build a backend that:
 * **Stylometric Analysis**: Extract features like sentence length, vocabulary diversity, and formatting preferences
 * **Adaptive Prompting**: Dynamically adjust LLM prompts to incorporate voice characteristics
 
-### 2.5 DAO Manager
-* Cron every 60 s; closes proposals & writes `(:DAOResolution)`
-
-### 2.6 Frontend (stub)
-* File‑upload area
-* Policy / proposal list
-* "Personal wiki" page (Mem0 summary endpoint)
-* Chat UI (SSE)
-
-### User stories (condensed)
-
-User - upload docs & tweets	-> my twin learns my preferences
-Member - chat with my twin -> refine its memory & get advice
-Twin agent - read shared wiki & proposals -> recommend votes
-DAO admin - view resolution dashboard -> track consensus in real time
 
 ## Tech stack
 
@@ -79,9 +80,9 @@ DAO admin - view resolution dashboard -> track consensus in real time
 | Layer | Component | Version / Notes |
 |-------|-----------|-----------------|
 | **Languages** | Python 3.12 (LTS), TypeScript 5.x | — |
-| **Frontend** | Next.js 14 · React 18 · TailwindCSS · shadcn/ui · SWR | Chat over **SSE** |
+| **Frontend** | Next.js 14 · React 18 · TailwindCSS · shadcn/ui · SWR | Chat over **Websockets** |
 | **Auth** | Auth0 (Universal Login) | JWT bearer tokens |
-| **API Gateway** | **FastAPI** + Uvicorn workers (Docker) | REST + SSE |
+| **API Gateway** | **FastAPI** + Uvicorn workers (Docker) | REST + Websockets |
 | **Task Queue** | Celery 5 · Redis 7 (Elasticache) | Ingestion & async Mem0 writes |
 | **LLM & Agents** | OpenAI GPT‑4o (`openai` 1.x) | LangGraph ≥ 0.3 |
 | **Memory (per user)** | **Mem0 Cloud** (`mem0ai` Python SDK) | Vector store = Qdrant (managed) |
@@ -165,15 +166,33 @@ Relations:
 
 ### 4.4 Twin agent
 
-Exposes /twin/{user_id}/chat (stream).
+Exposes `/twin/{user_id}/chat (stream)`.
 Retrieval plan:
 - mem0.search(user_msg, limit=5)
 - graphiti.search(user_msg, time_window=90d, limit=5)
 
+MUST be able to understand the user's biographical info:
+- memories (retrieval)
+- relationships, particularly with other users
+- preferences (what they like)
+- dislikes and dealbreakers
+- interests
+- skillsets
+
 Prompt template appends both result sets.
 Calls /vote when pattern matches "## VOTE:".
 
-### 4.5 DAO manager
+We need to ingest multiple sources outside documents now:
+- chats with the twin
+- twitter handle
+- linkedin url
+- personal website url
+- google calendar
+- chat logs from other
+
+----
+
+### 4.5 DAO manager (NO LONGER IN SCOPE, IGNORE)
 
 Cron every 60 s: MATCH (v:Vote)<-[:VOTED]-() WHERE v.open = true → compute quorum.
 
@@ -216,6 +235,8 @@ When quorum met: create (:DAOResolution {id, status:'passed'}) and set Proposal.
 * **Anomaly Detection**: Alert on unexpected twin behavior or preference drift
 * **Usage Metrics**: Track user engagement, twin utilization, and feature adoption
 
+----
+
 ### Technical Architecture
 
 ```mermaid
@@ -253,17 +274,18 @@ Rationale
 - Use Celery + Redis as ingestion bus; duplicate‑free, retryable.
 - Graphiti integration via Python SDK with Neo4j backend.
 - Mem0 Cloud for vectors + Postgres row store.
-- Chat streaming via Server‑Sent Events (SSE) for simplicity.
+- Chat streaming via Websockets for simplicity.
 - Google Gemini API for high-quality entity extraction with spaCy fallback.
 
-### API outline (FastAPI)
+### Basic API outline (FastAPI)
 
 ```python
 POST /upload                # multipart -> S3 presigned -> enqueue ingest
 GET  /twin/{uid}/profile    # return Mem0 summary + vector stats
 POST /twin/{uid}/chat       # {message} -> stream response
-GET  /proposals/open        # list active proposals
-GET  /proposals/{pid}/status
+GET  /proposals/open        # list active proposals on this project
+GET  /proposals/{pid}/status # proposal status
+POST /recommendations/generate # "given this context and what you know about the user, generate recommendations"
 ```
 
 ### Implementation plan
@@ -279,10 +301,13 @@ After we have the PoC:
   - Mem0 only first - we'll use files in `data` directory for now, we won't add the S3/Wasabi flow until the end of this MVP
 7. Basic Chat API (/twin/{uid}/chat - POST only, no streaming yet)integrating the PoC Agent
 8. Refine Ingestion (add Graphiti sync, dual entity extraction with Gemini/spaCy, chunking, deduplication)
-9. Implement Chat Streaming (SSE)
-10. Voting Intent Parsing & /vote Endpoint
-11. DAO Manager Cron + Quorum Logic
-12. Add Twitter & Telegram Ingestion
-13. Build Frontend Stubs & Auth Integration
-14. Full Infra Provisioning (IaC refinement)
-15. CI/CD Setup & Testing Enhancements
+9. Implement Chat Streaming (Websockets)
+
+
+No longer in scope:
+- Voting Intent Parsing & /vote Endpoint
+- DAO Manager Cron + Quorum Logic
+- Add Twitter & Telegram Ingestion
+- Build Frontend Stubs & Auth Integration
+- Full Infra Provisioning (IaC refinement)
+- CI/CD Setup & Testing Enhancements

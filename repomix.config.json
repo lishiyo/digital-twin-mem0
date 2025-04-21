@@ -1,0 +1,12 @@
+{
+    "output": {
+      "style": "markdown",
+      "filePath": "custom-output.md",
+      "removeComments": true,
+      "showLineNumbers": true,
+      "topFilesLength": 10
+    },
+    "ignore": {
+      "customPatterns": ["data/**", "venv/**", "digital_twin_dao.egg-info/**"]
+    }
+  }

@@ -1,0 +1,119 @@
+This is the CURRENT project structure for reference:
+
+```
+.cursor/
+  rules/
+    new-project-rule.mdc
+.devcontainer/
+  devcontainer.json
+  docker-compose.yml
+  Dockerfile
+alembic/
+  versions/
+    2df007100f62_add_ingesteddocument_model.py
+    43c40d9dfe40_update_ingesteddocument_model_schema.py
+  env.py
+  script.py.mako
+app/
+  api/
+    endpoints/
+      chat.py
+      health.py
+      proposals.py
+      search.py
+      twins.py
+      upload.py
+    api.py
+    deps.py
+    router.py
+  core/
+    config.py
+    constants.py
+  db/
+    models/
+      chat_message.py
+      ingested_document.py
+      proposal.py
+      user.py
+      vote.py
+    base_class.py
+    base.py
+    session.py
+  migrations/
+    versions/
+      e276380134d6_initial_migration.py
+    env.py
+    README
+    script.py.mako
+  schemas/
+    __init__.py
+    ingested_document.py
+  scripts/
+    clear_data.py
+    download_models.py
+    fix_graphiti_scopes.py
+    ingest_data_dir.py
+    ingest_one_file.py
+    test_agent.py
+    test_memory.py
+  services/
+    agent/
+      __init__.py
+      graph_agent.py
+    graph/
+      __init__.py
+    ingestion/
+      __init__.py
+      chunking.py
+      compare_extractors.py
+      entity_extraction_factory.py
+      entity_extraction_gemini.py
+      entity_extraction.py
+      file_service.py
+      parsers.py
+      service.py
+      test_gemini_extraction.py
+    memory/
+      __init__.py
+  tests/
+    integration/
+      __init__.py
+      test_graphiti_pipeline.py
+      test_ingestion.py
+    __init__.py
+    conftest.py
+    init_graphiti.py
+    run_graphiti_test.py
+    test_entity_extraction.py
+    test_graphiti_connection.py
+    test_ingestion_pipeline.py
+    test_memory_service.py
+  worker/
+    __init__.py
+    celery_app.py
+    tasks.py
+  alembic.ini
+  main.py
+  README.md
+  worker.py
+dev_docs/
+  CONTENT_SCOPING.md
+  CURSOR_CONTEXT.md
+  DEVELOPMENT_LOG.md
+  graphiti_filtering.md
+  langgraph_workflow.md
+  v0-instructions-backend.md
+  v0-tasks-backend.md
+.env.example
+.gitignore
+.pre-commit-config.yaml
+alembic.ini
+docker-compose.yml
+Dockerfile
+Makefile
+pyproject.toml
+README.md
+repomix.config.json
+requirements.txt
+setup.py
+```

@@ -200,7 +200,7 @@ Full Infrastructure + CI/CD
 - [ ] Implement basic twin agent workflow
 - [ ] Verify this is working with our ingested docs
 - [ ] Create evaluation metrics
-- [ ] Add twin personalization basic support
+- [ ] Add ability to see what the twin thinks about you (biographical profile), and ability to update that directly
 
 **Testing:**
 - Retrieval accuracy
@@ -223,7 +223,7 @@ Full Infrastructure + CI/CD
 - [ ] Implement user authorization
 - [ ] Set up message validation
 - [ ] Create chat message database storage
-- [ ] Implement LangGraph agent invocation
+- [ ] Implement LangGraph agent invocation, store chat logs
 - [ ] Add context fetching from multiple sources
 - [ ] Implement response formatting
 
@@ -240,11 +240,11 @@ Full Infrastructure + CI/CD
 - PoC LangGraph Agent
 - Minimal Infra Bootstrap
 
-### 9. Implement Chat Streaming (SSE)
+### 9. Implement Chat Streaming (Websockets)
 
 **Subtasks:**
 - [ ] Modify chat API for streaming
-- [ ] Implement Server-Sent Events
+- [ ] Implement Websockets
 - [ ] Create streaming response handler
 - [ ] Update OpenAI integration for streaming
 - [ ] Add connection management
@@ -262,6 +262,42 @@ Full Infrastructure + CI/CD
 
 **Dependencies:**
 - Basic Chat API
+
+
+### 10. Add Twitter & Telegram Ingestion
+
+**Subtasks:**
+- [ ] Set up Twitter API client (Tweepy)
+- [ ] Implement Twitter scraping logic
+- [ ] Create tweet parsing and extraction
+- [ ] Set up Telegram client (Telethon)
+- [ ] Implement Telegram polling
+- [ ] Create message parsing and extraction
+- [ ] Add deduplication across sources
+- [ ] Implement source-specific metadata
+- [ ] Create scheduling for periodic polls
+
+**Testing:**
+- API error handling
+- Rate limiting compliance
+- Content extraction quality
+
+**Documentation:**
+- Configuration guide
+- Troubleshooting
+- Rate limiting and quota management
+
+**Dependencies:**
+- Refined Ingestion Pipeline
+
+
+### 11. Add other ingestion sources
+
+Add google calendar api
+Add personal website scraping
+
+
+----- STOP HERE, THIS IS DEPRECATED -----
 
 ### 10. Voting Intent Parsing & /vote Endpoint
 
@@ -315,31 +351,6 @@ Full Infrastructure + CI/CD
 - Voting Intent & API
 - Graphiti Service Wrapper
 
-### 12. Add Twitter & Telegram Ingestion
-
-**Subtasks:**
-- [ ] Set up Twitter API client (Tweepy)
-- [ ] Implement Twitter scraping logic
-- [ ] Create tweet parsing and extraction
-- [ ] Set up Telegram client (Telethon)
-- [ ] Implement Telegram polling
-- [ ] Create message parsing and extraction
-- [ ] Add deduplication across sources
-- [ ] Implement source-specific metadata
-- [ ] Create scheduling for periodic polls
-
-**Testing:**
-- API error handling
-- Rate limiting compliance
-- Content extraction quality
-
-**Documentation:**
-- Configuration guide
-- Troubleshooting
-- Rate limiting and quota management
-
-**Dependencies:**
-- Refined Ingestion Pipeline
 
 ### 13. Build Frontend Stubs & Auth Integration
 
