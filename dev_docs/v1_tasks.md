@@ -234,13 +234,13 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Optimize TTL management based on message importance
 - [ ] Create metadata enrichment from conversation context
 
-**5.4.3. Add background tasks for trait extraction**
-- [ ] Implement LLM-based profile insight extraction
-- [ ] Create message chunking for efficient processing
-- [ ] Develop category-specific extractors (preferences, interests, etc.)
-- [ ] Add confidence scoring with supporting evidence
-- [ ] Implement automatic UserProfile updates
-- [ ] Create conflict resolution with source confidence weighting
+**5.4.3. Add background tasks for chat-specific trait extraction**
+- [ ] Implement basic LLM-based profile insight extraction from chats (set up the future full Trait Extraction agent in 4.5)
+- [ ] Create simple message chunking for efficient processing
+- [ ] Extract obvious traits mentioned directly in conversations
+- [ ] Implement basic confidence scoring for extracted traits
+- [ ] Create direct UserProfile updates for high-confidence traits
+- [ ] Implement simple conflict resolution for contradictory information
 
 **5.4.4. Add conversational UX endpoints**
 - [ ] Create endpoints for conversation history retrieval
@@ -249,7 +249,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create endpoints for conversation search
 - [ ] Implement pagination and filtering
 
-**5.4.5. Implement real-time chat capability**
+**5.4.5. Implement real-time chat capability (this can wait)**
 - [ ] Setup WebSocket server for bidirectional communication
 - [ ] Create connection management for multiple concurrent users
 - [ ] Implement authentication and session handling
@@ -311,31 +311,35 @@ This approach allows tracking both when a task should be done (phase) and what f
 
 ### 4.5. Trait Extraction Agent
 
-**4.5.1. Develop targeted LLM prompts**
-- [ ] Create prompt templates
-- [ ] Implement specific prompts
-- [ ] Add few-shot examples
-- [ ] Create prompt chaining
+**4.5.1. Develop comprehensive trait extraction system**
+- [ ] Build upon the chat-specific extraction (5.4.3)
+- [ ] Extend extraction to handle multiple data sources (chat, calendar, social media)
+- [ ] Create unified processing workflow across sources
+- [ ] Implement source-specific extractors with consistent output format
+- [ ] Develop advanced prompt templates with source-specific considerations
 
-**4.5.2. Implement confidence scoring**
-- [ ] Design calculation algorithm
-- [ ] Create validation rules
-- [ ] Implement cross-reference checking
-- [ ] Add thresholds
+**4.5.2. Implement advanced confidence scoring**
+- [ ] Design multi-source confidence calculation algorithm
+- [ ] Create validation rules for cross-referencing traits
+- [ ] Implement confidence boosting for traits confirmed across sources
+- [ ] Add decay functions for older/stale trait evidence
+- [ ] Set dynamic thresholds based on trait category and evidence quality
 
-**4.5.3. Create UserProfile update logic**
-- [ ] Implement update service
-- [ ] Create merge strategies
-- [ ] Add conflict resolution
-- [ ] Implement batch processing
+**4.5.3. Create enhanced UserProfile update logic**
+- [ ] Implement comprehensive update service
+- [ ] Create sophisticated merge strategies for conflicting traits
+- [ ] Add conflict resolution with source prioritization
+- [ ] Implement batch processing for efficient updates
+- [ ] Add versioning to track trait evolution over time
 
 **4.5.4. Add Graphiti relationship creation**
 - [ ] Develop trait-to-graph mapping
-- [ ] Implement batch creation
-- [ ] Add validation
-- [ ] Create cleanup
+- [ ] Implement batch creation of relationships
+- [ ] Add validation against existing graph structure
+- [ ] Create cleanup procedures for obsolete relationships
+- [ ] Implement confidence-weighted relationships
 
-*Dependencies: 4.5.x can be developed in parallel with 4.2.x, but integration depends on 4.2.x*
+*Dependencies: 4.5.x builds upon the simple trait extraction in 5.4.3 and can be developed in parallel with 4.2.x, but full integration depends on 4.2.x*
 
 ## Phase 4: Recommendation System
 
