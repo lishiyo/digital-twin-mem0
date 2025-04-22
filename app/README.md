@@ -465,7 +465,7 @@ To test the chat ingestion implementation:
 
 3. Verify Memory Ingestion:
 - Check the Mem0 connection: `GET /api/v1/memory/check`
-- Check the Mem0 status of a message: `GET /api/v1/chat/messages/{id}/mem0-status`
+- Check the Mem0 status of a message by message id: `GET /api/v1/chat/messages/{id}/mem0-status`
 - View memories by conversation: `GET /api/v1/memory/memory-by-conversation/{id}`
 - View a specific memory: `GET /api/v1/memory/memory/{id}`
 - Manually trigger processing: `GET /api/v1/memory/trigger-process-conversation/{id}`

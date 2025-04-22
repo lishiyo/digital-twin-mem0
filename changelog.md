@@ -1,5 +1,26 @@
 # Changelog
 
+## 2025-04-22: Service Refactoring and Chat API Progress
+
+As part of our ongoing chat ingestion implementation, we've made significant improvements to the codebase:
+
+### Service Architecture Improvements
+- Refactored memory ingestion services to use inheritance with a base class (`BaseChatMem0Ingestion`)
+- Created separate implementations for synchronous (`SyncChatMem0Ingestion`) and asynchronous (`ChatMem0Ingestion`) contexts
+- Eliminated code duplication by moving common logic to the base class
+- Fixed Celery task implementation for background processing of chat messages
+- Resolved issues with async/sync database connections in Celery workers
+
+### API Implementation Status
+- Implemented the main chat endpoint (`POST /api/v1/chat`) with Mem0 ingestion
+- Set up proper database transaction management and error handling
+- Configured Celery tasks for asynchronous processing of chat messages
+
+### Next Steps
+- Implement remaining chat conversation endpoints (listing, viewing details)
+- Add memory-specific endpoints for retrieving and managing stored memories
+- Complete the conversation summarization functionality
+
 ## 2025-04-22: UserProfile Model Implementation
 
 As part of our v1 migration to the personal digital twin architecture, we've implemented the UserProfile model:
