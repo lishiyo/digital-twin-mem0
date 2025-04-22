@@ -117,9 +117,10 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Create batch processing for efficient handling
 - [x] Set up TTL policies for memory management
 - [x] Implement error handling and retry mechanisms
+- [ ] Create API endpoints for chat so this can be tested with real data
 
 **3.1.3. Extract entity information and update UserProfile**
-- [ ] Implement LLM-based entity and trait extraction from chat logs
+- [ ] Implement LLM-based entity and trait extraction from chat logs (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
 - [ ] Create mappers to UserProfile fields (preferences, interests, skills)
 - [ ] Develop confidence scoring for extracted traits
 - [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
@@ -133,6 +134,8 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Add automatic title generation for conversations
 - [ ] Develop context preservation between sessions
 - [ ] Create conversation pruning/archiving strategy
+- [ ] Implement conversation status tracking (active, archived, deleted)
+- [ ] Add metadata and context handling for conversations
 
 **3.1.5. Set up background processing**
 - [x] Configure Celery task queue for async processing
@@ -141,7 +144,45 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Add monitoring and task status reporting
 - [x] Implement graceful failure handling
 
-*Dependencies: 3.1.2, 3.1.3, and 3.1.4 depend on 3.1.1; 3.1.5 depends on 3.1.2, 3.1.3, and 3.1.4; All 3.1.x tasks depend on 1.x and 2.x; 3.1.3 specifically depends on UserProfile implementation (1.2)*
+**3.1.6. Create comprehensive chat API endpoints**
+- [ ] Implement CRUD operations for conversations
+  - [ ] `GET /api/v1/conversations` - list with pagination
+  - [ ] `GET /api/v1/conversations/{id}` - conversation details
+  - [ ] `POST /api/v1/conversations` - create new conversation
+  - [ ] `PUT /api/v1/conversations/{id}` - update conversation
+  - [ ] `DELETE /api/v1/conversations/{id}` - archive conversation
+- [ ] Implement message management endpoints
+  - [ ] `GET /api/v1/conversations/{id}/messages` - list messages
+  - [ ] `POST /api/v1/conversations/{id}/messages` - add message
+  - [ ] `PUT /api/v1/conversations/{id}/messages/{id}` - update message
+- [ ] Add authentication and authorization checks
+- [ ] Implement rate limiting and request validation
+- [ ] Create documentation with Swagger/OpenAPI
+
+**3.1.7. Implement feedback mechanisms**
+- [ ] Create message feedback endpoints
+  - [ ] `POST /api/v1/messages/{id}/feedback` - add feedback
+  - [ ] `GET /api/v1/messages/{id}/feedback` - get feedback
+- [ ] Implement feedback types (helpful, incorrect, insightful, etc.)
+- [ ] Add feedback processing for profile improvement
+- [ ] Create feedback analytics service
+- [ ] Connect feedback with User Profile updates
+
+**3.1.8. Develop testing strategy for chat components**
+- [ ] Create unit tests for database models and constraints
+- [ ] Implement service-level tests for conversation management
+- [ ] Add integration tests for the full ingestion pipeline
+- [ ] Create performance tests for high-volume scenarios
+- [ ] Implement end-to-end tests for chat API
+
+**3.1.9. Implement performance optimization**
+- [ ] Add caching for frequent queries (Redis)
+- [ ] Implement efficient pagination for large conversations
+- [ ] Create database indexing strategy for chat queries
+- [ ] Add query optimization for common patterns
+- [ ] Implement conversation archiving for old/inactive conversations
+
+*Dependencies: 3.1.2, 3.1.3, and 3.1.4 depend on 3.1.1; 3.1.5 depends on 3.1.2, 3.1.3, and 3.1.4; 3.1.6 depends on 3.1.1; 3.1.7 depends on 3.1.6; 3.1.8 depends on 3.1.6 and 3.1.7; 3.1.9 can be developed in parallel. All 3.1.x tasks depend on 1.x and 2.x; 3.1.3 specifically depends on UserProfile implementation (1.2)*
 
 ### 4. Remove DAO Components
 
