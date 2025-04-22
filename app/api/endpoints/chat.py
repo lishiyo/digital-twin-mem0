@@ -307,7 +307,7 @@ async def get_message_mem0_status(
         return {
             "message_id": str(message.id),
             "is_stored_in_mem0": message.is_stored_in_mem0,
-            "mem0_memory_id": message.mem0_memory_id,
+            "mem0_memory_id": message.mem0_message_id,
             "importance_score": message.importance_score,
             "processed": message.processed,
             "created_at": message.created_at.isoformat()

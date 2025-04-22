@@ -89,7 +89,7 @@ async def get_memories_by_conversation(
         )
 
 
-@router.get("/memory/{memory_id}")
+@router.get("/{memory_id}")
 async def get_memory_by_id(
     memory_id: str,
     current_user: dict = Depends(get_current_user_or_mock),
@@ -103,7 +103,7 @@ async def get_memory_by_id(
     
     try:
         memory_service = MemoryService()
-        memory = await memory_service.get(memory_id, user_id)
+        memory = await memory_service.get(memory_id)
         
         if not memory:
             raise HTTPException(

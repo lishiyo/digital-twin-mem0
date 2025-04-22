@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, List, Any, Optional, Tuple
+import uuid
 
 from app.db.models.chat_message import ChatMessage
 from app.db.models.conversation import Conversation
@@ -52,7 +53,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             if message.importance_score is None:
                 message.importance_score = self._calculate_importance(message)
             
-            logger.info(f"Processing message {message.id} with importance score {message.importance_score}")
+            logger.info(f"Processing message {message.id}: {message.content} with importance score {message.importance_score}")
             
             # Get conversation for context
             query = (
@@ -101,11 +102,18 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
                     memory_id = raw_result["memory_id"]
                 elif "id" in raw_result:
                     memory_id = raw_result["id"]
+                # Handle empty results array case
+                elif "results" in raw_result and not raw_result["results"]:
+                    # Don't generate a memory ID since Mem0 decided not to store it
+                    memory_id = None
+                    logger.info(f"Mem0 returned empty results array - content not stored in Mem0")
             
             # Update message with Mem0 ID
             message.mem0_message_id = memory_id
-            message.is_stored_in_mem0 = True
+            # Mark as processed regardless of whether storage succeeded
             message.processed = True
+            # Set is_stored_in_mem0 based on whether we got a memory ID
+            message.is_stored_in_mem0 = memory_id is not None
             
             self.db.commit()
             
@@ -209,6 +217,8 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
                 "conversation_id": conversation_id,
                 "details": []
             }
+
+            logger.info(f"Processing {len(messages)} messages for conversation {conversation_id}")
             
             # Process each message
             for message in messages:
