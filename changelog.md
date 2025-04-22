@@ -45,4 +45,32 @@ This is the first step in our migration to the v1 architecture, which focuses on
 Next steps:
 1. Implement UserProfile model
 2. Refine Graphiti schema for user traits
-3. Implement chat ingestion pipeline 
+3. Implement chat ingestion pipeline
+
+## 2025-04-22: Chat Log Ingestion Implementation
+
+As part of our v1 migration to the personal digital twin architecture, we've implemented the Chat Log Ingestion system:
+
+### Database Changes
+- Created database models for `Conversation`, `ChatMessage`, and `MessageFeedback` using SQLAlchemy 2.0 style
+- Implemented necessary indexes for efficient querying
+- Set up proper relationships between models and the User model
+- Created and applied Alembic migration to add these new tables to the database
+- Fixed schema of existing `chat_message` table to use `conversation_id` instead of `session_id` and `role` instead of `sender`, and added new fields (`meta_data`, `tokens`, `processed`)
+
+### Service Implementation
+- Created `ConversationService` for CRUD operations on conversations and messages
+- Implemented `ChatMem0Ingestion` service for processing chat messages into Mem0
+- Added tiered memory approach with TTL policies based on message importance
+- Implemented importance scoring and metadata tagging for messages
+- Added proper error handling and transaction management
+
+### Background Processing
+- Set up Celery tasks for asynchronous processing of chat messages
+- Implemented periodic tasks for processing pending messages
+- Created task status reporting and robust error handling
+
+### Next Steps
+- Implement LLM-based entity extraction from chat logs (Task 3.1.3)
+- Develop conversation boundary detection and summarization (Task 3.1.4)
+- Update the chat API endpoints to use the new conversation system (Task 5.4.1) 

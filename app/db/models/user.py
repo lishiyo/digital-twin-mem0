@@ -25,6 +25,19 @@ class User(Base):
     )
     
     # Relationships
-    chat_messages: Mapped[List["ChatMessage"]] = relationship("ChatMessage", back_populates="user")
+    messages: Mapped[List["ChatMessage"]] = relationship("ChatMessage", back_populates="user")
+    conversations: Mapped[List["Conversation"]] = relationship("Conversation", back_populates="user")
+    message_feedback: Mapped[List["MessageFeedback"]] = relationship("MessageFeedback", back_populates="user")
     profile: Mapped[Optional["UserProfile"]] = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     # Removed DAO-related relationships 
+
+    def to_dict(self):
+        """Convert model to dict."""
+        return {
+            "id": self.id,
+            "handle": self.handle,
+            "email": self.email,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        } 

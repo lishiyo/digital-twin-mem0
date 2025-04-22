@@ -1,33 +1,65 @@
 from datetime import datetime
-from typing import Optional
-from uuid import uuid4
-
-from sqlalchemy import String, DateTime, Text, ForeignKey, func
+import uuid
+from enum import Enum
+from typing import Optional, Dict, Any
+from sqlalchemy import String, ForeignKey, DateTime, JSON, Text, Enum as SQLEnum, Integer, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 
 
+class MessageRole(str, Enum):
+    """Enum for message roles."""
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
 class ChatMessage(Base):
-    """Model for storing chat messages between users and their digital twins."""
+    """Chat message model."""
+    __tablename__ = "chat_message"  # Explicitly set the table name to match ForeignKey reference
     
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, index=True, default=lambda: str(uuid4()))
-    session_id: Mapped[str] = mapped_column(String(255), index=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversation.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("user.id"), index=True)
+    role: Mapped[MessageRole] = mapped_column(SQLEnum(MessageRole), index=True)
     content: Mapped[str] = mapped_column(Text)
-    sender: Mapped[str] = mapped_column(String(50))  # "user" or "assistant"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    meta_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    processed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     
-    # Metadata
-    is_stored_in_mem0: Mapped[bool] = mapped_column(default=False)
-    mem0_memory_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    importance_score: Mapped[Optional[float]] = mapped_column(nullable=True)
-    
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
-    )
+    # Mem0 integration fields
+    is_stored_in_mem0: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    mem0_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    mem0_metadata: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    embedding_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ingested: Mapped[bool] = mapped_column(Boolean, default=False)
+    importance_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
     # Relationships
-    user = relationship("User", back_populates="chat_messages")
+    conversation = relationship("Conversation", back_populates="messages")
+    user = relationship("User", back_populates="messages")
+    feedback = relationship("MessageFeedback", back_populates="message", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<ChatMessage(id='{self.id}', conversation_id='{self.conversation_id}', role='{self.role}')>"
 
-    def __repr__(self) -> str:
-        return f"<ChatMessage(id={self.id}, session_id={self.session_id}, turn={self.turn})>"
+    def to_dict(self):
+        """Convert model to dict."""
+        return {
+            "id": self.id,
+            "conversation_id": self.conversation_id,
+            "user_id": self.user_id,
+            "role": self.role.value if self.role else None,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "tokens": self.tokens,
+            "processed": self.processed,
+            "is_stored_in_mem0": self.is_stored_in_mem0,
+            "mem0_message_id": self.mem0_message_id,
+            "embedding_id": self.embedding_id,
+            "meta_data": self.meta_data,
+            "ingested": self.ingested,
+            "importance_score": self.importance_score
+        }

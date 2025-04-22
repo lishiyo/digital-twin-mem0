@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Any, List, Dict, Optional, Union
 import os
 
-from pydantic import PostgresDsn, field_validator
+from pydantic import PostgresDsn, field_validator, AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str | None = None
     GRAPHITI_HOST: str | None = None
     GRAPHITI_PORT: str | None = None
+
+    # Test Database - SQLite in-memory for tests
+    TEST_DATABASE_URL: str = "sqlite+aiosqlite:///:memory:"
 
     model_config = SettingsConfigDict(
         env_file=".env",

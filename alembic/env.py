@@ -9,9 +9,12 @@ from alembic import context
 
 # Import all models here
 from app.db.base import Base
-from app.db.models.chat_message import ChatMessage  # noqa
+# Import all models directly, not just through base
+from app.db.models.chat_message import ChatMessage, MessageRole  # noqa
+from app.db.models.conversation import Conversation  # noqa 
+from app.db.models.message_feedback import MessageFeedback, FeedbackType  # noqa
 from app.db.models.user import User  # noqa
-# Removed DAO-related models
+from app.db.models.user_profile import UserProfile  # noqa
 from app.db.models.ingested_document import IngestedDocument  # noqa
 
 # this is the Alembic Config object, which provides

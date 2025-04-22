@@ -103,20 +103,20 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 3. Basic Chat Log Ingestion
 
 **3.1.1. Implement chat message persistence**
-- [ ] Create database models for `Conversation`, `ChatMessage`, and `MessageFeedback`
-- [ ] Implement necessary indexes for efficient querying 
-- [ ] Set up relationships between models and User
-- [ ] Create Alembic migration scripts
-- [ ] Implement conversation service for CRUD operations
-- [ ] Add transaction handling and robust error logging
+- [x] Create database models for `Conversation`, `ChatMessage`, and `MessageFeedback`
+- [x] Implement necessary indexes for efficient querying 
+- [x] Set up relationships between models and User
+- [x] Create Alembic migration scripts
+- [x] Implement conversation service for CRUD operations
+- [x] Add transaction handling and robust error logging
 
 **3.1.2. Create Mem0 ingestion pipeline**
-- [ ] Develop chat transformer for Mem0 to process raw messages
-- [ ] Implement tiered memory approach (recent messages vs summaries)
-- [ ] Add metadata tagging with source, confidence, and context
-- [ ] Create batch processing for efficient handling
-- [ ] Set up TTL policies for memory management
-- [ ] Implement error handling and retry mechanisms
+- [x] Develop chat transformer for Mem0 to process raw messages
+- [x] Implement tiered memory approach (recent messages vs summaries)
+- [x] Add metadata tagging with source, confidence, and context
+- [x] Create batch processing for efficient handling
+- [x] Set up TTL policies for memory management
+- [x] Implement error handling and retry mechanisms
 
 **3.1.3. Extract entity information and update UserProfile**
 - [ ] Implement LLM-based entity and trait extraction from chat logs
@@ -135,11 +135,11 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create conversation pruning/archiving strategy
 
 **3.1.5. Set up background processing**
-- [ ] Configure Celery task queue for async processing
-- [ ] Implement periodic tasks for processing pending messages
-- [ ] Create scheduled tasks for conversation summarization
-- [ ] Add monitoring and task status reporting
-- [ ] Implement graceful failure handling
+- [x] Configure Celery task queue for async processing
+- [x] Implement periodic tasks for processing pending messages
+- [x] Create scheduled tasks for conversation summarization
+- [x] Add monitoring and task status reporting
+- [x] Implement graceful failure handling
 
 *Dependencies: 3.1.2, 3.1.3, and 3.1.4 depend on 3.1.1; 3.1.5 depends on 3.1.2, 3.1.3, and 3.1.4; All 3.1.x tasks depend on 1.x and 2.x; 3.1.3 specifically depends on UserProfile implementation (1.2)*
 

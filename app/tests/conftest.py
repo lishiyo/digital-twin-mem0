@@ -1,30 +1,46 @@
 """Test fixtures for the application."""
 
-import asyncio
 import pytest
-from sqlalchemy import insert
-from sqlalchemy.ext.asyncio import AsyncSession
+import pytest_asyncio
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
-from app.db.session import AsyncSessionLocal
+from app.db.base import Base
+from app.core.config import settings
 from app.db.models.user import User
 from app.services.graph import GraphitiService
 from app.services.memory import MemoryService
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
+@pytest_asyncio.fixture(scope="function")
 async def db_session():
-    """Create a new database session for each test."""
-    async with AsyncSessionLocal() as session:
+    """Create a clean database session for a test."""
+    # Create an engine connected to the test database
+    engine = create_async_engine(settings.TEST_DATABASE_URL)
+    
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    # Create a sessionmaker
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    
+    # Create a session
+    async with async_session() as session:
         yield session
+        
+        # Roll back any changes
         await session.rollback()
+    
+    # Drop all tables after the test is complete
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    
+    # Dispose of the engine
+    await engine.dispose()
 
 
 @pytest.fixture
