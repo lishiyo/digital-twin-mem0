@@ -67,30 +67,30 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 2. Graphiti Schema Refinements
 
 **2.1. Remove DAO-related node types**
-- [ ] Remove Proposal, Vote, and PolicyTopic entities
-- [ ] Delete associated relationship definitions
-- [ ] Test schema validation without these components
+- [x] Remove Proposal, Vote, and PolicyTopic entities
+- [x] Delete associated relationship definitions
+- [x] Test schema validation without these components
 
 **2.2. Define new node types**
-- [ ] Create Skill, Interest, Preference, Dislike, Person, TimeSlot nodes
-- [ ] Define properties for each node type
-- [ ] Create validation logic and test data
+- [x] Create Skill, Interest, Preference, Dislike, Person, TimeSlot nodes
+- [x] Define properties for each node type
+- [x] Create validation logic and test data
 
 **2.3. Define new relationship types**
-- [ ] Define HAS_SKILL, INTERESTED_IN, PREFERS, DISLIKES, KNOWS, AVAILABILITY
-- [ ] Add properties like proficiency, strength, recurrence
-- [ ] Implement validation and test data
+- [x] Define HAS_SKILL, INTERESTED_IN, PREFERS, DISLIKES, KNOWS, AVAILABILITY
+- [x] Add properties like proficiency, strength, recurrence
+- [x] Implement validation and test data
 
 **2.4. Update document/event linking**
-- [ ] Ensure proper connections between nodes and User
-- [ ] Update existing queries
-- [ ] Test with sample data
+- [x] Ensure proper connections between nodes and User
+- [x] Update existing queries
+- [x] Test with sample data
 
 **2.5. Create migration script**
-- [ ] Develop script to migrate existing Graphiti data
-- [ ] Handle DAO node/edge removal
-- [ ] Implement transformation logic
-- [ ] Add rollback capability
+- [x] Develop script to migrate existing Graphiti data
+- [x] Handle DAO node/edge removal
+- [x] Implement transformation logic
+- [x] Add rollback capability
 
 **2.6. Test Graphiti schema changes**
 - [ ] Run migration on test dataset

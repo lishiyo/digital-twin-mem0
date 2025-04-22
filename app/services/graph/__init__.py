@@ -817,7 +817,8 @@ class GraphitiService:
         schemas = {
             "Person": {
                 "required": ["name"],
-                "optional": ["age", "email", "location", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["age", "email", "location", "source_file", "label", "user_id", "context", "scope", "owner_id", 
+                            "bio", "profession", "relationship", "contact_info"]
             },
             "Organization": {
                 "required": ["name"],
@@ -882,6 +883,36 @@ class GraphitiService:
             "Product": {
                 "required": ["name"],
                 "optional": ["manufacturer", "price", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+            },
+            # New node types for v1 migration
+            "Skill": {
+                "required": ["name"],
+                "optional": ["description", "proficiency", "experience_years", "last_used", "certifications", 
+                             "projects", "source_file", "label", "user_id", "context", "scope", "owner_id",
+                             "confidence", "source"]
+            },
+            "Interest": {
+                "required": ["name"],
+                "optional": ["description", "strength", "since", "category", "related_activities", 
+                             "source_file", "label", "user_id", "context", "scope", "owner_id",
+                             "confidence", "source"]
+            },
+            "Preference": {
+                "required": ["name"],
+                "optional": ["description", "strength", "category", "context_applies", 
+                             "source_file", "label", "user_id", "context", "scope", "owner_id",
+                             "confidence", "source"]
+            },
+            "Dislike": {
+                "required": ["name"],
+                "optional": ["description", "strength", "reason", "category", 
+                             "source_file", "label", "user_id", "context", "scope", "owner_id",
+                             "confidence", "source"]
+            },
+            "TimeSlot": {
+                "required": ["name"],
+                "optional": ["start_time", "end_time", "day_of_week", "recurrence", "availability", 
+                             "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
             "Unknown": {
                 "required": ["name"],

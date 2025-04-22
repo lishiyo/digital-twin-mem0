@@ -10,9 +10,17 @@ As part of our v1 migration to the personal digital twin architecture, we've imp
 - Updated IngestedDocument model to use SQLAlchemy 2.0 style with Mapped and mapped_column
 - Created and applied Alembic migration to add UserProfile table and properly handle DAO table removal
 
+### Graphiti Schema Changes
+- Removed DAO-related node types (Proposal, Vote, PolicyTopic)
+- Added new node types for the digital twin: Skill, Interest, Preference, Dislike, Person, TimeSlot
+- Defined relationship types: HAS_SKILL, INTERESTED_IN, PREFERS, DISLIKES, KNOWS, AVAILABILITY
+- Created migration script (`app/scripts/migrate_graphiti_schema.py`) with backup and rollback capabilities
+- Added test data generation for validation
+
 ### TODO
 - Implement saving to IngestedDocument table during file processing (currently only stored in Mem0)
 - Update existing queries that work with User to utilize the new UserProfile relationship
+- Test Graphiti schema changes with actual data
 
 ## 2025-04-21: Remove DAO Components
 
