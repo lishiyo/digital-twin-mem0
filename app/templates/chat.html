@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin Chat</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Conversations</h2>
+                <button id="new-conversation" class="new-conversation-btn">New Conversation</button>
+            </div>
+            <div id="conversations-list" class="conversations-list">
+                <!-- Conversations will be loaded here -->
+            </div>
+        </div>
+        <div class="chat-main">
+            <div class="chat-header">
+                <h1 id="current-conversation-title">New Conversation</h1>
+            </div>
+            <div id="messages-container" class="messages-container">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="chat-input-container">
+                <textarea id="message-input" placeholder="Type your message..." class="chat-input"></textarea>
+                <button id="send-button" class="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/chat.js"></script>
+</body>
+</html> 

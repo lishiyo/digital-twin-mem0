@@ -119,16 +119,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Implement error handling and retry mechanisms
 - [x] Create API endpoints for chat so this can be tested with real data
 
-**3.1.3. Extract entity information and update UserProfile**
-- [ ] Implement LLM-based entity and trait extraction from chat logs (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
-- [ ] Create mappers to UserProfile fields (preferences, interests, skills)
-- [ ] Develop confidence scoring for extracted traits
-- [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
-- [ ] Implement conflict resolution for contradictory information
-- [ ] Create direct UserProfile updates for high-confidence traits
-- [ ] Create Graphiti node/relationship creation service
-
-**3.1.4. Implement session management**
+**3.1.3. Implement session management**
 - [ ] Create conversation boundary detection
 - [ ] Implement conversation summarization service
 - [ ] Add automatic title generation for conversations
@@ -136,6 +127,16 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create conversation pruning/archiving strategy
 - [ ] Implement conversation status tracking (active, archived, deleted)
 - [ ] Add metadata and context handling for conversations
+
+**3.1.4. Extract entity information and update UserProfile**
+- [ ] Implement LLM-based entity and trait extraction from chat logs (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
+- [ ] Create mappers to UserProfile fields (preferences, interests, skills)
+- [ ] Develop confidence scoring for extracted traits
+- [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
+- [ ] Implement conflict resolution for contradictory information
+- [ ] Create direct UserProfile updates for high-confidence traits
+- [ ] Create api endpoints to view the UserProfile to verify this is working
+- [ ] Create Graphiti node/relationship creation service for chats
 
 **3.1.5. Set up background processing**
 - [x] Configure Celery task queue for async processing
@@ -146,14 +147,14 @@ This approach allows tracking both when a task should be done (phase) and what f
 
 **3.1.6. Create comprehensive chat API endpoints**
 - [ ] Implement CRUD operations for conversations
-  - [ ] `GET /api/v1/conversations` - list with pagination
-  - [x] `GET /api/v1/conversations/{id}` - conversation details
+  - [ ] `GET /api/v1/conversations` - list with pagination (but we have `/api/v1/chat/conversations` already)
+  - [ ] `GET /api/v1/conversations/{id}` - conversation details (but we have `api/v1/chat/conversations/{id}` already)
   - [ ] `POST /api/v1/conversations` - create new conversation
-  - [ ] `PUT /api/v1/conversations/{id}` - update conversation
+  - [ ] `PUT /api/v1/conversations/{id}` - update conversation (does this make sense? can conversations be updated?)
   - [ ] `DELETE /api/v1/conversations/{id}` - archive conversation
 - [ ] Implement message management endpoints
   - [ ] `GET /api/v1/conversations/{id}/messages` - list messages
-  - [ ] `POST /api/v1/conversations/{id}/messages` - add message
+  - [ ] `POST /api/v1/conversations/{id}/messages` - add message (does this make sense? we are already adding messages through `/chat` endpoint)
   - [ ] `PUT /api/v1/conversations/{id}/messages/{id}` - update message
 - [ ] Add authentication and authorization checks
 - [ ] Implement rate limiting and request validation
@@ -190,7 +191,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Identify and remove DAO-related code
 - [x] Update agent configurations
 - [x] Remove DAO-specific prompts
-- [ ] Test agent functionality
+- [x] Test agent functionality
 
 **5.1. Remove DAO-related endpoints**
 - [x] Remove `/proposals/*` endpoints
@@ -261,18 +262,18 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 5.4. Enhanced Chat Endpoints
 
 **5.4.1. Update POST /api/v1/chat**
-- [ ] Modify endpoint to create/use Conversation records
+- [ ] Modify endpoint to create/use Conversation records if not already
 - [ ] Add conversation_id parameter (optional, creates new if absent)
 - [ ] Implement context capture from request (project, task, etc.)
 - [ ] Add support for streaming responses
 - [ ] Ensure compatibility with existing clients
 
 **5.4.2. Implement Mem0 feedback loop**
-- [ ] Create background task triggering for message ingestion
-- [ ] Ensure all messages are stored in Postgres before response
+- [x] Create background task triggering for message ingestion
+- [x] Ensure all messages are stored in Postgres before response
 - [ ] Implement duplicate detection and deduplication logic
-- [ ] Add importance scoring for prioritization
-- [ ] Optimize TTL management based on message importance
+- [x] Add importance scoring for prioritization
+- [x] Optimize TTL management based on message importance
 - [ ] Create metadata enrichment from conversation context
 
 **5.4.3. Integrate chat insights with background processing**
@@ -284,11 +285,11 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Add monitoring and logging for extraction metrics
 
 **5.4.4. Add conversational UX endpoints**
-- [ ] Create endpoints for conversation history retrieval
-- [ ] Implement conversation title management
-- [ ] Add message reaction/feedback support
-- [ ] Create endpoints for conversation search
-- [ ] Implement pagination and filtering
+- [x] Create endpoints for conversation history retrieval
+- [x] Implement conversation title management
+- [x] Add message reaction/feedback support
+- [x] Implement pagination and filtering
+- [x] Create simple HTML/JS frontend for conversation interactions
 
 **5.4.5. Implement real-time chat capability (this can wait)**
 - [ ] Setup WebSocket server for bidirectional communication
