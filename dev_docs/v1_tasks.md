@@ -28,8 +28,8 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 1. Database Schema Changes
 
 **1.1. Remove DAO-related models**
-- [ ] Identify and delete `app/db/models/proposal.py` and `app/db/models/vote.py`
-- [ ] Remove model imports and references in other files
+- [x] Identify and delete `app/db/models/proposal.py` and `app/db/models/vote.py`
+- [x] Remove model imports and references in other files
 - [ ] Test codebase compilation without these models
 
 **1.2. Create UserProfile model**
@@ -110,7 +110,6 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Implement conversation service for CRUD operations
 - [ ] Add transaction handling and robust error logging
 
-
 **3.1.2. Create Mem0 ingestion pipeline**
 - [ ] Develop chat transformer for Mem0 to process raw messages
 - [ ] Implement tiered memory approach (recent messages vs summaries)
@@ -146,15 +145,15 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 4. Remove DAO Components
 
 **4.1. Remove DAO-related agent components**
-- [ ] Identify and remove DAO-related code
+- [x] Identify and remove DAO-related code
 - [ ] Update agent configurations
 - [ ] Remove DAO-specific prompts
 - [ ] Test agent functionality
 
 **5.1. Remove DAO-related endpoints**
-- [ ] Remove `/proposals/*` endpoints
-- [ ] Update API documentation
-- [ ] Remove route handlers and services
+- [x] Remove `/proposals/*` endpoints
+- [x] Update API documentation
+- [x] Remove route handlers and services
 - [ ] Test API without these endpoints
 
 *No dependencies - these can be done independently*

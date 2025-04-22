@@ -827,14 +827,6 @@ class GraphitiService:
                 "required": [],  # Modified to allow documents without title
                 "optional": ["title", "content", "author", "created_at", "tags", "source_file", "label", "user_id", "context", "scope", "owner_id"]
             },
-            "Proposal": {
-                "required": ["title", "description"],
-                "optional": ["author", "created_at", "deadline", "status", "source_file", "label", "user_id", "context", "scope", "owner_id"]
-            },
-            "Vote": {
-                "required": ["value", "proposal_id"],
-                "optional": ["voter_id", "timestamp", "weight", "source_file", "label", "user_id", "context", "scope", "owner_id"]
-            },
             "Location": {
                 "required": ["name"],
                 "optional": ["country", "city", "address", "source_file", "label", "user_id", "context", "scope", "owner_id"]

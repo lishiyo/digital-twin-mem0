@@ -26,5 +26,4 @@ class User(Base):
     
     # Relationships
     chat_messages: Mapped[List["ChatMessage"]] = relationship("ChatMessage", back_populates="user")
-    proposals: Mapped[List["Proposal"]] = relationship("Proposal", back_populates="author")
-    votes: Mapped[List["Vote"]] = relationship("Vote", back_populates="user") 
+    # Removed DAO-related relationships 

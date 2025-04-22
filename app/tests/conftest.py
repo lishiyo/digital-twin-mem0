@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
 from app.db.models.user import User
-from app.db.models.proposal import Proposal, ProposalStatus
 from app.services.graph import GraphitiService
 from app.services.memory import MemoryService
 
@@ -55,20 +54,4 @@ async def test_user(db_session: AsyncSession):
     )
     user = result.scalar_one()
     await db_session.commit()
-    return user
-
-
-@pytest.fixture
-async def test_proposal(db_session: AsyncSession, test_user: User):
-    """Create a test proposal."""
-    result = await db_session.execute(
-        insert(Proposal).values(
-            title="Test Proposal",
-            description="This is a test proposal for testing",
-            author_id=test_user.id,
-            status=ProposalStatus.OPEN,
-        ).returning(Proposal)
-    )
-    proposal = result.scalar_one()
-    await db_session.commit()
-    return proposal 
+    return user 

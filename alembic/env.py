@@ -11,8 +11,7 @@ from alembic import context
 from app.db.base import Base
 from app.db.models.chat_message import ChatMessage  # noqa
 from app.db.models.user import User  # noqa
-from app.db.models.proposal import Proposal  # noqa
-from app.db.models.vote import Vote  # noqa
+# Removed DAO-related models
 from app.db.models.ingested_document import IngestedDocument  # noqa
 
 # this is the Alembic Config object, which provides

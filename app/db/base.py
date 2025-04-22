@@ -11,8 +11,7 @@ from app.db.base_class import Base
 # Import all models here
 from app.db.models.user import User
 from app.db.models.chat_message import ChatMessage
-from app.db.models.proposal import Proposal
-from app.db.models.vote import Vote
+# Removed DAO-related models
 from app.db.models.ingested_document import IngestedDocument
 # Add additional models as they are created
 

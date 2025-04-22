@@ -1,6 +1,6 @@
-# Digital Twin & DAO API
+# Digital Twin API
 
-This README provides instructions for running and using the Digital Twin & DAO API.
+This README provides instructions for running and using the Digital Twin API.
 
 ## Setup
 
@@ -464,8 +464,7 @@ This approach provides the twin with both semantic understanding (vector embeddi
 ### Coming in Future Updates
 
 Future API features will include:
-- Streaming responses (Server-Sent Events)
 - Conversation history and context management
+- Streaming responses
 - Twin personalization
-- Voting intent detection
-- DAO proposal creation and management 
+- Recommendations from twins
