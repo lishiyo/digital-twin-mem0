@@ -106,6 +106,7 @@ To use the Gemini-based entity extraction:
 
 3. Start the Celery worker for background tasks
    ```
+   export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
    celery -A app.worker worker -l info
    ```
 

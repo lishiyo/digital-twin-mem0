@@ -8,7 +8,10 @@ celery_app = Celery(
     "app.worker",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.worker.tasks"],
+    include=[
+        "app.worker.tasks",
+        "app.worker.tasks.conversation_tasks",  # Include the specific conversation tasks module
+    ],
 )
 
 # Optional configuration

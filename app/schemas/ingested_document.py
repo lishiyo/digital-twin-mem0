@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, ClassVar
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,9 @@ class IngestedDocument(BaseModel):
     
     # Generic metadata fields
     document_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional document metadata")
+    
+    # Use ConfigDict for Pydantic v2 compatibility
+    model_config = ConfigDict(from_attributes=True)
     
     @classmethod
     def from_memories(cls, memories: List[Dict[str, Any]], user_id: str) -> List["IngestedDocument"]:
@@ -171,10 +174,4 @@ class IngestedDocument(BaseModel):
                 document_metadata=meta.get("document_metadata"),
             ))
             
-        return documents
-    
-    class Config:
-        """Pydantic config for this model."""
-        
-        orm_mode = True  # Allow conversion from SQLAlchemy ORM model
-        from_attributes = True  # For Pydantic v2 compatibility 
+        return documents 

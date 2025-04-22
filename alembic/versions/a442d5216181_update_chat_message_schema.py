@@ -30,6 +30,10 @@ def upgrade() -> None:
     op.add_column('chat_message', sa.Column('meta_data', postgresql.JSON(astext_type=sa.Text()), server_default='{}', nullable=False))
     op.add_column('chat_message', sa.Column('tokens', sa.Integer(), nullable=True))
     op.add_column('chat_message', sa.Column('processed', sa.Boolean(), server_default='false', nullable=False))
+    op.add_column('chat_message', sa.Column('mem0_message_id', sa.String(255), nullable=True))
+    op.add_column('chat_message', sa.Column('mem0_metadata', postgresql.JSON(astext_type=sa.Text()), server_default='{}', nullable=False))
+    op.add_column('chat_message', sa.Column('embedding_id', sa.String(255), nullable=True))
+    op.add_column('chat_message', sa.Column('ingested', sa.Boolean(), server_default='false', nullable=False))
     
     # Migrate data from old columns to new columns
     op.execute("""
@@ -52,6 +56,7 @@ def upgrade() -> None:
     # Create index on new columns
     op.create_index(op.f('ix_chat_message_processed'), 'chat_message', ['processed'], unique=False)
     op.create_index(op.f('ix_chat_message_role'), 'chat_message', ['role'], unique=False)
+    op.create_index(op.f('ix_chat_message_ingested'), 'chat_message', ['ingested'], unique=False)
     
     # Now, make the new columns not nullable after data migration
     op.alter_column('chat_message', 'conversation_id', nullable=False)
@@ -87,11 +92,16 @@ def downgrade() -> None:
     op.drop_constraint('fk_chat_message_conversation_id', 'chat_message', type_='foreignkey')
     
     # Drop indexes
+    op.drop_index(op.f('ix_chat_message_ingested'), table_name='chat_message')
     op.drop_index(op.f('ix_chat_message_role'), table_name='chat_message')
     op.drop_index(op.f('ix_chat_message_processed'), table_name='chat_message')
     op.drop_index(op.f('ix_chat_message_conversation_id'), table_name='chat_message')
     
     # Drop new columns
+    op.drop_column('chat_message', 'ingested')
+    op.drop_column('chat_message', 'embedding_id')
+    op.drop_column('chat_message', 'mem0_metadata')
+    op.drop_column('chat_message', 'mem0_message_id')
     op.drop_column('chat_message', 'processed')
     op.drop_column('chat_message', 'tokens')
     op.drop_column('chat_message', 'meta_data')

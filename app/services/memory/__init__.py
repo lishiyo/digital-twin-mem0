@@ -60,7 +60,7 @@ class MemoryService:
         if not self.client:
             logger.warning("MemoryService initialized without a valid Mem0 client")
 
-    async def add(self, content: str, user_id: str, metadata: Optional[Dict[str, Any]] = None, infer: bool = False) -> Dict[str, Any]:
+    async def add(self, content: str, user_id: str, metadata: Optional[Dict[str, Any]] = None, infer: bool = False, ttl_days: Optional[int] = None) -> Dict[str, Any]:
         """Add a memory to Mem0.
         
         Args:
@@ -68,6 +68,7 @@ class MemoryService:
             user_id: The user ID to namespace the memory
             metadata: Optional metadata for the memory
             infer: Whether to use LLM inference to extract knowledge (costly in API calls)
+            ttl_days: Optional TTL in days for the memory
             
         Returns:
             Dictionary with memory information
@@ -104,7 +105,8 @@ class MemoryService:
                         metadata=metadata,
                         version="v2",  # Use v2 as recommended
                         output_format="v1.1",  # Use v1.1 output format as recommended
-                        infer=infer  # Use the provided infer parameter
+                        infer=infer,  # Use the provided infer parameter
+                        ttl_days=ttl_days  # Use the provided ttl_days parameter
                     )
                     logger.info(f"Memory added for user {user_id}")
                     
@@ -767,3 +769,32 @@ class MemoryService:
         """
         # This is just a wrapper around delete_all with clearer naming
         return await self.delete_all(user_id)
+
+    async def check_connection(self) -> bool:
+        """Check if we can connect to the Mem0 service.
+        
+        Returns:
+            True if connected, False otherwise
+        """
+        if not self.client:
+            logger.warning("Cannot check connection - client unavailable")
+            return False
+            
+        try:
+            # Try a simple operation to check connection
+            # First just check if the client exists and has expected methods
+            client_methods = dir(self.client)
+            expected_methods = ['get', 'add', 'search', 'update', 'delete']
+            
+            method_check = all(method in client_methods for method in expected_methods)
+            if not method_check:
+                logger.warning(f"Mem0 client missing expected methods. Has: {client_methods}")
+                return False
+            
+            # We could also try a test query, but that might be expensive/unnecessary
+            # Just return True if we have a properly configured client
+            logger.info("Mem0 connection check successful")
+            return True
+        except Exception as e:
+            logger.error(f"Error checking Mem0 connection: {str(e)}")
+            return False

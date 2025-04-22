@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 from sqlalchemy import String, ForeignKey, DateTime, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,8 +15,10 @@ class Conversation(Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("user.id"))
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     summary: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), 
+                                               default=lambda: datetime.now(UTC),
+                                               onupdate=lambda: datetime.now(UTC))
     meta_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     
     # Define relationships

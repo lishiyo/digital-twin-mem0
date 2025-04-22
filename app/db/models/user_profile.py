@@ -10,6 +10,9 @@ from app.db.base_class import Base
 class UserProfile(Base):
     """Model for storing comprehensive user profile information for the digital twin."""
     
+    # Explicitly set table name to match existing database table
+    __tablename__ = "userprofile"
+    
     id: Mapped[str] = mapped_column(String(36), primary_key=True, index=True)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("user.id"), unique=True, index=True)
     

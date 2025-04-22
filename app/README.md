@@ -450,6 +450,29 @@ Response format:
 }
 ```
 
+### Testing Chat Ingestion
+
+To test the chat ingestion implementation:
+
+1. Basic Chat Flow:
+- Use the chat endpoint to send a message: `POST /api/v1/chat`
+- This creates a conversation and messages in the database
+- Triggers background tasks to process the messages
+
+2. Verify Conversation Storage:
+- Check the list of conversations: `GET /api/v1/chat/conversations`
+- View a specific conversation: `GET /api/v1/chat/conversations/{id}`
+
+3. Verify Memory Ingestion:
+- Check the Mem0 connection: `GET /api/v1/memory/check`
+- Check the Mem0 status of a message: `GET /api/v1/chat/messages/{id}/mem0-status`
+- View memories by conversation: `GET /api/v1/memory/memory-by-conversation/{id}`
+- View a specific memory: `GET /api/v1/memory/memory/{id}`
+- Manually trigger processing: `GET /api/v1/memory/trigger-process-conversation/{id}`
+
+ If you encounter any issues, you can inspect the logs to see what's happening in the background processing jobs.
+
+
 ### Agent Architecture
 
 The digital twin is implemented using LangGraph, a framework for building structured agents. The agent workflow:

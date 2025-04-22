@@ -10,6 +10,9 @@ from app.db.base_class import Base
 class User(Base):
     """User model representing members in the digital twin system."""
     
+    # Explicitly set table name to match existing database table
+    __tablename__ = "user"
+    
     id: Mapped[str] = mapped_column(String(36), primary_key=True, index=True)
     handle: Mapped[str] = mapped_column(String(255), index=True, unique=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), index=True, unique=True, nullable=True)

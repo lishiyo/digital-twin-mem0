@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     SQLALCHEMY_DATABASE_URI: PostgresDsn | None = None
+    SYNC_SQLALCHEMY_DATABASE_URI: PostgresDsn | None = None
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
     def assemble_db_connection(cls, v: str | None, info: dict[str, Any]) -> Any:
@@ -30,6 +31,19 @@ class Settings(BaseSettings):
             password=info.data.get("POSTGRES_PASSWORD"),
             host=info.data.get("POSTGRES_HOST"),
             port=info.data.get("POSTGRES_PORT"),  # This is now an int
+            path=f"{info.data.get('POSTGRES_DB') or ''}",
+        )
+
+    @field_validator("SYNC_SQLALCHEMY_DATABASE_URI", mode="before")
+    def assemble_sync_db_connection(cls, v: str | None, info: dict[str, Any]) -> Any:
+        if isinstance(v, str):
+            return v
+        return PostgresDsn.build(
+            scheme="postgresql+psycopg2",  # Use the synchronous driver
+            username=info.data.get("POSTGRES_USER"),
+            password=info.data.get("POSTGRES_PASSWORD"),
+            host=info.data.get("POSTGRES_HOST"),
+            port=info.data.get("POSTGRES_PORT"),
             path=f"{info.data.get('POSTGRES_DB') or ''}",
         )
 

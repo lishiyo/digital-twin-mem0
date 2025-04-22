@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 from enum import Enum
 from sqlalchemy import String, ForeignKey, DateTime, JSON, Text, Enum as SQLEnum, Integer, Float
@@ -27,7 +27,7 @@ class MessageFeedback(Base):
     feedback_type: Mapped[FeedbackType] = mapped_column(SQLEnum(FeedbackType))
     content: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     rating: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     meta_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     
     # Define relationships

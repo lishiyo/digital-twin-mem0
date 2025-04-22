@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 from enum import Enum
 from typing import Optional, Dict, Any
-from sqlalchemy import String, ForeignKey, DateTime, JSON, Text, Enum as SQLEnum, Integer, Boolean, Float
+from sqlalchemy import String, ForeignKey, DateTime, JSON, Text, Enum as SQLEnum, Integer, Boolean, Float, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -22,9 +22,10 @@ class ChatMessage(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversation.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("user.id"), index=True)
-    role: Mapped[MessageRole] = mapped_column(SQLEnum(MessageRole), index=True)
+    # Use SQLEnum for role with lowercase values
+    role: Mapped[MessageRole] = mapped_column(SQLEnum(MessageRole, values_callable=lambda x: [e.value.lower() for e in x]), nullable=False, index=True)
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True)
     meta_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     processed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
@@ -51,7 +52,7 @@ class ChatMessage(Base):
             "id": self.id,
             "conversation_id": self.conversation_id,
             "user_id": self.user_id,
-            "role": self.role.value if self.role else None,
+            "role": self.role.value if isinstance(self.role, MessageRole) else self.role,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "tokens": self.tokens,
@@ -63,3 +64,33 @@ class ChatMessage(Base):
             "ingested": self.ingested,
             "importance_score": self.importance_score
         }
+
+
+# Add event listeners to handle enum values before insert/update
+@event.listens_for(ChatMessage, 'before_insert')
+def process_role_before_insert(mapper, connection, target):
+    """Convert role to MessageRole enum before inserting."""
+    if hasattr(target, 'role') and target.role is not None:
+        if isinstance(target.role, str):
+            # Try to convert string to enum
+            for enum_val in MessageRole:
+                if enum_val.value.lower() == target.role.lower():
+                    target.role = enum_val
+                    break
+            else:
+                # If no match found
+                raise ValueError(f"Invalid role: {target.role}")
+
+@event.listens_for(ChatMessage, 'before_update')
+def process_role_before_update(mapper, connection, target):
+    """Convert role to MessageRole enum before updating."""
+    if hasattr(target, 'role') and target.role is not None:
+        if isinstance(target.role, str):
+            # Try to convert string to enum
+            for enum_val in MessageRole:
+                if enum_val.value.lower() == target.role.lower():
+                    target.role = enum_val
+                    break
+            else:
+                # If no match found
+                raise ValueError(f"Invalid role: {target.role}")

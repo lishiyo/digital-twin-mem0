@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
@@ -47,8 +47,8 @@ class ConversationService:
                 user_id=user_id,
                 title=title,
                 meta_data=meta_data or {},
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC)
             )
             
             self.db.add(conversation)
@@ -126,7 +126,7 @@ class ConversationService:
             if meta_data is not None:
                 conversation.meta_data = meta_data
                 
-            conversation.updated_at = datetime.utcnow()
+            conversation.updated_at = datetime.now(UTC)
             
             await self.db.commit()
             await self.db.refresh(conversation)
@@ -206,11 +206,11 @@ class ConversationService:
                 content=content,
                 tokens=tokens,
                 meta_data=meta_data or {},
-                created_at=datetime.utcnow()
+                created_at=datetime.now(UTC)
             )
             
             # Update conversation timestamp
-            conversation.updated_at = datetime.utcnow()
+            conversation.updated_at = datetime.now(UTC)
             
             # Generate a title if this is the first user message and no title exists
             if role == MessageRole.USER and not conversation.title:
@@ -351,7 +351,7 @@ class ConversationService:
                 content=content,
                 rating=rating,
                 meta_data=meta_data or {},
-                created_at=datetime.utcnow()
+                created_at=datetime.now(UTC)
             )
             
             self.db.add(feedback)
