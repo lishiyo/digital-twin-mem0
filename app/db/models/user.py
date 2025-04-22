@@ -26,4 +26,5 @@ class User(Base):
     
     # Relationships
     chat_messages: Mapped[List["ChatMessage"]] = relationship("ChatMessage", back_populates="user")
+    profile: Mapped[Optional["UserProfile"]] = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     # Removed DAO-related relationships 

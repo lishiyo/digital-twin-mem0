@@ -33,20 +33,20 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Test codebase compilation without these models
 
 **1.2. Create UserProfile model**
-- [ ] Create new file `app/db/models/user_profile.py`
-- [ ] Define UserProfile class with these fields:
-  - [ ] `preferences`: JSON field for user preferences
-  - [ ] `interests`: JSON array of user interests
-  - [ ] `skills`: JSON array of user skills
-  - [ ] `dislikes`: JSON array of user dislikes
-  - [ ] `communication_style`: JSON object for communication preferences
-  - [ ] `key_relationships`: JSON array for important relationships
-- [ ] Add proper relationship to User model
-- [ ] Implement default values and type hints
+- [x] Create new file `app/db/models/user_profile.py`
+- [x] Define UserProfile class with these fields:
+  - [x] `preferences`: JSON field for user preferences
+  - [x] `interests`: JSON array of user interests
+  - [x] `skills`: JSON array of user skills
+  - [x] `dislikes`: JSON array of user dislikes
+  - [x] `communication_style`: JSON object for communication preferences
+  - [x] `key_relationships`: JSON array for important relationships
+- [x] Add proper relationship to User model
+- [x] Implement default values and type hints
 
 **1.3. Update User model**
-- [ ] Add relationship to UserProfile in `app/db/models/user.py`
-- [ ] Ensure cascade delete for orphaned profiles
+- [x] Add relationship to UserProfile in `app/db/models/user.py`
+- [x] Ensure cascade delete for orphaned profiles
 - [ ] Update existing queries that work with User
 
 **1.4. Create Alembic migration**
@@ -147,7 +147,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 **4.1. Remove DAO-related agent components**
 - [x] Identify and remove DAO-related code
 - [ ] Update agent configurations
-- [ ] Remove DAO-specific prompts
+- [x] Remove DAO-specific prompts
 - [ ] Test agent functionality
 
 **5.1. Remove DAO-related endpoints**

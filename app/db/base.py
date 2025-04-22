@@ -13,6 +13,7 @@ from app.db.models.user import User
 from app.db.models.chat_message import ChatMessage
 # Removed DAO-related models
 from app.db.models.ingested_document import IngestedDocument
+from app.db.models.user_profile import UserProfile
 # Add additional models as they are created
 
 class Base(DeclarativeBase):
