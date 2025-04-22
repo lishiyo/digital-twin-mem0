@@ -30,7 +30,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 **1.1. Remove DAO-related models**
 - [x] Identify and delete `app/db/models/proposal.py` and `app/db/models/vote.py`
 - [x] Remove model imports and references in other files
-- [ ] Test codebase compilation without these models
+- [x] Test codebase compilation without these models
 
 **1.2. Create UserProfile model**
 - [x] Create new file `app/db/models/user_profile.py`
@@ -47,20 +47,20 @@ This approach allows tracking both when a task should be done (phase) and what f
 **1.3. Update User model**
 - [x] Add relationship to UserProfile in `app/db/models/user.py`
 - [x] Ensure cascade delete for orphaned profiles
-- [ ] Update existing queries that work with User
+- [x] Update existing queries that work with User
 
 **1.4. Create Alembic migration**
-- [ ] Generate migration: `alembic revision --autogenerate -m "remove dao models, add user profile"`
-- [ ] Review and adjust generated migration
-- [ ] Ensure proper upgrade and downgrade paths
+- [x] Generate migration: `alembic revision --autogenerate -m "remove dao models, add user profile"`
+- [x] Review and adjust generated migration
+- [x] Ensure proper upgrade and downgrade paths
 
 **1.5. Test database migrations**
-- [ ] Define overall testing strategy (unit, integration, e2e) in a new file TESTING.md 
-- [ ] Setup necessary base test configurations/fixtures
-- [ ] Run upgrade migration on test database
-- [ ] Verify schema changes
-- [ ] Test downgrade path
-- [ ] Validate with actual data 
+- [x] Define overall testing strategy (unit, integration, e2e) in a new file TESTING.md 
+- [x] Setup necessary base test configurations/fixtures
+- [x] Run upgrade migration on test database
+- [x] Verify schema changes
+- [x] Test downgrade path
+- [x] Validate with actual data
 
 *Dependencies: 1.4 depends on 1.1, 1.2, and 1.3; 1.5 depends on 1.4*
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2025-04-22: UserProfile Model Implementation
+
+As part of our v1 migration to the personal digital twin architecture, we've implemented the UserProfile model:
+
+### Database Changes
+- Created `app/db/models/user_profile.py` with JSON fields for preferences, interests, skills, dislikes, communication style, and key relationships
+- Updated User model to include a one-to-one relationship with UserProfile
+- Updated IngestedDocument model to use SQLAlchemy 2.0 style with Mapped and mapped_column
+- Created and applied Alembic migration to add UserProfile table and properly handle DAO table removal
+
+### TODO
+- Implement saving to IngestedDocument table during file processing (currently only stored in Mem0)
+- Update existing queries that work with User to utilize the new UserProfile relationship
+
 ## 2025-04-21: Remove DAO Components
 
 As part of our migration from v0 (DAO multi-agent) to v1 (personal digital twin) architecture, we've removed all DAO-related components:
