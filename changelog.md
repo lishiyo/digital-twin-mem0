@@ -1,5 +1,22 @@
 # Changelog
 
+## 2025-04-23: Chat UI Implementation
+
+As part of our v1 digital twin architecture, we've implemented a simple chat interface:
+
+### Frontend Implementation
+- Created a web-based chat UI using HTML, CSS, and JavaScript
+- Added conversation management with sidebar for viewing conversation history  
+- Implemented new conversation creation and continuing existing conversations
+- Added real-time message display and response handling
+
+### Backend Updates
+- Updated FastAPI application to serve HTML templates using Jinja2
+- Configured static file serving for CSS and JavaScript resources
+- Added a root route (`/`) to serve the chat interface
+
+This implementation fulfills task 5.4.4 "Add conversational UX endpoints" and provides a simple interface for testing the digital twin's conversational capabilities using the existing chat and conversation endpoints.
+
 ## 2025-04-22: Memory Ingestion Endpoints Completed
 
 As part of our chat ingestion implementation, we've completed testing and fixing the test chat and memory endpoints described in the "Testing Chat Ingestion" section of the README:

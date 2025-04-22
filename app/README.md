@@ -341,15 +341,6 @@ The digital twin is implemented using LangGraph, a framework for building struct
 
 This approach provides the twin with both semantic understanding (vector embeddings) and structured knowledge (graph relationships), allowing for more informed and accurate responses.
 
-### Coming in Future Updates
-
-Future API features will include:
-- Streaming responses (Server-Sent Events)
-- Conversation history and context management
-- Twin personalization
-- Voting intent detection
-- DAO proposal creation and management
-
 ## API Examples
 
 ### File Upload
@@ -417,6 +408,17 @@ curl -X GET \
 
 ### Chat API
 
+A simple web-based chat interface is available at the root URL (`/`) when you run the server. This interface allows you to:
+
+- Create new conversations with the digital twin
+- View and continue existing conversations
+- See conversation history in the sidebar
+- Send and receive messages in a familiar chat interface
+
+To use the chat UI, simply navigate to `http://localhost:8000/` in your browser after starting the API server.
+
+You can also hit the endpoints directly:
+
 ```bash
 # Chat with the digital twin
 curl -X POST \
@@ -470,7 +472,9 @@ To test the chat ingestion implementation:
 - View a specific memory: `GET /api/v1/memory/memory/{id}`
 - Manually trigger processing: `GET /api/v1/memory/trigger-process-conversation/{id}`
 
- If you encounter any issues, you can inspect the server and celery logs to see what's happening in the background processing jobs.
+If you encounter any issues, you can inspect the server and celery logs to see what's happening in the background processing jobs.
+
+
 
 
 ### Agent Architecture

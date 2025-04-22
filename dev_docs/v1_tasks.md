@@ -146,17 +146,17 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Implement graceful failure handling
 
 **3.1.6. Create comprehensive chat API endpoints**
-- [ ] Implement CRUD operations for conversations
-  - [ ] `GET /api/v1/conversations` - list with pagination (but we have `/api/v1/chat/conversations` already)
-  - [ ] `GET /api/v1/conversations/{id}` - conversation details (but we have `api/v1/chat/conversations/{id}` already)
-  - [ ] `POST /api/v1/conversations` - create new conversation
-  - [ ] `PUT /api/v1/conversations/{id}` - update conversation (does this make sense? can conversations be updated?)
-  - [ ] `DELETE /api/v1/conversations/{id}` - archive conversation
-- [ ] Implement message management endpoints
-  - [ ] `GET /api/v1/conversations/{id}/messages` - list messages
-  - [ ] `POST /api/v1/conversations/{id}/messages` - add message (does this make sense? we are already adding messages through `/chat` endpoint)
-  - [ ] `PUT /api/v1/conversations/{id}/messages/{id}` - update message
-- [ ] Add authentication and authorization checks
+- [x] Implement CRUD operations for conversations
+  - [x] `GET /api/v1/chat/conversations` - list with pagination
+  - [x] `GET /api/v1/chat/conversations/{id}` - conversation details with messages
+  - [x] `POST /api/v1/chat` - create new conversation/message (combined endpoint)
+  - [ ] `DELETE /api/v1/chat/conversations/{id}` - archive conversation (future)
+- [x] Implement message management endpoints
+  - [x] `GET /api/v1/chat/messages/{id}/mem0-status` - check message ingestion status
+  - [x] Messages are created through the `/api/v1/chat` endpoint
+  - [ ] `PUT /api/v1/chat/messages/{id}` - update message (future)
+- [x] Create a simple chat UI for testing conversations
+- [x] Add authentication checks (with fallback to mock user)
 - [ ] Implement rate limiting and request validation
 - [ ] Create documentation with Swagger/OpenAPI
 
