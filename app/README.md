@@ -470,7 +470,7 @@ To test the chat ingestion implementation:
 - View a specific memory: `GET /api/v1/memory/memory/{id}`
 - Manually trigger processing: `GET /api/v1/memory/trigger-process-conversation/{id}`
 
- If you encounter any issues, you can inspect the logs to see what's happening in the background processing jobs.
+ If you encounter any issues, you can inspect the server and celery logs to see what's happening in the background processing jobs.
 
 
 ### Agent Architecture

@@ -117,7 +117,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Create batch processing for efficient handling
 - [x] Set up TTL policies for memory management
 - [x] Implement error handling and retry mechanisms
-- [ ] Create API endpoints for chat so this can be tested with real data
+- [x] Create API endpoints for chat so this can be tested with real data
 
 **3.1.3. Extract entity information and update UserProfile**
 - [ ] Implement LLM-based entity and trait extraction from chat logs (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
@@ -147,7 +147,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 **3.1.6. Create comprehensive chat API endpoints**
 - [ ] Implement CRUD operations for conversations
   - [ ] `GET /api/v1/conversations` - list with pagination
-  - [ ] `GET /api/v1/conversations/{id}` - conversation details
+  - [x] `GET /api/v1/conversations/{id}` - conversation details
   - [ ] `POST /api/v1/conversations` - create new conversation
   - [ ] `PUT /api/v1/conversations/{id}` - update conversation
   - [ ] `DELETE /api/v1/conversations/{id}` - archive conversation

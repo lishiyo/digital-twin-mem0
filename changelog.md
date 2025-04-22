@@ -1,5 +1,51 @@
 # Changelog
 
+## 2025-04-22: Memory Ingestion Endpoints Completed
+
+As part of our chat ingestion implementation, we've completed testing and fixing the test chat and memory endpoints described in the "Testing Chat Ingestion" section of the README:
+
+### API Enhancements
+- Fixed the memory status endpoint (`/api/v1/chat/messages/{id}/mem0-status`) to handle field name discrepancies
+- Improved the memory retrieval endpoint (`/api/v1/memory/{id}`) by removing parameter confusion and redundant path segments
+- Enhanced error handling for empty responses from the Mem0 API
+- Added proper differentiation between processed messages and those actually stored in Mem0
+
+### Ingestion Pipeline Improvements
+- Implemented better handling of Mem0 API empty result responses
+- Added logging to track message content and processing flow
+- Corrected field naming inconsistencies between sync and async implementations
+- Fixed memory ID handling to accurately reflect storage status in Mem0
+
+All endpoints described in the README for testing chat ingestion now work properly, allowing for end-to-end verification of the chat ingestion pipeline.
+
+## 2025-04-22: Chat Log Ingestion Implementation
+
+As part of our v1 migration to the personal digital twin architecture, we've implemented the Chat Log Ingestion system:
+
+### Database Changes
+- Created database models for `Conversation`, `ChatMessage`, and `MessageFeedback` using SQLAlchemy 2.0 style
+- Implemented necessary indexes for efficient querying
+- Set up proper relationships between models and the User model
+- Created and applied Alembic migration to add these new tables to the database
+- Fixed schema of existing `chat_message` table to use `conversation_id` instead of `session_id` and `role` instead of `sender`, and added new fields (`meta_data`, `tokens`, `processed`)
+
+### Service Implementation
+- Created `ConversationService` for CRUD operations on conversations and messages
+- Implemented `ChatMem0Ingestion` service for processing chat messages into Mem0
+- Added tiered memory approach with TTL policies based on message importance
+- Implemented importance scoring and metadata tagging for messages
+- Added proper error handling and transaction management
+
+### Background Processing
+- Set up Celery tasks for asynchronous processing of chat messages
+- Implemented periodic tasks for processing pending messages
+- Created task status reporting and robust error handling
+
+### Next Steps
+- Implement LLM-based entity extraction from chat logs (Task 3.1.3)
+- Develop conversation boundary detection and summarization (Task 3.1.4)
+- Update the chat API endpoints to use the new conversation system (Task 5.4.1) 
+
 ## 2025-04-22: Service Refactoring and Chat API Progress
 
 As part of our ongoing chat ingestion implementation, we've made significant improvements to the codebase:
@@ -67,31 +113,3 @@ Next steps:
 1. Implement UserProfile model
 2. Refine Graphiti schema for user traits
 3. Implement chat ingestion pipeline
-
-## 2025-04-22: Chat Log Ingestion Implementation
-
-As part of our v1 migration to the personal digital twin architecture, we've implemented the Chat Log Ingestion system:
-
-### Database Changes
-- Created database models for `Conversation`, `ChatMessage`, and `MessageFeedback` using SQLAlchemy 2.0 style
-- Implemented necessary indexes for efficient querying
-- Set up proper relationships between models and the User model
-- Created and applied Alembic migration to add these new tables to the database
-- Fixed schema of existing `chat_message` table to use `conversation_id` instead of `session_id` and `role` instead of `sender`, and added new fields (`meta_data`, `tokens`, `processed`)
-
-### Service Implementation
-- Created `ConversationService` for CRUD operations on conversations and messages
-- Implemented `ChatMem0Ingestion` service for processing chat messages into Mem0
-- Added tiered memory approach with TTL policies based on message importance
-- Implemented importance scoring and metadata tagging for messages
-- Added proper error handling and transaction management
-
-### Background Processing
-- Set up Celery tasks for asynchronous processing of chat messages
-- Implemented periodic tasks for processing pending messages
-- Created task status reporting and robust error handling
-
-### Next Steps
-- Implement LLM-based entity extraction from chat logs (Task 3.1.3)
-- Develop conversation boundary detection and summarization (Task 3.1.4)
-- Update the chat API endpoints to use the new conversation system (Task 5.4.1) 
