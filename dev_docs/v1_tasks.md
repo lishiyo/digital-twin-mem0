@@ -93,10 +93,10 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Add rollback capability
 
 **2.6. Test Graphiti schema changes**
-- [ ] Run migration on test dataset
-- [ ] Verify structure and relationships
-- [ ] Test queries against new schema
-- [ ] Validate rollback procedure
+- [x] Run migration on test dataset
+- [x] Verify structure and relationships
+- [x] Test queries against new schema
+- [x] Validate rollback procedure
 
 *Dependencies: 2.3 depends on 2.2; 2.5 depends on 2.1, 2.2, 2.3, and 2.4; 2.6 depends on 2.5*
 
