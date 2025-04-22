@@ -118,12 +118,13 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Set up TTL policies for memory management
 - [ ] Implement error handling and retry mechanisms
 
-**3.1.3. Extract entity information**
-- [ ] Implement LLM-based entity and trait extraction
+**3.1.3. Extract entity information and update UserProfile**
+- [ ] Implement LLM-based entity and trait extraction from chat logs
 - [ ] Create mappers to UserProfile fields (preferences, interests, skills)
 - [ ] Develop confidence scoring for extracted traits
 - [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
 - [ ] Implement conflict resolution for contradictory information
+- [ ] Create direct UserProfile updates for high-confidence traits
 - [ ] Create Graphiti node/relationship creation service
 
 **3.1.4. Implement session management**
@@ -140,13 +141,13 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Add monitoring and task status reporting
 - [ ] Implement graceful failure handling
 
-*Dependencies: 3.1.2, 3.1.3, and 3.1.4 depend on 3.1.1; 3.1.5 depends on 3.1.2, 3.1.3, and 3.1.4; All 3.1.x tasks depend on 1.x and 2.x*
+*Dependencies: 3.1.2, 3.1.3, and 3.1.4 depend on 3.1.1; 3.1.5 depends on 3.1.2, 3.1.3, and 3.1.4; All 3.1.x tasks depend on 1.x and 2.x; 3.1.3 specifically depends on UserProfile implementation (1.2)*
 
 ### 4. Remove DAO Components
 
 **4.1. Remove DAO-related agent components**
 - [x] Identify and remove DAO-related code
-- [ ] Update agent configurations
+- [x] Update agent configurations
 - [x] Remove DAO-specific prompts
 - [ ] Test agent functionality
 
@@ -154,7 +155,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Remove `/proposals/*` endpoints
 - [x] Update API documentation
 - [x] Remove route handlers and services
-- [ ] Test API without these endpoints
+- [x] Test API without these endpoints
 
 *No dependencies - these can be done independently*
 
@@ -233,13 +234,13 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Optimize TTL management based on message importance
 - [ ] Create metadata enrichment from conversation context
 
-**5.4.3. Add background tasks for chat-specific trait extraction**
-- [ ] Implement basic LLM-based profile insight extraction from chats (set up the future full Trait Extraction agent in 4.5)
-- [ ] Create simple message chunking for efficient processing
-- [ ] Extract obvious traits mentioned directly in conversations
-- [ ] Implement basic confidence scoring for extracted traits
-- [ ] Create direct UserProfile updates for high-confidence traits
-- [ ] Implement simple conflict resolution for contradictory information
+**5.4.3. Integrate chat insights with background processing**
+- [ ] Connect chat processing pipeline to trait extraction (3.1.3)
+- [ ] Implement message chunking and batching for efficient processing
+- [ ] Create background task scheduling for non-blocking operation
+- [ ] Set up retry logic and error handling for failed extractions
+- [ ] Implement webhook notifications for significant profile updates
+- [ ] Add monitoring and logging for extraction metrics
 
 **5.4.4. Add conversational UX endpoints**
 - [ ] Create endpoints for conversation history retrieval
@@ -311,8 +312,9 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 4.5. Trait Extraction Agent
 
 **4.5.1. Develop comprehensive trait extraction system**
-- [ ] Build upon the chat-specific extraction (5.4.3)
-- [ ] Extend extraction to handle multiple data sources (chat, calendar, social media)
+- [ ] Build upon the chat-specific extraction (3.1.3)
+- [ ] Extend extraction to handle ingested docs, updating UserProfile
+- [ ] Extend extraction to handle our other data sources (chat, calendar, social media etc), updating UserProfile
 - [ ] Create unified processing workflow across sources
 - [ ] Implement source-specific extractors with consistent output format
 - [ ] Develop advanced prompt templates with source-specific considerations
@@ -325,7 +327,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Set dynamic thresholds based on trait category and evidence quality
 
 **4.5.3. Create enhanced UserProfile update logic**
-- [ ] Implement comprehensive update service
+- [ ] Implement comprehensive update service for multi-source traits
 - [ ] Create sophisticated merge strategies for conflicting traits
 - [ ] Add conflict resolution with source prioritization
 - [ ] Implement batch processing for efficient updates
@@ -338,7 +340,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create cleanup procedures for obsolete relationships
 - [ ] Implement confidence-weighted relationships
 
-*Dependencies: 4.5.x builds upon the simple trait extraction in 5.4.3 and can be developed in parallel with 4.2.x, but full integration depends on 4.2.x*
+*Dependencies: 4.5.x builds upon the basic trait extraction in 3.1.3 and can be developed in parallel with 4.2.x, but full integration depends on 4.2.x*
 
 ## Phase 4: Recommendation System
 
