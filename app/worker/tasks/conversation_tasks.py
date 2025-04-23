@@ -218,26 +218,34 @@ def _summarize_conversation_sync(conversation_id: str) -> Dict[str, Any]:
             
             # Import here to avoid circular imports
             from app.services.conversation.summarization import ConversationSummarizationService
-            # We need to run in an async context, since the service is async
             import asyncio
             
+            # Define the async function that will be run
             async def run_summarization():
                 # Get memory service
                 from app.services.memory import MemoryService
                 from app.db.session import get_async_session
                 
+                # Create a new async session
                 async with get_async_session() as async_db:
                     memory_service = MemoryService()
                     summarization_service = ConversationSummarizationService(async_db, memory_service)
                     return await summarization_service.generate_summary(conversation_id)
             
-            # Run the async function in a new event loop
-            loop = asyncio.new_event_loop()
+            # Use asyncio.run which handles event loop creation and cleanup properly
             try:
-                result = loop.run_until_complete(run_summarization())
+                # asyncio.run manages the event loop lifecycle properly
+                result = asyncio.run(run_summarization())
                 return result
-            finally:
-                loop.close()
+            except RuntimeError as e:
+                # Handle the case where asyncio.run is called from a running event loop
+                # This is a safer fallback for when we're in a context that already has a loop
+                if "RuntimeError: asyncio.run() cannot be called from a running event loop" in str(e):
+                    logger.warning("Using get_event_loop().run_until_complete() as fallback because we're inside an existing event loop")
+                    loop = asyncio.get_event_loop()
+                    return loop.run_until_complete(run_summarization())
+                else:
+                    raise
             
         except Exception as e:
             logger.error(f"Error in _summarize_conversation_sync: {str(e)}")

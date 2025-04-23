@@ -152,6 +152,7 @@ class ConversationSummarizationService:
                 user_id=conversation.user_id,
                 ttl_days=360  # Summaries are kept for a year
             )
+            # logger.info(f"Successfully stored summary in mem0: {mem0_result}")
             
             # Mark only the new messages as processed
             for message in new_messages:
@@ -170,7 +171,7 @@ class ConversationSummarizationService:
                 "conversation_id": conversation_id,
                 "summary": summary,
                 "title": conversation.title,
-                "mem0_id": mem0_result.get("id"),
+                "mem0_id": mem0_result.get("memory_id"),
                 "message_count": len(new_messages)
             }
             
