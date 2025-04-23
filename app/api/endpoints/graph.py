@@ -55,14 +55,25 @@ async def list_nodes(
         
         if query:
             # If a query is provided, use search
+            # node_search doesn't support offset, so we need to get enough results and paginate manually
+            search_limit = limit + offset
+            
             nodes = await graphiti_service.node_search(
                 query=query,
-                limit=limit,
-                offset=offset,
-                node_type=node_type
+                limit=search_limit,  # Request more to cover offset
             )
+            
+            # Apply node_type filtering manually if specified
+            if node_type and nodes:
+                nodes = [node for node in nodes if node_type in node.get("labels", [])]
+                
+            # Apply pagination manually
+            if len(nodes) > offset:
+                nodes = nodes[offset:offset + limit]
+            else:
+                nodes = []
         else:
-            # Otherwise, list all nodes
+            # Otherwise, list all nodes (this method already supports offset)
             nodes = await graphiti_service.list_nodes(
                 limit=limit,
                 offset=offset,
@@ -98,6 +109,8 @@ async def list_relationships(
     optionally filtered by a search query or relationship type.
     """
     user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    logger.info(f'query: {query} rel_type: {rel_type} limit: {limit} offset: {offset}')
     
     try:
         graphiti_service = GraphitiService()

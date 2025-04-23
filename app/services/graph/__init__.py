@@ -1227,16 +1227,16 @@ class GraphitiService:
                 
             # Add text search if provided
             if query:
-                # This is a simple text search - adjust for your specific needs
-                base_query += " AND (r.summary CONTAINS $query OR s.name CONTAINS $query OR t.name CONTAINS $query)"
-                params["query"] = query
+                # Use case-insensitive contains with toLower()
+                base_query += " AND (toLower(coalesce(r.summary,'')) CONTAINS toLower($search_text) OR toLower(coalesce(s.name,'')) CONTAINS toLower($search_text) OR toLower(coalesce(t.name,'')) CONTAINS toLower($search_text))"
+                params["search_text"] = query.lower()
                 
-            # Add ORDER BY, SKIP and LIMIT clauses
+            # Add ORDER BY, SKIP and LIMIT clauses - use elementId for ordering which is always available
             base_query += """
-            ORDER BY r.created_at DESC
+            ORDER BY elementId(r)
             SKIP $offset
             LIMIT $limit
-            RETURN r.uuid as uuid, type(r) as type, r.created_at as created_at, 
+            RETURN r.uuid as uuid, elementId(r) as element_id, type(r) as type, r.created_at as created_at, 
                    r.scope as scope, r.owner_id as owner_id,
                    properties(r) as properties,
                    s.uuid as source_uuid, s.name as source_name,
@@ -1249,11 +1249,21 @@ class GraphitiService:
             # Execute the query
             results = await self.execute_cypher(base_query, params)
             
+            # Debug log
+            logger.debug(f"List relationships query returned {len(results)} results")
+            if len(results) > 0:
+                logger.debug(f"First result: {results[0]}")
+            
             # Format the results
             formatted_results = []
             for result in results:
+                # Use uuid if available, otherwise fall back to element_id
+                relationship_id = result.get("uuid")
+                if not relationship_id:
+                    relationship_id = result.get("element_id")
+                    
                 rel = {
-                    "id": result.get("uuid"),
+                    "id": relationship_id,
                     "type": result.get("type"),
                     "created_at": result.get("created_at"),
                     "scope": result.get("scope"),
@@ -1274,6 +1284,9 @@ class GraphitiService:
             
         except Exception as e:
             logger.error(f"Error listing relationships: {str(e)}")
+            # Log the exception traceback for debugging
+            import traceback
+            logger.error(traceback.format_exc())
             return []
     
     async def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
