@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin Knowledge</title>
+    <link rel="stylesheet" href="/static/css/knowledge.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Digital Twin Knowledge Base</h1>
+            <nav class="app-nav">
+                <a href="/" class="nav-link">Chat</a>
+                <a href="/knowledge" class="nav-link active">Knowledge</a>
+            </nav>
+        </header>
+        
+        <div class="tabs-container">
+            <div class="tabs">
+                <button class="tab-button active" data-tab="memories">Memories</button>
+                <button class="tab-button" data-tab="entities">Entities</button>
+                <button class="tab-button" data-tab="relationships">Relationships</button>
+            </div>
+            
+            <div class="tab-content active" id="memories-tab">
+                <div class="search-container">
+                    <input type="text" id="memory-search" placeholder="Search memories...">
+                    <button id="memory-search-btn">Search</button>
+                </div>
+                <div class="items-container" id="memories-container">
+                    <!-- Memories will be loaded here -->
+                </div>
+                <div class="pagination" id="memories-pagination">
+                    <button id="prev-memories-page" disabled>Previous</button>
+                    <span id="memories-page-info">Page 1</span>
+                    <button id="next-memories-page">Next</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="entities-tab">
+                <div class="search-container">
+                    <input type="text" id="entity-search" placeholder="Search entities...">
+                    <button id="entity-search-btn">Search</button>
+                </div>
+                <div class="items-container" id="entities-container">
+                    <!-- Entities will be loaded here -->
+                </div>
+                <div class="pagination" id="entities-pagination">
+                    <button id="prev-entities-page" disabled>Previous</button>
+                    <span id="entities-page-info">Page 1</span>
+                    <button id="next-entities-page">Next</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="relationships-tab">
+                <div class="search-container">
+                    <input type="text" id="relationship-search" placeholder="Search relationships...">
+                    <button id="relationship-search-btn">Search</button>
+                </div>
+                <div class="items-container" id="relationships-container">
+                    <!-- Relationships will be loaded here -->
+                </div>
+                <div class="pagination" id="relationships-pagination">
+                    <button id="prev-relationships-page" disabled>Previous</button>
+                    <span id="relationships-page-info">Page 1</span>
+                    <button id="next-relationships-page">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/knowledge.js"></script>
+</body>
+</html> 

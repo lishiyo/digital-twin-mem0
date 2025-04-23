@@ -6,6 +6,8 @@ import os
 import uuid
 import asyncio
 from functools import wraps
+import json
+from datetime import datetime, timezone
 
 from mem0 import MemoryClient  # Import MemoryClient instead of Memory
 
@@ -23,6 +25,7 @@ def get_mem0_client():
     """Get or create the singleton Mem0 client."""
     global _mem0_client
     if _mem0_client is None:
+        logger.info("Initializing Mem0 client...")
         try:
             # Initialize client with API key through environment
             if settings.MEM0_API_KEY:
@@ -42,11 +45,25 @@ def get_mem0_client():
 
 # Helper to convert sync operations to async (for API compatibility)
 def async_wrap(func):
+    """Wraps a synchronous function to be called asynchronously.
+    
+    Args:
+        func: The synchronous function to wrap
+        
+    Returns:
+        An async function that runs the original function in an executor
+    """
     @wraps(func)
     async def run(*args, **kwargs):
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
-        return result
+        logger.debug(f"Starting async_wrap for {func.__name__} with args: {args[:1]} and kwargs: {list(kwargs.keys())}")
+        try:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+            logger.debug(f"Completed async_wrap for {func.__name__}")
+            return result
+        except Exception as e:
+            logger.error(f"Error in async_wrap for {func.__name__}: {e}")
+            raise
     return run
 
 
@@ -177,109 +194,68 @@ class MemoryService:
                 }
             ]
             
-        # Acquire lock to prevent concurrent access issues
-        async with _mem0_lock:
-            try:
-                # Use retry logic for SQLite concurrency issues
-                max_retries = 3
-                last_error = None
-                
-                for attempt in range(max_retries):
-                    try:
-                        # Add small delay on retries
-                        if attempt > 0:
-                            await asyncio.sleep(1 * attempt)
-                            logger.info(f"Retrying search (attempt {attempt+1})")
-                            
-                        # Convert synchronous call to async
-                        search_func = async_wrap(self.client.search)
-                        # Use parameters as recommended in the documentation
-                        raw_results = await search_func(
+        logger.info(f"Searching memories for user {user_id} with query: {query}")
+        # Define a function to run with lock
+        async def _search_with_lock():
+            async with _mem0_lock:
+                try:
+                    # Convert synchronous call to async
+                    search_func = async_wrap(self.client.search)
+                    # Use parameters as recommended
+                    raw_results = await asyncio.wait_for(
+                        search_func(
                             query=query, 
                             user_id=user_id, 
                             limit=limit,
-                            metadata=metadata_filter,  # Add metadata filter
-                            version="v2",  # Use v2 as recommended
-                            output_format="v1.1",  # Use v1.1 output format
-                            keyword_search=True  # Enable keyword search for better results
-                        )
+                            metadata=metadata_filter,
+                            version="v2",
+                            output_format="v1.1"
+                        ),
+                        timeout=3  # 3 second timeout
+                    )
+                    
+                    # Normalize the results format
+                    if isinstance(raw_results, dict) and "results" in raw_results:
+                        raw_memories = raw_results["results"]
+                    elif isinstance(raw_results, list):
+                        raw_memories = raw_results
+                    else:
+                        logger.warning(f"Unexpected result format from Mem0 search: {type(raw_results)}")
+                        raw_memories = []
                         
-                        # DEBUG: Log the raw results structure
-                        if isinstance(raw_results, dict):
-                            logger.info(f"Mem0 raw results is a dict with keys: {list(raw_results.keys())}")
-                            # If there's a 'results' key, check its structure
-                            if "results" in raw_results:
-                                if raw_results["results"] and len(raw_results["results"]) > 0:
-                                    first_result = raw_results["results"][0]
-                                    # logger.info(f"First result keys: {list(first_result.keys())}")
-                                    # Print entire first result for detailed inspection
-                                    # logger.info(f"FULL FIRST RESULT: {first_result}")
-                                    # Check for the message structure
-                                    if "message" in first_result:
-                                        logger.info(f"Message structure: {list(first_result['message'].keys()) if isinstance(first_result['message'], dict) else 'not a dict'}")
-                                    # Check for similarity score
-                                    logger.info(f"Similarity present: {'similarity' in first_result}, Value: {first_result.get('similarity')}")
-                        elif isinstance(raw_results, list) and raw_results:
-                            logger.info(f"Mem0 raw results is a list with {len(raw_results)} items")
-                            first_result = raw_results[0]
-                            # logger.info(f"First result keys: {list(first_result.keys())}")
-                            # Print entire first result for detailed inspection
-                            # logger.info(f"FULL FIRST RESULT: {first_result}")
-                        else:
-                            logger.info(f"Mem0 raw results type: {type(raw_results)}")
+                    # Debug the first raw memory if available
+                    if raw_memories and len(raw_memories) > 0:
+                        first_raw = raw_memories[0]
+                        logger.debug(f"First raw search result: {json.dumps(first_raw)[:200]}...")
+                    
+                    # Process each memory through the normalizer with similarity score preservation
+                    normalized_results = []
+                    for memory in raw_memories:
+                        if isinstance(memory, dict):
+                            normalized = self._normalize_memory(memory)
+                            # Preserve similarity score if present
+                            if "similarity" in memory:
+                                normalized["similarity"] = memory["similarity"]
+                            elif "score" in memory:
+                                normalized["similarity"] = memory["score"]
+                            normalized_results.append(normalized)
+                    
+                    logger.info(f"Memory search for user {user_id} returned {len(normalized_results)} results")
+                    return normalized_results
                         
-                        # Normalize the results - Mem0 client might return different formats
-                        # 1. If it's a dict with 'results' key (seems to be common for Mem0)
-                        if isinstance(raw_results, dict) and "results" in raw_results:
-                            normalized_results = raw_results["results"]
-                            if not normalized_results:
-                                logger.warning(f"Empty results array returned from Mem0 search")
-                        # 2. If it's already a list (as per API docs)
-                        elif isinstance(raw_results, list):
-                            normalized_results = raw_results
-                        # 3. Some other format - log and return as is
-                        else:
-                            logger.warning(f"Unexpected result format from Mem0 search: {type(raw_results)}")
-                            normalized_results = raw_results
-                        
-                        # DEBUG: Check normalized results structure
-                        if normalized_results and isinstance(normalized_results, list) and len(normalized_results) > 0:
-                            first_norm = normalized_results[0]
-                            logger.info(f"First normalized result keys: {list(first_norm.keys())}")
-                            # Find where content is stored
-                            if "content" not in first_norm:
-                                if "message" in first_norm:
-                                    msg = first_norm["message"]
-                                    logger.info(f"Content might be in 'message': {msg.get('content') if isinstance(msg, dict) else 'not a dict'}")
-                                    
-                                    # Add content extraction from message if needed
-                                    if isinstance(msg, dict) and "content" in msg:
-                                        # Process all results to extract content from message
-                                        for result in normalized_results:
-                                            if "message" in result and isinstance(result["message"], dict) and "content" in result["message"]:
-                                                result["content"] = result["message"]["content"]
-                                                logger.info(f"Extracted content from message: {result['content'][:50]}...")
-                        
-                        if normalized_results:
-                            logger.info(f"Memory search for user {user_id} returned {len(normalized_results)} results")
-                        
-                        # Return normalized results
-                        return normalized_results
-                    except Exception as e:
-                        last_error = e
-                        # Check if it's a SQLite concurrency error
-                        if any(err in str(e) for err in ["readonly database", "database is locked"]):
-                            logger.warning(f"SQLite concurrency error on search attempt {attempt+1}: {e}")
-                            if attempt < max_retries - 1:
-                                continue
-                        break
-                        
-                # All attempts failed
-                logger.error(f"Error searching memories after {max_retries} attempts: {last_error}")
-                return [{"error": str(last_error)}]
-            except Exception as e:
-                logger.error(f"Error searching memories: {e}")
-                return [{"error": str(e)}]
+                except Exception as e:
+                    logger.error(f"Error in search: {e}")
+                    return [{"error": str(e)}]
+        
+        # Execute with timeout
+        try:
+            return await asyncio.wait_for(_search_with_lock(), timeout=8)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout in search for query '{query}'")
+            return [{"error": "Search operation timed out"}]
+        except Exception as e:
+            logger.error(f"Unexpected error in search: {e}")
+            return [{"error": str(e)}]
     
     async def add_batch(self, items: List[Dict[str, Any]], user_id: str, infer: bool = False) -> Dict[str, Any]:
         """Add multiple memories to Mem0 in a batch.
@@ -394,6 +370,97 @@ class MemoryService:
             logger.info(f"Added {success_count}/{len(items)} items in batch for user {user_id}")
             return {"success": success_count > 0, "count": success_count, "results": results}
     
+    def _extract_content(self, memory: Dict[str, Any]) -> str:
+        """Extract content from a memory object in various formats.
+        
+        Args:
+            memory: The memory object from Mem0
+            
+        Returns:
+            The extracted content string
+        """
+        # Debug log keys
+        logger.debug(f"Extracting content from memory with keys: {list(memory.keys())}")
+        
+        # Check for 'memory' field directly - this is the most likely location in v2 API
+        if "memory" in memory and memory["memory"]:
+            return str(memory["memory"])
+            
+        # Check for 'content' field directly
+        if "content" in memory and memory["content"]:
+            return str(memory["content"])
+            
+        # Check if content is in the message field
+        if "message" in memory:
+            message = memory["message"]
+            # If message is a string, return it
+            if isinstance(message, str):
+                return message
+            # If message is a dict, check for 'content' field
+            elif isinstance(message, dict):
+                if "content" in message:
+                    return str(message["content"])
+                # Otherwise return the whole message as string
+                return str(message)
+                
+        # Check for 'name' field which might contain content in v2 API
+        if "name" in memory and memory["name"]:
+            return str(memory["name"])
+            
+        # Try to extract from possible locations in v2 format
+        for key in ["text", "data", "value", "body"]:
+            if key in memory and memory[key]:
+                return str(memory[key])
+                
+        # If we get this far, we couldn't extract content
+        logger.warning(f"Could not extract content from memory {memory.get('memory_id') or memory.get('id', 'unknown')}. Keys: {list(memory.keys())}")
+        return "No content available"
+        
+    def _normalize_memory(self, memory: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a memory object to a consistent format.
+        
+        Args:
+            memory: The raw memory object from Mem0
+            
+        Returns:
+            A normalized memory dictionary
+        """
+        # Start with original memory
+        normalized = dict(memory)
+        
+        # Ensure memory_id exists
+        if "id" in memory and "memory_id" not in normalized:
+            normalized["memory_id"] = memory["id"]
+        elif "memory_id" not in normalized and "uuid" in memory:
+            normalized["memory_id"] = memory["uuid"]
+        elif "memory_id" not in normalized:
+            normalized["memory_id"] = f"id-{str(uuid.uuid4())[:8]}"
+            
+        # Extract content
+        if "content" not in normalized or not normalized["content"]:
+            normalized["content"] = self._extract_content(memory)
+            
+        # Extract metadata
+        if "metadata" not in normalized:
+            # Try to build metadata from known fields
+            metadata = {}
+            for key in ["user_id", "source", "category", "tags", "created_at", "updated_at"]:
+                if key in memory:
+                    metadata[key] = memory[key]
+            normalized["metadata"] = metadata
+            
+        # Ensure created_at exists
+        if "created_at" not in normalized:
+            if "created_at" in memory:
+                normalized["created_at"] = memory["created_at"]
+            elif "timestamp" in memory:
+                normalized["created_at"] = memory["timestamp"]
+            else:
+                # Use current time as fallback
+                normalized["created_at"] = datetime.now(timezone.utc).isoformat()
+                
+        return normalized
+
     async def get_all(self, user_id: str, metadata_filter: Optional[Dict[str, Any]] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all memories for a user.
         
@@ -418,96 +485,87 @@ class MemoryService:
                 for i in range(mock_count)
             ]
             
-        # Acquire lock to prevent concurrent access issues
-        async with _mem0_lock:
-            try:
-                # Use retry logic for SQLite concurrency issues
-                max_retries = 3
-                last_error = None
+        # Define a function to execute with the lock
+        async def _get_all_with_lock():
+            async with _mem0_lock:
+                try:
+                    logger.info(f"Calling Mem0 get_all for user {user_id}")
+                    
+                    # Set up proper filters according to v2 API
+                    filters = {"user_id": user_id}
+                    
+                    # Add metadata filters if provided
+                    if metadata_filter:
+                        for key, value in metadata_filter.items():
+                            if key == 'metadata':
+                                # If it's a metadata filter, extend our filters
+                                for meta_key, meta_value in value.items():
+                                    filters[f"metadata.{meta_key}"] = meta_value
+                            else:
+                                # Otherwise just add the filter directly
+                                filters[key] = value
+                    
+                    # Use a reasonable page size
+                    page_size = 50 if limit is None else min(limit, 100)
+                    
+                    # Convert synchronous call to async with timeout
+                    get_all_func = async_wrap(self.client.get_all)
+                    
+                    # Use wait_for for the function call
+                    raw_results = await asyncio.wait_for(
+                        get_all_func(
+                            filters=filters,
+                            version="v2",  # Use v2 API explicitly
+                            page_size=page_size,
+                            page=1  # Start with first page
+                        ),
+                        timeout=3  # 3 second timeout
+                    )
+                    
+                    logger.info(f"Got response from Mem0 get_all for user {user_id}")
+                    
+                    # Normalize results
+                    if isinstance(raw_results, dict) and "results" in raw_results:
+                        raw_memories = raw_results["results"]
+                    elif isinstance(raw_results, list):
+                        raw_memories = raw_results
+                    else:
+                        logger.warning(f"Unexpected result format from Mem0 get_all: {type(raw_results)}")
+                        raw_memories = []
+                    
+                    # Debug the first raw memory if available
+                    if raw_memories and len(raw_memories) > 0:
+                        first_raw = raw_memories[0]
+                        logger.debug(f"First raw memory: {json.dumps(first_raw)[:200]}...")
+                        
+                    # Process each memory through the normalizer
+                    normalized_results = [
+                        self._normalize_memory(memory) 
+                        for memory in raw_memories 
+                        if isinstance(memory, dict)
+                    ]
+                    
+                    # Apply limit if needed
+                    if limit is not None and len(normalized_results) > limit:
+                        normalized_results = normalized_results[:limit]
+                    
+                    logger.info(f"Normalized {len(normalized_results)} results from Mem0 get_all")
+                    return normalized_results
                 
-                for attempt in range(max_retries):
-                    try:
-                        # Add small delay on retries
-                        if attempt > 0:
-                            await asyncio.sleep(1 * attempt)
-                            logger.info(f"Retrying get_all (attempt {attempt+1})")
-                            
-                        # Convert synchronous call to async
-                        get_all_func = async_wrap(self.client.get_all)
-                        # Use version parameter as recommended
-                        raw_results = await get_all_func(
-                            user_id=user_id,
-                            metadata=metadata_filter,  # Add metadata filter
-                            version="v2",  # Use v2 as recommended
-                            output_format="v1.1"  # Use v1.1 output format
-                        )
-                        
-                        # Normalize the results - Mem0 client might return different formats
-                        # 1. If it's a dict with 'results' key (seems to be common for Mem0)
-                        if isinstance(raw_results, dict) and "results" in raw_results:
-                            normalized_results = raw_results["results"]
-                            if not normalized_results:
-                                logger.warning(f"Empty results array returned from Mem0 get_all")
-                        # 2. If it's already a list (as per API docs)
-                        elif isinstance(raw_results, list):
-                            normalized_results = raw_results
-                        # 3. Some other format - log and return as is
-                        else:
-                            logger.warning(f"Unexpected result format from Mem0 get_all: {type(raw_results)}")
-                            normalized_results = raw_results
-                        
-                        # Process all results to ensure memory_id field exists
-                        if normalized_results and isinstance(normalized_results, list):
-                            for result in normalized_results:
-                                # If id exists but memory_id doesn't, copy it
-                                if isinstance(result, dict):
-                                    if "id" in result and "memory_id" not in result:
-                                        result["memory_id"] = result["id"]
-                                        logger.info(f"Copied id to memory_id: {result['id']}")
-                                    # If neither exists, generate a UUID
-                                    elif "memory_id" not in result and "id" not in result:
-                                        result["memory_id"] = f"generated-{uuid.uuid4()}"
-                                        logger.warning(f"Generated memory_id for result with missing ID")
-                                    # Log when memory has both id and memory_id
-                                    elif "id" in result and "memory_id" in result:
-                                        logger.info(f"Memory has both id ({result['id']}) and memory_id ({result['memory_id']})")
-                                    # Log metadata for debugging
-                                    if "metadata" in result:
-                                        logger.info(f"Memory metadata keys: {list(result['metadata'].keys()) if isinstance(result['metadata'], dict) else 'not a dict'}")
-                                        if isinstance(result['metadata'], dict) and "filename" in result['metadata']:
-                                            logger.info(f"Memory filename: {result['metadata']['filename']} with ID: {result.get('memory_id', 'unknown')}")
-                                    
-                                    # Extract content from message structure if needed
-                                    if "content" not in result and "message" in result:
-                                        if isinstance(result["message"], dict) and "content" in result["message"]:
-                                            result["content"] = result["message"]["content"]
-                        
-                        # Apply limit if specified
-                        if limit is not None and normalized_results and isinstance(normalized_results, list):
-                            normalized_results = normalized_results[:limit]
-                        
-                        if normalized_results:
-                            logger.info(f"Retrieved memories for user {user_id}: {len(normalized_results)} memories")
-                        else:
-                            logger.info(f"No memories found for user {user_id}")
-                        
-                        # Return normalized results
-                        return normalized_results
-                    except Exception as e:
-                        last_error = e
-                        # Check if it's a SQLite concurrency error
-                        if any(err in str(e) for err in ["readonly database", "database is locked"]):
-                            logger.warning(f"SQLite concurrency error on get_all attempt {attempt+1}: {e}")
-                            if attempt < max_retries - 1:
-                                continue
-                        break
-                        
-                # All attempts failed
-                logger.error(f"Error retrieving all memories after {max_retries} attempts: {last_error}")
-                return [{"error": str(last_error)}]
-            except Exception as e:
-                logger.error(f"Error retrieving all memories: {e}")
-                return [{"error": str(e)}]
+                except Exception as e:
+                    logger.error(f"Error in get_all: {e}")
+                    return [{"error": str(e)}]
+        
+        # Execute with timeout
+        try:
+            return await asyncio.wait_for(_get_all_with_lock(), timeout=5)
+        
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout in get_all for user {user_id}")
+            return [{"error": "Memory retrieval timed out"}]
+        except Exception as e:
+            logger.error(f"Unexpected error in get_all: {e}")
+            return [{"error": str(e)}]
             
     async def get(self, memory_id: str) -> Dict[str, Any]:
         """Get a specific memory by ID.
@@ -776,6 +834,7 @@ class MemoryService:
         Returns:
             True if connected, False otherwise
         """
+        logger.info("Starting Mem0 connection check")
         if not self.client:
             logger.warning("Cannot check connection - client unavailable")
             return False
@@ -783,9 +842,11 @@ class MemoryService:
         try:
             # Try a simple operation to check connection
             # First just check if the client exists and has expected methods
+            logger.info("Checking Mem0 client methods")
             client_methods = dir(self.client)
             expected_methods = ['get', 'add', 'search', 'update', 'delete']
             
+            logger.info(f"Available Mem0 client methods: {client_methods[:5]}...")
             method_check = all(method in client_methods for method in expected_methods)
             if not method_check:
                 logger.warning(f"Mem0 client missing expected methods. Has: {client_methods}")
@@ -798,3 +859,64 @@ class MemoryService:
         except Exception as e:
             logger.error(f"Error checking Mem0 connection: {str(e)}")
             return False
+
+    async def list(self, user_id: str, limit: int = 10, offset: int = 0, metadata_filter: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Get paginated memories for a user.
+        
+        This is similar to get_all but supports pagination with offset.
+        
+        Args:
+            user_id: The user ID to filter by
+            limit: Maximum number of results to return
+            offset: Number of items to skip for pagination
+            metadata_filter: Optional metadata filter criteria
+            
+        Returns:
+            List of memories for the user
+        """
+        logger.info(f"Listing memories for user {user_id}")
+        if not self.client:
+            logger.warning(f"Using mock response for list - client unavailable")
+            # Generate mock data respecting limit and offset
+            total_mocks = 20  # Simulated total count
+            start = min(offset, total_mocks)
+            end = min(offset + limit, total_mocks)
+            return [
+                {
+                    "memory_id": f"mock-memory-id-{user_id}-{i}",
+                    "content": f"This is mock memory {i}",
+                    "metadata": {"user_id": user_id, "source": "chat" if i % 2 == 0 else "document"},
+                    "created_at": "2025-04-23T12:00:00Z"
+                }
+                for i in range(start, end)
+            ]
+            
+        # Define a function to execute with the lock
+        async def _list_with_lock():
+            async with _mem0_lock:
+                try:
+                    # First get all memories
+                    all_memories = await self.get_all(user_id, metadata_filter=metadata_filter)
+                    logger.info(f"Retrieved {len(all_memories)} memories for user {user_id}")
+                    # Apply pagination
+                    start_idx = min(offset, len(all_memories))
+                    end_idx = min(offset + limit, len(all_memories))
+                    paginated_memories = all_memories[start_idx:end_idx]
+                    
+                    logger.info(f"Retrieved paginated memories for user {user_id}: {len(paginated_memories)} memories (offset {offset}, limit {limit})")
+                    
+                    return paginated_memories
+                    
+                except Exception as e:
+                    logger.error(f"Error listing memories with pagination: {e}")
+                    return [{"error": str(e)}]
+        
+        # Execute with timeout
+        try:
+            return await asyncio.wait_for(_list_with_lock(), timeout=8)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout in list for user {user_id}")
+            return [{"error": "Memory retrieval timed out"}]
+        except Exception as e:
+            logger.error(f"Unexpected error in list: {e}")
+            return [{"error": str(e)}]

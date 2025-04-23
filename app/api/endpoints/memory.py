@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, List, Optional, Any
 import logging
+import asyncio
 
 from app.api.deps import get_current_user, get_db, security
 from app.core.constants import DEFAULT_USER
@@ -89,7 +90,7 @@ async def get_memories_by_conversation(
         )
 
 
-@router.get("/{memory_id}")
+@router.get("/memory/{memory_id}")
 async def get_memory_by_id(
     memory_id: str,
     current_user: dict = Depends(get_current_user_or_mock),
@@ -119,6 +120,124 @@ async def get_memory_by_id(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch memory: {str(e)}"
+        )
+
+
+@router.get("/list")
+async def list_memories(
+    limit: int = Query(10, description="Maximum number of memories to return"),
+    offset: int = Query(0, description="Offset for pagination"),
+    query: Optional[str] = Query(None, description="Optional search query"),
+    current_user: dict = Depends(get_current_user_or_mock),
+):
+    """
+    List memories with pagination.
+    
+    Returns a paginated list of memories, optionally filtered by a search query.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        memory_service = MemoryService()
+        logger.info(f"Memory list request for user {user_id}: offset={offset}, limit={limit}, query={query}")
+        
+        # Use appropriate method based on whether a search query is provided
+        try:
+            if query:
+                # If a query is provided, use search
+                logger.info(f"Using search with query: {query}")
+                memories = await asyncio.wait_for(
+                    memory_service.search(
+                        user_id=user_id,
+                        query=query,
+                        limit=limit
+                    ),
+                    timeout=8  # 8 second timeout
+                )
+            else:
+                # Otherwise use get_all with pagination
+                logger.info(f"Using get_all for listing memories")
+                # Get memories with pagination offset
+                all_memories = await asyncio.wait_for(
+                    memory_service.get_all(
+                        user_id=user_id,
+                        limit=limit + offset  # Get enough to cover offset
+                    ),
+                    timeout=8  # 8 second timeout
+                )
+                
+                # Debug: Print structure of first memory if available
+                if all_memories and len(all_memories) > 0:
+                    first_memory = all_memories[0]
+                    logger.info(f"First memory keys: {list(first_memory.keys())}")
+                    # Print the first few characters of key fields to help debug
+                    if 'memory' in first_memory:
+                        mem_preview = first_memory['memory']
+                        if isinstance(mem_preview, str):
+                            logger.info(f"Memory field content preview: {mem_preview[:100]}...")
+                        else:
+                            logger.info(f"Memory field type: {type(mem_preview)}")
+                    if 'content' in first_memory:
+                        content_preview = first_memory['content']
+                        if isinstance(content_preview, str):
+                            logger.info(f"Content field preview: {content_preview[:100]}...")
+                        else:
+                            logger.info(f"Content field type: {type(content_preview)}")
+                    if 'message' in first_memory:
+                        logger.info(f"Message structure: {first_memory['message'] if isinstance(first_memory['message'], str) else list(first_memory['message'].keys()) if isinstance(first_memory['message'], dict) else 'not dict or str'}")
+                    if 'name' in first_memory:
+                        logger.info(f"Memory name: {first_memory['name']}")
+                    if 'metadata' in first_memory:
+                        logger.info(f"Metadata keys: {list(first_memory['metadata'].keys())}")
+                    if 'categories' in first_memory:
+                        logger.info(f"Categories: {first_memory['categories']}")
+                    
+                # Apply pagination manually
+                start_idx = min(offset, len(all_memories))
+                end_idx = min(offset + limit, len(all_memories))
+                memories = all_memories[start_idx:end_idx]
+                logger.info(f"Applied pagination: {start_idx}:{end_idx} from {len(all_memories)} memories")
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout retrieving memories")
+            raise HTTPException(
+                status_code=504,
+                detail="Request to memory service timed out"
+            )
+        
+        # Check for error responses
+        if memories and isinstance(memories, list) and len(memories) > 0 and "error" in memories[0]:
+            error_msg = memories[0].get("error", "Unknown error")
+            logger.error(f"Error from memory service: {error_msg}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Memory service error: {error_msg}"
+            )
+        
+        # Debug: Log the structure of memories
+        if memories and len(memories) > 0:
+            first_mem = memories[0]
+            logger.info(f"Memory in response keys: {list(first_mem.keys())}")
+            
+        logger.info(f"Successfully retrieved {len(memories)} memories")
+        return {
+            "memories": memories,
+            "total": len(memories),
+            "limit": limit,
+            "offset": offset
+        }
+    except HTTPException:
+        raise
+    except asyncio.TimeoutError:
+        logger.error("Timeout connecting to memory service")
+        raise HTTPException(
+            status_code=504,
+            detail="Request to memory service timed out"
+        )
+    except Exception as e:
+        logger.error(f"Error listing memories: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list memories: {str(e)}"
         )
 
 

@@ -475,8 +475,6 @@ To test the chat ingestion implementation:
 If you encounter any issues, you can inspect the server and celery logs to see what's happening in the background processing jobs.
 
 
-
-
 ### Agent Architecture
 
 The digital twin is implemented using LangGraph, a framework for building structured agents. The agent workflow:

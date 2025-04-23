@@ -68,6 +68,12 @@ async def chat_page(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
 
+@app.get("/knowledge")
+async def knowledge_page(request: Request):
+    """Serve the knowledge interface."""
+    return templates.TemplateResponse("knowledge.html", {"request": request})
+
+
 if __name__ == "__main__":
     import uvicorn
 

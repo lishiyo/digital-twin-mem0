@@ -120,8 +120,8 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Create API endpoints for chat so this can be tested with real data
 
 **3.1.3. Implement session management**
-- [ ] Create conversation boundary detection
 - [ ] Implement conversation summarization service
+- [ ] Create conversation boundary detection
 - [ ] Add automatic title generation for conversations
 - [ ] Develop context preservation between sessions
 - [ ] Create conversation pruning/archiving strategy
@@ -136,6 +136,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Implement conflict resolution for contradictory information
 - [ ] Create direct UserProfile updates for high-confidence traits
 - [ ] Create api endpoints to view the UserProfile to verify this is working
+- [x] Create simple page to view stored user knowledge (memories and graph data)
 - [ ] Create Graphiti node/relationship creation service for chats
 
 **3.1.5. Set up background processing**

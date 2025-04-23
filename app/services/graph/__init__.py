@@ -1135,3 +1135,241 @@ class GraphitiService:
         except Exception as e:
             logger.error(f"Error finding entity: {e}")
             return None
+
+    async def list_nodes(self, limit: int = 10, offset: int = 0, node_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List nodes from the knowledge graph with pagination.
+        
+        Args:
+            limit: Maximum number of nodes to return
+            offset: Number of nodes to skip for pagination
+            node_type: Optional node type (label) to filter by
+            
+        Returns:
+            List of nodes
+        """
+        try:
+            # Construct the Cypher query
+            query = """
+            MATCH (n)
+            WHERE 1=1
+            """
+            
+            params = {}
+            
+            # Add node type filter if provided
+            if node_type:
+                query += " AND $node_type IN labels(n)"
+                params["node_type"] = node_type
+                
+            # Add ORDER BY, SKIP and LIMIT clauses
+            query += """
+            ORDER BY n.created_at DESC
+            SKIP $offset
+            LIMIT $limit
+            RETURN n.uuid as uuid, n.name as name, n.summary as summary, labels(n) as labels, 
+                   n.created_at as created_at, n.scope as scope, n.owner_id as owner_id,
+                   properties(n) as properties
+            """
+            
+            params["offset"] = offset
+            params["limit"] = limit
+            
+            # Execute the query
+            results = await self.execute_cypher(query, params)
+            
+            # Format the results
+            formatted_results = []
+            for result in results:
+                node = {
+                    "uuid": result.get("uuid"),
+                    "name": result.get("name"),
+                    "summary": result.get("summary"),
+                    "labels": result.get("labels", []),
+                    "created_at": result.get("created_at"),
+                    "scope": result.get("scope"),
+                    "owner_id": result.get("owner_id"),
+                    "properties": result.get("properties", {})
+                }
+                formatted_results.append(node)
+                
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"Error listing nodes: {str(e)}")
+            return []
+    
+    async def list_relationships(self, limit: int = 10, offset: int = 0, 
+                                rel_type: Optional[str] = None, query: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List relationships from the knowledge graph with pagination.
+        
+        Args:
+            limit: Maximum number of relationships to return
+            offset: Number of relationships to skip for pagination
+            rel_type: Optional relationship type to filter by
+            query: Optional text query to filter relationships
+            
+        Returns:
+            List of relationships
+        """
+        try:
+            # Construct the Cypher query
+            base_query = """
+            MATCH (s)-[r]->(t)
+            WHERE 1=1
+            """
+            
+            params = {}
+            
+            # Add relationship type filter if provided
+            if rel_type:
+                base_query += " AND type(r) = $rel_type"
+                params["rel_type"] = rel_type
+                
+            # Add text search if provided
+            if query:
+                # This is a simple text search - adjust for your specific needs
+                base_query += " AND (r.summary CONTAINS $query OR s.name CONTAINS $query OR t.name CONTAINS $query)"
+                params["query"] = query
+                
+            # Add ORDER BY, SKIP and LIMIT clauses
+            base_query += """
+            ORDER BY r.created_at DESC
+            SKIP $offset
+            LIMIT $limit
+            RETURN r.uuid as uuid, type(r) as type, r.created_at as created_at, 
+                   r.scope as scope, r.owner_id as owner_id,
+                   properties(r) as properties,
+                   s.uuid as source_uuid, s.name as source_name,
+                   t.uuid as target_uuid, t.name as target_name
+            """
+            
+            params["offset"] = offset
+            params["limit"] = limit
+            
+            # Execute the query
+            results = await self.execute_cypher(base_query, params)
+            
+            # Format the results
+            formatted_results = []
+            for result in results:
+                rel = {
+                    "id": result.get("uuid"),
+                    "type": result.get("type"),
+                    "created_at": result.get("created_at"),
+                    "scope": result.get("scope"),
+                    "owner_id": result.get("owner_id"),
+                    "properties": result.get("properties", {}),
+                    "source_node": {
+                        "id": result.get("source_uuid"),
+                        "name": result.get("source_name")
+                    },
+                    "target_node": {
+                        "id": result.get("target_uuid"),
+                        "name": result.get("target_name")
+                    }
+                }
+                formatted_results.append(rel)
+                
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"Error listing relationships: {str(e)}")
+            return []
+    
+    async def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
+        """Get a node by its ID.
+        
+        Args:
+            node_id: UUID of the node to retrieve
+            
+        Returns:
+            Node details or None if not found
+        """
+        try:
+            # Construct the Cypher query
+            query = """
+            MATCH (n)
+            WHERE n.uuid = $node_id
+            RETURN n.uuid as uuid, n.name as name, n.summary as summary, labels(n) as labels, 
+                   n.created_at as created_at, n.scope as scope, n.owner_id as owner_id,
+                   properties(n) as properties
+            """
+            
+            # Execute the query
+            results = await self.execute_cypher(query, {"node_id": node_id})
+            
+            # Return None if no results
+            if not results or len(results) == 0:
+                return None
+                
+            # Format the result
+            result = results[0]
+            node = {
+                "uuid": result.get("uuid"),
+                "name": result.get("name"),
+                "summary": result.get("summary"),
+                "labels": result.get("labels", []),
+                "created_at": result.get("created_at"),
+                "scope": result.get("scope"),
+                "owner_id": result.get("owner_id"),
+                "properties": result.get("properties", {})
+            }
+            
+            return node
+            
+        except Exception as e:
+            logger.error(f"Error getting node {node_id}: {str(e)}")
+            return None
+    
+    async def get_relationship(self, relationship_id: str) -> Optional[Dict[str, Any]]:
+        """Get a relationship by its ID.
+        
+        Args:
+            relationship_id: UUID of the relationship to retrieve
+            
+        Returns:
+            Relationship details or None if not found
+        """
+        try:
+            # Construct the Cypher query
+            query = """
+            MATCH (s)-[r]->(t)
+            WHERE r.uuid = $relationship_id
+            RETURN r.uuid as uuid, type(r) as type, r.created_at as created_at, 
+                   r.scope as scope, r.owner_id as owner_id,
+                   properties(r) as properties,
+                   s.uuid as source_uuid, s.name as source_name,
+                   t.uuid as target_uuid, t.name as target_name
+            """
+            
+            # Execute the query
+            results = await self.execute_cypher(query, {"relationship_id": relationship_id})
+            
+            # Return None if no results
+            if not results or len(results) == 0:
+                return None
+                
+            # Format the result
+            result = results[0]
+            rel = {
+                "id": result.get("uuid"),
+                "type": result.get("type"),
+                "created_at": result.get("created_at"),
+                "scope": result.get("scope"),
+                "owner_id": result.get("owner_id"),
+                "properties": result.get("properties", {}),
+                "source_node": {
+                    "id": result.get("source_uuid"),
+                    "name": result.get("source_name")
+                },
+                "target_node": {
+                    "id": result.get("target_uuid"),
+                    "name": result.get("target_name")
+                }
+            }
+            
+            return rel
+            
+        except Exception as e:
+            logger.error(f"Error getting relationship {relationship_id}: {str(e)}")
+            return None

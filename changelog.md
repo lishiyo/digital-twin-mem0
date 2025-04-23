@@ -1,5 +1,23 @@
 # Changelog
 
+## 2025-04-23: Knowledge Viewer Implementation
+
+As part of our v1 digital twin architecture, we've added a knowledge viewer interface:
+
+### Frontend Implementation
+- Created a web-based knowledge viewer UI with tabs for memories, entities, and relationships
+- Implemented search and pagination for browsing large datasets
+- Added detailed card views for each knowledge type with metadata display
+- Integrated with the chat UI through navigation links
+
+### Backend Updates
+- Added new API endpoints for paginated listing of memories, graph nodes, and relationships
+- Enhanced GraphitiService with methods for efficient data retrieval 
+- Extended MemoryService with pagination support
+- Created comprehensive error handling and fallbacks
+
+This implementation provides users with a visual interface to explore their digital twin's knowledge base, making it easier to verify and understand what information the system has stored.
+
 ## 2025-04-23: Chat UI Implementation
 
 As part of our v1 digital twin architecture, we've implemented a simple chat interface:
