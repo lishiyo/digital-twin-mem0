@@ -395,9 +395,10 @@ class EntityExtractor:
         2. Interests (things the user likes or is curious about)
         3. Preferences (things the user prefers over alternatives)
         4. Dislikes (things the user specifically doesn't like)
+        5. Attributes (facts about the user like relationships, possessions, characteristics)
         
         For each trait, provide:
-        - trait_type: One of [skill, interest, preference, dislike]
+        - trait_type: One of [skill, interest, preference, dislike, attribute]
         - name: The specific trait
         - confidence: How certain you are (0.0-1.0)
         - evidence: The part of the text supporting this trait
@@ -411,6 +412,12 @@ class EntityExtractor:
             "confidence": 0.9,
             "evidence": "I've been programming in Python for 5 years",
             "strength": 0.8
+          }},
+          {{
+            "trait_type": "attribute",
+            "name": "Has a husband named Kyle",
+            "confidence": 0.95,
+            "evidence": "My husband Kyle and I went to the park"
           }}
         ]
 

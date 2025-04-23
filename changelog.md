@@ -1,5 +1,40 @@
 # Changelog
 
+## 2025-04-25: Added User Attribute Support
+
+To better represent user facts that don't fit existing trait categories, we've added a new "attribute" type:
+
+### Database Updates
+- Added `attributes` field to the `UserProfile` model to store user attributes like relationships and characteristics
+
+### Entity Extraction Improvements
+- Extended trait extraction prompt to include attributes in addition to skills, interests, preferences, and dislikes
+- Added examples and guidance for extracting attributes like "has a husband named Kyle" or "has a cat named Aggy"
+
+### Graph Schema Extensions
+- Added "Attribute" entity type to the GraphitiService schema validation
+- Implemented "HAS_ATTRIBUTE" relationship type between users and their attributes
+- Set appropriate confidence thresholds for attribute extraction
+
+This improvement allows the digital twin to more accurately represent personal characteristics and relationships that aren't skills, interests, preferences, or dislikes.
+
+## 2025-04-25: GraphitiService Schema Validation Improvements
+
+To address issues with entity property validation across different entity types, we've made the following improvements:
+
+### Code Refactoring
+- Added a `COMMON_OPTIONAL_FIELDS` constant to the `GraphitiService` class to share common fields across all entity types
+- Simplified entity schema definitions by separating entity-specific fields from common fields
+- Enhanced validation to support both older property names (e.g., "source_file") and newer ones (e.g., "source")
+
+### Benefits
+- More maintainable code with reduced duplication
+- Improved flexibility when ingesting entities with different property names
+- Easier addition of new common properties in the future
+- Better compatibility between synchronous and asynchronous ingestion services
+
+These changes fix property validation errors in the `GraphitiService._validate_entity_schema` method that were causing issues with entities extracted in the `_process_extracted_data` method.
+
 ## 2025-04-24: Knowledge Viewer Enhancements
 
 As part of improving our debugging and exploration capabilities, we've enhanced the knowledge viewer interface:

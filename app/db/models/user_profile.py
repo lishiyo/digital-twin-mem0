@@ -21,6 +21,7 @@ class UserProfile(Base):
     interests: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
     skills: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
     dislikes: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
+    attributes: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
     communication_style: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     key_relationships: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
     

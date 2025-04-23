@@ -26,7 +26,8 @@ class ChatGraphitiIngestion:
         "interest": "Interest",
         "preference": "Preference",
         "dislike": "Dislike",
-        "person": "Person"
+        "person": "Person",
+        "attribute": "Attribute"
     }
     
     # Confidence thresholds for adding to graph + user profile
@@ -37,6 +38,7 @@ class ChatGraphitiIngestion:
     MIN_CONFIDENCE_TRAIT_INTEREST = 0.85
     MIN_CONFIDENCE_TRAIT_PREFERENCE = 0.85
     MIN_CONFIDENCE_TRAIT_DISLIKE = 0.85
+    MIN_CONFIDENCE_TRAIT_ATTRIBUTE = 0.85
 
     def __init__(
         self, 
@@ -326,12 +328,15 @@ class ChatGraphitiIngestion:
                     owner_id=user_id
                 )
                 
-                if existing_entity:
-                    # Entity already exists, just store its ID
+                if existing_entity and existing_entity.get("id"):
+                    # Entity already exists and has a valid ID, just store its ID
                     entity_map[entity_name] = existing_entity.get("id")
-                    logger.info(f"Entity {entity_name} already exists in Graphiti, skipping creation")
+                    logger.info(f"Entity {entity_name} already exists in Graphiti with ID {existing_entity.get('id')}, skipping creation")
                     continue
-                    
+                elif existing_entity:
+                    # Entity exists but has no valid ID - log a warning and proceed to create it
+                    logger.warning(f"Entity {entity_name} exists in Graphiti but has no valid ID. Creating a new instance.")
+
                 # Create new entity - use synchronous approach
                 entity_properties = {
                     "name": entity_name,
@@ -382,10 +387,14 @@ class ChatGraphitiIngestion:
                     owner_id=user_id
                 )
                 
-                if existing_trait:
-                    # Trait already exists, just store its ID
+                if existing_trait and existing_trait.get("id"):
+                    # Trait already exists and has a valid ID, just store its ID
                     entity_map[trait_name] = existing_trait.get("id")
+                    logger.info(f"Trait {trait_name} already exists in Graphiti with ID {existing_trait.get('id')}, skipping creation")
                     continue
+                elif existing_trait:
+                    # Trait exists but has no valid ID - log a warning and proceed to create it
+                    logger.warning(f"Trait {trait_name} exists in Graphiti but has no valid ID. Creating a new instance.")
                     
                 # Create new trait - use synchronous approach
                 trait_properties = {
@@ -491,7 +500,8 @@ class ChatGraphitiIngestion:
                 "skill": "HAS_SKILL",
                 "interest": "INTERESTED_IN",
                 "preference": "PREFERS",
-                "dislike": "DISLIKES"
+                "dislike": "DISLIKES",
+                "attribute": "HAS_ATTRIBUTE"
             }
             
             rel_type = rel_mapping.get(trait_type.lower(), "ASSOCIATED_WITH")
@@ -569,17 +579,21 @@ class ChatGraphitiIngestion:
                 profile.preferences = {}
             if profile.dislikes is None:
                 profile.dislikes = []
+            if profile.attributes is None:
+                profile.attributes = []
             
             # Convert to Python objects if stored as JSON strings
             skills = profile.skills if isinstance(profile.skills, list) else json.loads(profile.skills)
             interests = profile.interests if isinstance(profile.interests, list) else json.loads(profile.interests)
             preferences = profile.preferences if isinstance(profile.preferences, dict) else json.loads(profile.preferences)
             dislikes = profile.dislikes if isinstance(profile.dislikes, list) else json.loads(profile.dislikes)
+            attributes = profile.attributes if isinstance(profile.attributes, list) else json.loads(profile.attributes)
             
             # Create maps of existing traits for deduplication
             skill_map = {s.get("name").lower(): s for s in skills if isinstance(s, dict) and "name" in s}
             interest_map = {i.get("name").lower(): i for i in interests if isinstance(i, dict) and "name" in i}
             dislike_map = {d.get("name").lower(): d for d in dislikes if isinstance(d, dict) and "name" in d}
+            attribute_map = {a.get("name").lower(): a for a in attributes if isinstance(a, dict) and "name" in a}
             
             # Process each trait
             for trait in traits:
@@ -653,16 +667,38 @@ class ChatGraphitiIngestion:
                             "confidence": confidence,
                             "source": "chat_inference"
                         })
+                        
+                elif trait_type == "attribute" and confidence >= self.MIN_CONFIDENCE_TRAIT_ATTRIBUTE:
+                    if name_lower in attribute_map:
+                        # Update existing attribute if new confidence is higher
+                        existing = attribute_map[name_lower]
+                        if confidence > existing.get("confidence", 0):
+                            existing["confidence"] = confidence
+                            existing["source"] = "chat_inference"
+                            if "evidence" in trait:
+                                existing["evidence"] = trait["evidence"]
+                    else:
+                        # Add new attribute
+                        attribute_data = {
+                            "name": name,
+                            "confidence": confidence,
+                            "source": "chat_inference"
+                        }
+                        if "evidence" in trait:
+                            attribute_data["evidence"] = trait["evidence"]
+                        attributes.append(attribute_data)
             
             # Update profile
             profile.skills = skills
             profile.interests = interests
             profile.preferences = preferences
             profile.dislikes = dislikes
+            profile.attributes = attributes
             
             self.db.commit()
             logger.info(f"Updated user profile with {len(traits)} traits")
             
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error updating user profile: {str(e)}") 
+            logger.error(f"Error updating user profile: {str(e)}")
+            

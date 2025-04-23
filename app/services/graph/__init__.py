@@ -914,6 +914,10 @@ class GraphitiService:
             "Unknown": {
                 "required": ["name"],
                 "optional": []
+            },
+            "Attribute": {
+                "required": ["name"],
+                "optional": ["description", "details", "related_entity"]
             }
         }
         
