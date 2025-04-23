@@ -23,7 +23,17 @@ def process_chat_message(message_id: str) -> Dict[str, Any]:
     """
     try:
         # Use fully synchronous implementation
-        return _process_message_sync(message_id)
+        mem0_result = _process_message_sync(message_id)
+        
+        # Trigger Graphiti processing asynchronously
+        from app.worker.tasks.graphiti_tasks import process_chat_message_graphiti
+        graphiti_task = process_chat_message_graphiti.delay(message_id)
+        
+        # Add Graphiti task ID to result
+        mem0_result["graphiti_task_id"] = graphiti_task.id
+        
+        return mem0_result
+        
     except Exception as e:
         logger.error(f"Error processing message {message_id}: {str(e)}")
         return {
@@ -45,7 +55,17 @@ def process_pending_messages(limit: int = 50) -> Dict[str, Any]:
     """
     try:
         # Use fully synchronous implementation
-        return _process_pending_messages_sync(limit)
+        mem0_result = _process_pending_messages_sync(limit)
+        
+        # Trigger Graphiti processing for pending messages
+        from app.worker.tasks.graphiti_tasks import process_pending_messages_graphiti
+        graphiti_task = process_pending_messages_graphiti.delay(limit)
+        
+        # Add Graphiti task ID to result
+        mem0_result["graphiti_task_id"] = graphiti_task.id
+        
+        return mem0_result
+        
     except Exception as e:
         logger.error(f"Error processing pending messages: {str(e)}")
         return {
@@ -66,7 +86,17 @@ def process_conversation(conversation_id: str) -> Dict[str, Any]:
     """
     try:
         # Use fully synchronous implementation
-        return _process_conversation_sync(conversation_id)
+        mem0_result = _process_conversation_sync(conversation_id)
+        
+        # Trigger Graphiti processing for the conversation
+        from app.worker.tasks.graphiti_tasks import process_conversation_graphiti
+        graphiti_task = process_conversation_graphiti.delay(conversation_id)
+        
+        # Add Graphiti task ID to result
+        mem0_result["graphiti_task_id"] = graphiti_task.id
+        
+        return mem0_result
+        
     except Exception as e:
         logger.error(f"Error processing conversation {conversation_id}: {str(e)}")
         return {

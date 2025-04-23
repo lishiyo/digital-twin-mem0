@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(name="process_chat_message")
 def process_chat_message(message_id: str) -> Dict[str, Any]:
-    """Process a single chat message for Mem0 ingestion.
+    """NOT USED - Process a single chat message for Mem0 ingestion.
     
     Args:
         message_id: ID of the message to process
@@ -39,7 +39,7 @@ def process_chat_message(message_id: str) -> Dict[str, Any]:
 
 @celery_app.task(name="process_pending_messages")
 def process_pending_messages(limit: int = 50) -> Dict[str, Any]:
-    """Process pending messages that haven't been ingested to Mem0.
+    """NOT USED - Process pending messages that haven't been ingested to Mem0.
     
     Args:
         limit: Maximum number of messages to process
@@ -62,7 +62,7 @@ def process_pending_messages(limit: int = 50) -> Dict[str, Any]:
 
 @celery_app.task(name="process_conversation")
 def process_conversation(conversation_id: str) -> Dict[str, Any]:
-    """Process all messages in a conversation.
+    """NOT USED - Process all messages in a conversation.
     
     Args:
         conversation_id: ID of the conversation to process
@@ -86,7 +86,7 @@ def process_conversation(conversation_id: str) -> Dict[str, Any]:
 
 @celery_app.task(name="summarize_conversation")
 def summarize_conversation(conversation_id: str) -> Dict[str, Any]:
-    """Generate a summary for a conversation.
+    """NOT USED - Generate a summary for a conversation.
     
     Args:
         conversation_id: ID of the conversation to summarize

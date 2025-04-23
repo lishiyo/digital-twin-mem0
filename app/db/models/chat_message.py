@@ -38,6 +38,9 @@ class ChatMessage(Base):
     ingested: Mapped[bool] = mapped_column(Boolean, default=False)
     importance_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
+    # Graphiti integration field
+    is_stored_in_graphiti: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")
     user = relationship("User", back_populates="messages")
@@ -62,7 +65,8 @@ class ChatMessage(Base):
             "embedding_id": self.embedding_id,
             "meta_data": self.meta_data,
             "ingested": self.ingested,
-            "importance_score": self.importance_score
+            "importance_score": self.importance_score,
+            "is_stored_in_graphiti": self.is_stored_in_graphiti
         }
 
 

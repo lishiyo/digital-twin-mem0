@@ -12,7 +12,7 @@ from app.services.graph import GraphitiService, ContentScope
 from app.services.ingestion.file_service import FileService
 from app.services.ingestion.parsers import parse_file
 from app.services.ingestion.chunking import DocumentChunker
-from app.services.ingestion.entity_extraction_factory import EntityExtractorFactory
+from app.services.ingestion.entity_extraction_factory import get_entity_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +28,13 @@ class IngestionService:
     MAX_ENTITIES_PER_CHUNK = 20
     MAX_RELATIONSHIPS_TOTAL = 40
     
-    def __init__(self, entity_extractor_type: Optional[str] = None):
-        """Initialize the ingestion service.
-        
-        Args:
-            entity_extractor_type: Optional type of entity extractor to use ('spacy' or 'gemini')
-        """
+    def __init__(self):
+        """Initialize the ingestion service."""
         self.file_service = FileService()
         self.memory_service = MemoryService()
         self.graphiti_service = GraphitiService()
         self.chunker = DocumentChunker()
-        self.entity_extractor = EntityExtractorFactory.create_entity_extractor(extractor_type=entity_extractor_type)
+        self.entity_extractor = get_entity_extractor()
         
         # Cache to track processed files by hash
         self._processed_hashes = set()

@@ -82,17 +82,17 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
                 ttl_days=ttl_days
             )
             
-            # Update message with Mem0 ID
-            message.mem0_memory_id = memory_result.get("id")
+            # Update message with Mem0 ID - use mem0_message_id for consistency with SyncChatMem0Ingestion
+            message.mem0_message_id = memory_result.get("id")
             message.is_stored_in_mem0 = True
             message.processed = True
             
             await self.db.commit()
             
-            logger.info(f"Successfully ingested message {message.id} to Mem0 with ID {message.mem0_memory_id}")
+            logger.info(f"Successfully ingested message {message.id} to Mem0 with ID {message.mem0_message_id}")
             return {
                 "status": "success",
-                "memory_id": message.mem0_memory_id,
+                "memory_id": message.mem0_message_id,
                 "importance_score": message.importance_score,
                 "ttl_days": ttl_days,
                 "message_id": message.id

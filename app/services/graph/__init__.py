@@ -24,6 +24,13 @@ ContentScope = Literal["user", "twin", "global"]
 class GraphitiService:
     """Service for interacting with Graphiti knowledge graph."""
 
+    # Common optional fields shared across all entity types
+    COMMON_OPTIONAL_FIELDS = [
+        "user_id", "source", "source_file", "context", "scope", "owner_id", 
+        "label", "confidence", "strength", "message_id", "conversation_title",
+        "evidence"
+    ]
+
     def __init__(self):
         """Initialize the Graphiti service."""
         # Configure OpenAI with API key
@@ -817,106 +824,96 @@ class GraphitiService:
         schemas = {
             "Person": {
                 "required": ["name"],
-                "optional": ["age", "email", "location", "source_file", "label", "user_id", "context", "scope", "owner_id", 
-                            "bio", "profession", "relationship", "contact_info"]
+                "optional": ["age", "email", "location", "bio", "profession", "relationship", "contact_info"]
             },
             "Organization": {
                 "required": ["name"],
-                "optional": ["industry", "founded", "location", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["industry", "founded", "location"]
             },
             "Document": {
                 "required": [],  # Modified to allow documents without title
-                "optional": ["title", "content", "author", "created_at", "tags", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["title", "content", "author", "created_at", "tags"]
             },
             "Location": {
                 "required": ["name"],
-                "optional": ["country", "city", "address", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["country", "city", "address"]
             },
             "Event": {
                 "required": ["name"],
-                "optional": ["date", "location", "description", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["date", "location", "description"]
             },
             "Date": {
                 "required": ["name"],
-                "optional": ["date", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["date"]
             },
             "Time": {
                 "required": ["name"],
-                "optional": ["time", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["time"]
             },
             "Money": {
                 "required": ["name"],
-                "optional": ["amount", "currency", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["amount", "currency"]
             },
             "Percent": {
                 "required": ["name"],
-                "optional": ["value", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["value"]
             },
             "Group": {
                 "required": ["name"],
-                "optional": ["members", "description", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["members", "description"]
             },
             "Facility": {
                 "required": ["name"],
-                "optional": ["location", "type", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["location", "type"]
             },
             "Legal": {
                 "required": ["name"],
-                "optional": ["jurisdiction", "date", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["jurisdiction", "date"]
             },
             "Language": {
                 "required": ["name"],
-                "optional": ["region", "family", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["region", "family"]
             },
             "Ordinal": {
                 "required": ["name"],
-                "optional": ["value", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["value"]
             },
             "Cardinal": {
                 "required": ["name"],
-                "optional": ["value", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["value"]
             },
             "Quantity": {
                 "required": ["name"],
-                "optional": ["value", "unit", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["value", "unit"]
             },
             "Product": {
                 "required": ["name"],
-                "optional": ["manufacturer", "price", "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["manufacturer", "price"]
             },
             # New node types for v1 migration
             "Skill": {
                 "required": ["name"],
-                "optional": ["description", "proficiency", "experience_years", "last_used", "certifications", 
-                             "projects", "source_file", "label", "user_id", "context", "scope", "owner_id",
-                             "confidence", "source"]
+                "optional": ["description", "proficiency", "experience_years", "last_used", "certifications", "projects"]
             },
             "Interest": {
                 "required": ["name"],
-                "optional": ["description", "strength", "since", "category", "related_activities", 
-                             "source_file", "label", "user_id", "context", "scope", "owner_id",
-                             "confidence", "source"]
+                "optional": ["description", "since", "category", "related_activities"]
             },
             "Preference": {
                 "required": ["name"],
-                "optional": ["description", "strength", "category", "context_applies", 
-                             "source_file", "label", "user_id", "context", "scope", "owner_id",
-                             "confidence", "source"]
+                "optional": ["description", "category", "context_applies"]
             },
             "Dislike": {
                 "required": ["name"],
-                "optional": ["description", "strength", "reason", "category", 
-                             "source_file", "label", "user_id", "context", "scope", "owner_id",
-                             "confidence", "source"]
+                "optional": ["description", "reason", "category"]
             },
             "TimeSlot": {
                 "required": ["name"],
-                "optional": ["start_time", "end_time", "day_of_week", "recurrence", "availability", 
-                             "source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": ["start_time", "end_time", "day_of_week", "recurrence", "availability"]
             },
             "Unknown": {
                 "required": ["name"],
-                "optional": ["source_file", "label", "user_id", "context", "scope", "owner_id"]
+                "optional": []
             }
         }
         
@@ -936,8 +933,10 @@ class GraphitiService:
                 else:
                     raise ValueError(f"Missing required property '{required_prop}' for entity type '{entity_type}'")
                 
+        # Add common optional fields to each entity type's optional fields
+        all_allowed_props = schema["required"] + schema["optional"] + self.COMMON_OPTIONAL_FIELDS
+        
         # Check if there are any properties not in the schema
-        all_allowed_props = schema["required"] + schema["optional"]
         for prop in properties:
             # Skip validation for special properties:
             # - Properties starting with underscore are system properties
@@ -1385,4 +1384,137 @@ class GraphitiService:
             
         except Exception as e:
             logger.error(f"Error getting relationship {relationship_id}: {str(e)}")
+            return None
+
+    def find_entity_sync(
+        self,
+        name: str,
+        entity_type: str = None,
+        scope: ContentScope = None,
+        owner_id: str = None
+    ) -> Optional[Dict[str, Any]]:
+        """Find an entity by name, optionally filtered by type, scope, and owner (synchronous version).
+        
+        Args:
+            name: The name of the entity to find
+            entity_type: Optional entity type to filter by
+            scope: Optional scope to filter by
+            owner_id: Optional owner ID to filter by
+            
+        Returns:
+            Entity data if found, None otherwise
+        """
+        import asyncio
+        
+        try:
+            # Run the async version in a synchronous context
+            return asyncio.run(self.find_entity(name, entity_type, scope, owner_id))
+        except Exception as e:
+            logger.error(f"Error in find_entity_sync: {e}")
+            return None
+    
+    def create_entity_sync(
+        self,
+        entity_type: str,
+        properties: Dict[str, Any],
+        scope: ContentScope = "user",
+        owner_id: Optional[str] = None
+    ) -> Optional[str]:
+        """Create a new entity in the knowledge graph (synchronous version).
+        
+        Args:
+            entity_type: The type of entity to create
+            properties: The properties of the entity
+            scope: Content scope ("user", "twin", or "global")
+            owner_id: ID of the owner (user or twin ID, or None for global)
+            
+        Returns:
+            The ID of the created entity
+        """
+        import asyncio
+        
+        try:
+            # Run the async version in a synchronous context
+            return asyncio.run(self.create_entity(entity_type, properties, None, scope, owner_id))
+        except Exception as e:
+            logger.error(f"Error in create_entity_sync: {e}")
+            return None
+    
+    def relationship_exists_sync(
+        self,
+        source_id: str,
+        target_id: str,
+        rel_type: str,
+        scope: ContentScope = "user"
+    ) -> bool:
+        """Check if a relationship exists (synchronous version).
+        
+        Args:
+            source_id: Source entity ID
+            target_id: Target entity ID
+            rel_type: Relationship type
+            scope: Content scope ("user", "twin", or "global")
+            
+        Returns:
+            True if relationship exists, False otherwise
+        """
+        import asyncio
+        
+        try:
+            # Create a query to check if the relationship exists
+            query = """
+            MATCH (a)-[r]->(b)
+            WHERE elementId(a) = $source_id AND elementId(b) = $target_id
+            AND type(r) = $rel_type AND r.scope = $scope
+            RETURN count(r) as rel_count
+            """
+            
+            # Use the async execute_cypher function in a synchronous context
+            result = asyncio.run(self.execute_cypher(
+                query, 
+                {
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "rel_type": rel_type,
+                    "scope": scope
+                }
+            ))
+            
+            # Check if relationship exists
+            return result and result[0]["rel_count"] > 0
+        except Exception as e:
+            logger.error(f"Error in relationship_exists_sync: {e}")
+            return False
+    
+    def create_relationship_sync(
+        self,
+        source_id: str,
+        target_id: str,
+        rel_type: str,
+        properties: Dict[str, Any],
+        scope: ContentScope = "user",
+        owner_id: Optional[str] = None
+    ) -> Optional[str]:
+        """Create a relationship between entities (synchronous version).
+        
+        Args:
+            source_id: Source entity ID
+            target_id: Target entity ID
+            rel_type: Relationship type
+            properties: Relationship properties
+            scope: Content scope ("user", "twin", or "global")
+            owner_id: ID of the owner (user or twin ID, or None for global)
+            
+        Returns:
+            Generated relationship ID or None on failure
+        """
+        import asyncio
+        
+        try:
+            # Run the async version in a synchronous context
+            return asyncio.run(self.create_relationship(
+                source_id, target_id, rel_type, properties, None, scope, owner_id
+            ))
+        except Exception as e:
+            logger.error(f"Error in create_relationship_sync: {e}")
             return None

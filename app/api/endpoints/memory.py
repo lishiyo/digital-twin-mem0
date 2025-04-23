@@ -139,7 +139,7 @@ async def list_memories(
     
     try:
         memory_service = MemoryService()
-        logger.info(f"Memory list request for user {user_id}: offset={offset}, limit={limit}, query={query}")
+        # logger.info(f"Memory list request for user {user_id}: offset={offset}, limit={limit}, query={query}")
         
         # Use appropriate method based on whether a search query is provided
         try:
@@ -156,7 +156,7 @@ async def list_memories(
                 )
             else:
                 # Otherwise use get_all with pagination
-                logger.info(f"Using get_all for listing memories")
+                # logger.info(f"Using get_all for listing memories")
                 # Get memories with pagination offset
                 all_memories = await asyncio.wait_for(
                     memory_service.get_all(
@@ -270,4 +270,37 @@ async def trigger_process_conversation(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to trigger processing: {str(e)}"
+        )
+
+
+@router.get("/trigger-graphiti-process/{conversation_id}")
+async def trigger_graphiti_process_conversation(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user_or_mock),
+):
+    """
+    Manually trigger Graphiti processing for all messages in a conversation.
+    
+    This endpoint specifically processes the conversation for entity/trait extraction
+    and Graphiti knowledge graph creation.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        from app.worker.tasks.graphiti_tasks import process_conversation_graphiti
+        
+        # Trigger the Celery task
+        task = process_conversation_graphiti.delay(conversation_id)
+        
+        return {
+            "status": "processing",
+            "conversation_id": conversation_id,
+            "task_id": task.id,
+            "message": "Graphiti processing has been triggered"
+        }
+    except Exception as e:
+        logger.error(f"Error triggering Graphiti processing for conversation {conversation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to trigger Graphiti processing: {str(e)}"
         ) 

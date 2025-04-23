@@ -119,25 +119,25 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Implement error handling and retry mechanisms
 - [x] Create API endpoints for chat so this can be tested with real data
 
-**3.1.3. Implement session management**
-- [ ] Implement conversation summarization service
-- [ ] Create conversation boundary detection
-- [ ] Add automatic title generation for conversations
-- [ ] Develop context preservation between sessions
-- [ ] Create conversation pruning/archiving strategy
-- [ ] Implement conversation status tracking (active, archived, deleted)
-- [ ] Add metadata and context handling for conversations
-
-**3.1.4. Extract entity information and update UserProfile**
-- [ ] Implement LLM-based entity and trait extraction from chat logs (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
-- [ ] Create mappers to UserProfile fields (preferences, interests, skills)
+**3.1.3. Extract entity information and update UserProfile**
+- [x] Create Graphiti node/relationship creation service for chats (see `GraphitiService`) - make sure to dedupe
+- [x] Implement LLM-based entity and trait extraction from chat logs if any (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
+- [ ] Create mappers to UserProfile fields (preferences, interests, skills, etc)
 - [ ] Develop confidence scoring for extracted traits
 - [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
 - [ ] Implement conflict resolution for contradictory information
 - [ ] Create direct UserProfile updates for high-confidence traits
 - [ ] Create api endpoints to view the UserProfile to verify this is working
 - [x] Create simple page to view stored user knowledge (memories and graph data)
-- [ ] Create Graphiti node/relationship creation service for chats
+
+**3.1.4. Implement session management**
+- [ ] Implement conversation summarization service
+- [ ] Add automatic title generation for conversations
+- [ ] Create conversation boundary detection
+- [ ] Develop context preservation between sessions
+- [ ] Create conversation pruning/archiving strategy
+- [ ] Implement conversation status tracking (active, archived, deleted)
+- [ ] Add metadata and context handling for conversations
 
 **3.1.5. Set up background processing**
 - [x] Configure Celery task queue for async processing
@@ -263,7 +263,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 5.4. Enhanced Chat Endpoints
 
 **5.4.1. Update POST /api/v1/chat**
-- [ ] Modify endpoint to create/use Conversation records if not already
+- [x] Modify endpoint to create/use Conversation records if not already
 - [ ] Add conversation_id parameter (optional, creates new if absent)
 - [ ] Implement context capture from request (project, task, etc.)
 - [ ] Add support for streaming responses
@@ -325,10 +325,10 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create entity recognition
 
 **3.2.4. Create Mem0 and Graphiti ingestion pipelines**
-- [ ] Develop transformers
-- [ ] Implement event-to-memory conversion
-- [ ] Create relationship extraction
-- [ ] Add pattern detection
+- [ ] Develop transformers if not already
+- [ ] Implement event-to-memory conversion if not already
+- [ ] Create relationship extraction if not already
+- [ ] Add interest detection
 
 *Dependencies: 3.2.x can be done after Phase 1*
 
@@ -340,15 +340,10 @@ This approach allows tracking both when a task should be done (phase) and what f
 
 **3.3.2. Develop tweet parser/analyzer**
 - [ ] Create content extraction
-- [ ] Implement sentiment analysis
-- [ ] Add topic classification
-- [ ] Create entity extraction
-
-**3.3.3. Create Mem0 and Graphiti ingestion pipelines**
-- [ ] Develop transformers
-- [ ] Implement conversion
-- [ ] Create relationship extraction
-- [ ] Add interest detection
+- [ ] Implement sentiment analysis, update UserProfile
+- [ ] Add topic classification, update UserProfile
+- [ ] Create entity and relationships extraction, update Graphiti
+- [ ] Create trait extraction, update Graphiti, mem0, UserProfile
 
 *Dependencies: 3.3.x can be done after Phase 1*
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2025-04-24: Knowledge Viewer Enhancements
+
+As part of improving our debugging and exploration capabilities, we've enhanced the knowledge viewer interface:
+
+### Frontend Improvements
+- Added clickable memory, chat, and conversation tags with detailed modals
+- Implemented memory ID tags that link directly to the corresponding memory details
+- Enhanced chat tags to display message content and metadata
+- Added conversation tag support to view complete conversation threads
+- Improved visual styling with distinct colors for different tag types
+
+### Backend API Additions
+- Implemented `/api/v1/chat/messages/{id}` endpoint to retrieve specific chat messages
+- Enhanced error handling and validation in memory retrieval endpoints
+- Improved path structure consistency across APIs
+
+These enhancements make it easier to debug memory creation and understand the relationships between chat messages, conversations, and stored memories. Users can now click on any tag to view detailed information, helping to diagnose potential duplication issues and verify correct data flow.
+
 ## 2025-04-23: Knowledge Viewer Implementation
 
 As part of our v1 digital twin architecture, we've added a knowledge viewer interface:

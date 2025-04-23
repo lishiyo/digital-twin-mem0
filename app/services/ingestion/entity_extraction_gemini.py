@@ -135,7 +135,7 @@ class EntityExtractor:
         """
         
         try:
-            # Make API call to Gemini
+            # Make API call to Gemini - note: generate_content is not async
             response = self._model.generate_content(prompt)
             response_text = response.text
             
@@ -235,7 +235,7 @@ class EntityExtractor:
         """
         
         try:
-            # Make API call to Gemini
+            # Make API call to Gemini - generate_content is not async
             response = self._model.generate_content(prompt)
             response_text = response.text
             
@@ -301,7 +301,7 @@ class EntityExtractor:
         """
         
         try:
-            # Make API call to Gemini
+            # Make API call to Gemini - generate_content is not async
             response = self._model.generate_content(prompt)
             response_text = response.text
             
@@ -355,7 +355,7 @@ class EntityExtractor:
         """
         
         try:
-            # Make API call to Gemini
+            # Make API call to Gemini - generate_content is not async
             response = self._model.generate_content(prompt)
             response_text = response.text
             
@@ -373,21 +373,85 @@ class EntityExtractor:
             logger.error(f"Error calling Gemini API for keyword extraction: {e}")
             return []
     
+    def extract_traits(self, content: str) -> List[Dict[str, Any]]:
+        """Extract user traits from message content.
+        
+        Args:
+            content: The message content to extract traits from
+            
+        Returns:
+            List of extracted traits with confidence scores
+        """
+        if not content.strip():
+            return []
+            
+        # Ensure model is initialized
+        self._ensure_model_initialized()
+        
+        # Trait extraction prompt
+        traits_prompt = f"""
+        Extract user traits from the following message. Focus on:
+        1. Skills (things the user knows how to do)
+        2. Interests (things the user likes or is curious about)
+        3. Preferences (things the user prefers over alternatives)
+        4. Dislikes (things the user specifically doesn't like)
+        
+        For each trait, provide:
+        - trait_type: One of [skill, interest, preference, dislike]
+        - name: The specific trait
+        - confidence: How certain you are (0.0-1.0)
+        - evidence: The part of the text supporting this trait
+        - strength: How strong this trait is (0.0-1.0, optional)
+        
+        Example format:
+        [
+          {{
+            "trait_type": "skill",
+            "name": "Python programming",
+            "confidence": 0.9,
+            "evidence": "I've been programming in Python for 5 years",
+            "strength": 0.8
+          }}
+        ]
+
+        MESSAGE:
+        {content}
+        
+        Only include traits that are clearly evidenced in the text with high confidence.
+        """
+        
+        try:
+            # Call the model to extract traits
+            response = self._model.generate_content(traits_prompt)
+            traits_text = response.text
+            
+            # Extract JSON from response
+            traits = self._extract_json_from_response(traits_text)
+            
+            return traits if traits else []
+            
+        except Exception as e:
+            logger.error(f"Error extracting traits: {str(e)}")
+            return []
+    
     def process_document(self, content: str, chunk_boundaries: List[Tuple[int, int]] = None) -> Dict[str, Any]:
-        """Process a document and extract entities and relationships.
+        """Process a document and extract entities, relationships, traits, and keywords.
         
         Args:
             content: Document content
             chunk_boundaries: Optional list of chunk boundaries as (start, end) tuples
             
         Returns:
-            Dictionary with extracted entities and relationships
+            Dictionary with extracted entities, relationships, traits, and keywords
         """
         if not content:
-            return {"entities": [], "relationships": [], "keywords": []}
+            return {"entities": [], "relationships": [], "traits": [], "keywords": []}
             
         # Extract keywords from the entire document
         keywords = self.extract_keywords(content)
+        
+        # Extract traits from the entire document
+        traits = self.extract_traits(content)
         
         if chunk_boundaries:
             # Process entities by chunk
@@ -409,6 +473,7 @@ class EntityExtractor:
             return {
                 "entities": all_entities,
                 "relationships": all_relationships,
+                "traits": traits,
                 "keywords": keywords
             }
         else:
@@ -419,6 +484,7 @@ class EntityExtractor:
             return {
                 "entities": entities,
                 "relationships": relationships,
+                "traits": traits,
                 "keywords": keywords
             }
     
