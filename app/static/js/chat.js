@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const conversationsList = document.getElementById('conversations-list');
     const newConversationButton = document.getElementById('new-conversation');
     const currentConversationTitle = document.getElementById('current-conversation-title');
+    const summarizeButton = document.getElementById('summarize-button');
     
     // Application state
     let currentConversationId = null;
@@ -30,6 +31,13 @@ document.addEventListener('DOMContentLoaded', function() {
         messagesContainer.innerHTML = '';
         messageInput.focus();
     });
+    
+    // Add event listener for summarize button if it exists
+    if (summarizeButton) {
+        summarizeButton.addEventListener('click', function() {
+            summarizeConversation();
+        });
+    }
     
     // Functions
     async function init() {
@@ -218,5 +226,107 @@ document.addEventListener('DOMContentLoaded', function() {
             minute: '2-digit',
             hour12: true
         });
+    }
+    
+    async function summarizeConversation() {
+        if (!currentConversationId) {
+            appendMessage('system', 'Please start or select a conversation first.');
+            return;
+        }
+        
+        try {
+            // Show loading indicator
+            const loadingMessage = document.createElement('div');
+            loadingMessage.className = 'message message-system';
+            loadingMessage.innerHTML = '<div class="message-content">Summarizing conversation...</div>';
+            messagesContainer.appendChild(loadingMessage);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Call API to summarize
+            const response = await fetch(`/api/v1/chat/conversations/${currentConversationId}/summarize`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                // Remove loading indicator
+                messagesContainer.removeChild(loadingMessage);
+                
+                const errorData = await response.json();
+                console.error('Error summarizing conversation:', errorData);
+                appendMessage('system', 'Error: Failed to summarize conversation. Please try again.');
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (data.status !== 'pending' || !data.task_id) {
+                // Remove loading indicator
+                messagesContainer.removeChild(loadingMessage);
+                
+                appendMessage('system', `Failed to summarize: ${data.detail || 'Unknown error'}`);
+                return;
+            }
+            
+            // Update loading message to show it's processing
+            loadingMessage.innerHTML = '<div class="message-content">Processing summary... This may take a moment.</div>';
+            
+            // Poll for completion (every 2 seconds for 30 seconds max)
+            const maxAttempts = 15;
+            let attempts = 0;
+            
+            const pollForCompletion = async () => {
+                if (attempts >= maxAttempts) {
+                    // Remove loading indicator after timeout
+                    messagesContainer.removeChild(loadingMessage);
+                    appendMessage('system', 'Summarization is taking longer than expected. Check back later for results.');
+                    return;
+                }
+                
+                attempts++;
+                
+                try {
+                    // Check if conversation has been updated with summary
+                    const statusResponse = await fetch(`/api/v1/chat/conversations/${currentConversationId}`);
+                    
+                    if (statusResponse.ok) {
+                        const conversationData = await statusResponse.json();
+                        
+                        if (conversationData.summary) {
+                            // Success! Remove loading indicator
+                            messagesContainer.removeChild(loadingMessage);
+                            
+                            // Display summary
+                            appendMessage('system', `Conversation has been summarized: ${conversationData.summary}`);
+                            
+                            // Update title if it was changed
+                            if (conversationData.title !== currentConversationTitle.textContent) {
+                                currentConversationTitle.textContent = conversationData.title;
+                                // Refresh conversations list
+                                init();
+                            }
+                            return;
+                        }
+                    }
+                    
+                    // Not ready yet, continue polling
+                    setTimeout(pollForCompletion, 2000);
+                    
+                } catch (error) {
+                    console.error('Error checking summarization status:', error);
+                    // Continue polling despite error
+                    setTimeout(pollForCompletion, 2000);
+                }
+            };
+            
+            // Start polling
+            setTimeout(pollForCompletion, 2000);
+            
+        } catch (error) {
+            console.error('Error summarizing conversation:', error);
+            appendMessage('system', 'Error: Could not connect to the server. Please check your connection.');
+        }
     }
 }); 

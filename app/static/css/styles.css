@@ -114,6 +114,9 @@ body {
 .chat-header {
     padding: 20px;
     border-bottom: 1px solid #e6e9ef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .messages-container {
@@ -213,4 +216,18 @@ body {
     background-color: #e6e9ef;
     color: #8e8ea0;
     cursor: not-allowed;
+}
+
+.action-button {
+    padding: 8px 12px;
+    background-color: #10a37f;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.action-button:hover {
+    background-color: #0d8c6f;
 } 
