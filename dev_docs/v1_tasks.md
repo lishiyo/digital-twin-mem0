@@ -131,11 +131,14 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Add ability to delete an individual memory, or graphiti entity or relationship in the UX
 
 **3.1.4. Implement session management**
-- [ ] Add button to conversation UI to trigger summarization of the conversation, implement conversation summarization 
-- [ ] Add automatic title generation for conversations
-- [ ] Create conversation boundary detection (for simplicity we can say this is when user creates a new conversation, or when we hit 20 new unsummarized messages in the conversation)
-- [ ] Store summaries as memories in mem0 (make sure to track summarized messages, so we can dedupe and not re-summarize the already-summarized), and remove twin/assistant messages from mem0 now that we no longer need them
-- [ ] Develop context preservation between sessions
+- [x] Add button to conversation UI to trigger summarization of the conversation, implement conversation summarization 
+- [x] Add automatic title generation for conversations
+- [x] Create conversation boundary detection (for simplicity we can say this is when user creates a new conversation, or when we hit 20 new unsummarized messages in the conversation)
+- [x] Store summaries in Posgres - only has one summary field for each conversation, which updates it each time with the new messages
+- [ ] Store memories in mem0 - these should be a new memory for each batch of new messages (we are storing them right now but not )
+- [x] Make sure to track summarized messages, then we can dedupe and not re-summarize the already-summarized in Postgres and Mem0
+- [ ] remove twin/assistant messages from mem0 now that we no longer need them
+- [x] Develop context preservation between sessions
 - [ ] Create conversation pruning/archiving strategy
 - [ ] Implement conversation status tracking (active, archived, deleted)
 - [ ] Add metadata and context handling for conversations
@@ -240,7 +243,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create profile service
 - [ ] Add response serialization
 - [ ] Implement error handling
-- [ ] Frontend view to show the UserProfile
+- [ ] Frontend view to see the UserProfile
 - [ ] Add api endpoint and button to clear out the UserProfile
 
 **5.2.2. Implement PUT /api/v1/profile**
@@ -267,7 +270,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 
 **5.4.1. Update POST /api/v1/chat**
 - [x] Modify endpoint to create/use Conversation records if not already
-- [ ] Add conversation_id parameter (optional, creates new if absent)
+- [x] Add conversation_id parameter (optional, creates new if absent)
 - [ ] Implement context capture from request (project, task, etc.)
 - [ ] Add support for streaming responses
 - [ ] Ensure compatibility with existing clients
@@ -285,7 +288,6 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Implement message chunking and batching for efficient processing
 - [ ] Create background task scheduling for non-blocking operation
 - [ ] Set up retry logic and error handling for failed extractions
-- [ ] Implement webhook notifications for significant profile updates
 - [ ] Add monitoring and logging for extraction metrics
 
 **5.4.4. Add conversational UX endpoints**

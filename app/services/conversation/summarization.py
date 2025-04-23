@@ -136,6 +136,7 @@ class ConversationSummarizationService:
                     conversation.title = title
             
             # Store the new summary in mem0
+            # TODO (subtask 3.1.4): we should be using only the new messages for the memory, not the augmented conversation - this way mem0 has summaries for every batch of new messages, where we can order by `created_at` while postgres is the general summary of the whole current conversation
             meta_data = {
                 "source": "conversation_summary",
                 "memory_type": "summary",  # Explicitly set memory_type for UI display

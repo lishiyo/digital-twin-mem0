@@ -235,7 +235,7 @@ We'll implement a hybrid approach for chat ingestion into Mem0 and Graphiti:
     - Add metadata tags like session_id, timestamp, topic
     - Set TTL (time-to-live) policies to eventually expire older raw messages
 2. Create periodic session summaries
-    - Generate summaries at logical breakpoints
+    - Generate summaries at logical breakpoints (for now whenever we manually hit summarize, or every 20 messages)
         - End of sessions
         - After key decisions/insights
         - When context shifts significantly
@@ -243,6 +243,9 @@ We'll implement a hybrid approach for chat ingestion into Mem0 and Graphiti:
         - Preferences and traits for UserProfile
         - Key decisions or commitments
         - Questions asked and answers provided
+    - Store summaries in Postgres and Mem0
+        - each conversation in Postgres uses the previous summary and augments it with the new messages
+        - each bunch of new messages goes into Mem0
 3. Implement a tiered memory system
 - Short-term: Recent raw messages (high detail, recency bias)
 - Medium-term: Session summaries (moderate detail, last few months)

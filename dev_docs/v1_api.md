@@ -2,132 +2,20 @@
 
 This document outlines the API endpoints for the Digital Twin v1 implementation, as well existing endpoints in v0. All endpoints are prefixed with `/api/v1`.
 
-## User Profile (Upcoming in V1)
-
-### GET /api/v1/profile
-
-Retrieves the current user's profile information including preferences, skills, interests, and relationships.
-
-**Request:**
-```
-GET /api/v1/profile
-```
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "preferences": {
-    "theme": "dark",
-    "notification_frequency": "daily",
-    ...
-  },
-  "interests": [
-    {"name": "machine learning", "confidence": 0.9, "source": "chat_inference"},
-    {"name": "hiking", "confidence": 0.7, "source": "user_input"},
-    ...
-  ],
-  "skills": [
-    {"name": "python", "proficiency": 0.8, "confidence": 0.95, "source": "chat_inference"},
-    {"name": "public speaking", "proficiency": 0.7, "confidence": 0.6, "source": "calendar_inference"},
-    ...
-  ],
-  "dislikes": [
-    {"name": "early meetings", "confidence": 0.85, "source": "calendar_inference"},
-    ...
-  ],
-  "communication_style": {
-    "preferred_tone": "direct",
-    "detailed_responses": true,
-    ...
-  },
-  "key_relationships": [
-    {"name": "Jane Doe", "relation": "colleague", "importance": 0.9, "source": "chat_inference"},
-    ...
-  ],
-  "metadata": {
-    "created_at": "ISO-8601 timestamp",
-    "updated_at": "ISO-8601 timestamp",
-    "confidence_scores": {
-      "overall": 0.75,
-      "interests": 0.8,
-      "skills": 0.9,
-      ...
-    },
-    "source_diversity": 0.65
-  }
-}
-```
-
-### PUT /api/v1/profile
-
-Updates the user's profile information. Supports partial updates.
-
-**Request:**
-```json
-{
-  "preferences": {
-    "theme": "light"
-  },
-  "interests": [
-    {"name": "gardening", "confidence": 1.0, "source": "user_input"}
-  ]
-}
-```
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "updated_fields": ["preferences.theme", "interests"],
-  "metadata": {
-    "updated_at": "ISO-8601 timestamp"
-  }
-}
-```
-
 ## Chat
 
-### POST /api/v1/chat (already in v0, without context/metadata support)
+### POST /api/v1/chat
 
-Sends a message to the digital twin and receives a response. All conversations are stored for search/retrieval and profile learning. **IMPORTANT**: The REST endpoint is for MVP, we will switch to a real-time websockets implementation later (see [v1_chat_implementation.md](./v1_chat_implementation.md)).
+Sends a message to the digital twin and receives a response. All conversations are stored for search/retrieval and profile learning. **Note**: This REST endpoint is for MVP, we will 
+switch to a real-time websockets implementation later (see [v1_chat_implementation.md](./
+v1_chat_implementation.md)).
 
 **Request:**
 ```json
 POST /api/v1/chat
 {
-  "message": "What can you tell me about digital twins?"
-}
-```
-
-Parameters:
-- `model_name` (optional): Specific model to use (e.g., "gpt-4") if not default
-- `user_id` (optional): Specific user ID to associate with the chat for dev purposes
-- V1 upcoming parameters:
-    - `context` (optional): Json blob of useful context
-    - `metadata` (optional): Json blob of metadata
-
-**Response:**
-```json
-{
-  "user_message": "What can you tell me about digital twins?",
-  "twin_response": "A digital twin is a virtual representation...",
-  "user_id": "user-id",
-  "model_used": "gpt-3.5-turbo"
-}
-```
-
-Other examples:
-**Request:**
-```json
-{
-  "message": "Can you recommend some hiking trails near me?",
-  "context": {
-    "location": "San Francisco, CA",
-    "weather": "sunny, 75°F",
-    "time": "weekend morning"
-  },
+  "message": "What can you tell me about digital twins?",
+  "conversation_id": "optional-conversation-id",
   "metadata": {
     "client_id": "web",
     "session_id": "uuid"
@@ -135,23 +23,197 @@ Other examples:
 }
 ```
 
+Parameters:
+- `message`: The message text to send to the digital twin
+- `conversation_id` (optional): Specific conversation ID to continue (creates new if absent)
+- `metadata` (optional): JSON blob of metadata for the conversation, including context
+
 **Response:**
 ```json
 {
-  "id": "uuid",
-  "response": "Based on your location in San Francisco and your interest in hiking, I'd recommend the Lands End Trail which offers stunning views of the Golden Gate Bridge. Since it's a sunny weekend morning, it might be busy, so consider starting early.",
+  "conversation_id": "conversation-uuid",
+  "message": "A digital twin is a virtual representation...",
+  "mem0_task_id": "task-uuid"
+}
+```
+
+### GET /api/v1/chat/conversations
+
+List conversations for the current user with pagination.
+
+**Request:**
+```
+GET /api/v1/chat/conversations?limit=10&offset=0
+```
+
+Parameters:
+- `limit`: Maximum number of conversations to return (default: 10)
+- `offset`: Offset for pagination (default: 0)
+
+**Response:**
+```json
+{
+  "total": 25,
+  "offset": 0,
+  "limit": 10,
+  "conversations": [
+    {
+      "id": "conversation-uuid",
+      "title": "Discussion about digital twins",
+      "created_at": "ISO-8601 timestamp",
+      "updated_at": "ISO-8601 timestamp",
+      "summary": "Talked about the concept of digital twins and their applications..."
+    },
+    // More conversations...
+  ]
+}
+```
+
+### GET /api/v1/chat/conversations/{conversation_id}
+
+Get details for a specific conversation including all messages. The summary field is the latest summary, though not all messages may have been included yet.
+
+**Request:**
+```
+GET /api/v1/chat/conversations/{conversation_id}
+```
+
+**Response:**
+```json
+{
+  "id": "conversation-uuid",
+  "title": "Discussion about digital twins",
+  "created_at": "ISO-8601 timestamp",
+  "updated_at": "ISO-8601 timestamp",
+  "summary": "Talked about the concept of digital twins and their applications...",
   "metadata": {
-    "profile_attributes_used": ["interests.hiking", "preferences.outdoor_activity_level"],
-    "confidence": 0.85,
-    "sources": [
-      {"type": "user_profile", "attribute": "interests.hiking"},
-      {"type": "external_context", "attribute": "location"}
-    ],
-    "created_at": "ISO-8601 timestamp",
-    "processed_traits": [
-      {"name": "enjoys nature views", "confidence": 0.7, "will_add_to_profile": true}
-    ]
-  }
+    "client_id": "web",
+    "session_id": "uuid"
+  },
+  "messages": [
+    {
+      "id": "message-uuid",
+      "role": "user",
+      "content": "What can you tell me about digital twins?",
+      "created_at": "ISO-8601 timestamp",
+      "is_stored_in_mem0": true,
+      "importance_score": 0.75
+    },
+    {
+      "id": "message-uuid",
+      "role": "assistant",
+      "content": "A digital twin is a virtual representation...",
+      "created_at": "ISO-8601 timestamp",
+      "is_stored_in_mem0": false,
+      "importance_score": 0.0
+    }
+    // More messages...
+  ]
+}
+```
+
+### GET /api/v1/chat/messages/{message_id}
+
+Get details for a specific chat message.
+
+**Request:**
+```
+GET /api/v1/chat/messages/{message_id}
+```
+
+**Response:**
+```json
+{
+  "id": "message-uuid",
+  "conversation_id": "conversation-uuid",
+  "role": "user",
+  "content": "What can you tell me about digital twins?",
+  "timestamp": "ISO-8601 timestamp",
+  "metadata": {
+    "client_id": "web",
+    "session_id": "uuid",
+  },
+  "is_stored_in_mem0": true,
+  "importance_score": 0.75
+}
+```
+
+### GET /api/v1/chat/messages/{message_id}/mem0-status
+
+Check the Mem0 ingestion status for a specific message.
+
+**Request:**
+```
+GET /api/v1/chat/messages/{message_id}/mem0-status
+```
+
+**Response:**
+```json
+{
+  "message_id": "message-uuid",
+  "is_stored_in_mem0": true,
+  "mem0_memory_id": "memory-uuid",
+  "importance_score": 0.75,
+  "processed": true,
+  "created_at": "ISO-8601 timestamp"
+}
+```
+
+### POST /api/v1/chat/conversations/{conversation_id}/summarize
+
+Manually trigger summarization of a conversation.
+
+**Request:**
+```
+POST /api/v1/chat/conversations/{conversation_id}/summarize
+```
+
+**Response:**
+```json
+{
+  "status": "pending",
+  "task_id": "task-uuid",
+  "conversation_id": "conversation-uuid",
+  "message": "Summarization queued successfully"
+}
+```
+
+### POST /api/v1/chat/conversations/{conversation_id}/generate-title
+
+Generate or update a title for a conversation.
+
+**Request:**
+```
+POST /api/v1/chat/conversations/{conversation_id}/generate-title
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "conversation_id": "conversation-uuid",
+  "title": "Discussion about digital twins"
+}
+```
+
+### GET /api/v1/chat/conversations/context
+
+Get context from previous conversations for a new conversation.
+
+**Request:**
+```
+GET /api/v1/chat/conversations/context?current_conversation_id=optional-conversation-id
+```
+
+Parameters:
+- `current_conversation_id` (optional): Current conversation ID to exclude from context
+
+**Response:**
+```json
+{
+  "status": "success",
+  "context": "Previous conversations summary text...",
+  "has_context": true
 }
 ```
 
@@ -267,11 +329,432 @@ GET /api/v1/search/ingested-documents
 Parameters:
 - `limit`: Maximum number of documents to return 
 
+## Memory API
+
+### GET /api/v1/memory/check
+
+Check connection to Mem0 service.
+
+**Request:**
+```
+GET /api/v1/memory/check
+```
+
+**Response:**
+```json
+{
+  "status": "connected",
+  "message": "Successfully connected to Mem0"
+}
+```
+
+### GET /api/v1/memory/list
+
+List memories with pagination and optional search query.
+
+**Request:**
+```
+GET /api/v1/memory/list?limit=10&offset=0&query=optional_search_query
+```
+
+Parameters:
+- `limit`: Maximum number of memories to return (default: 10)
+- `offset`: Offset for pagination (default: 0)
+- `query` (optional): Search query to filter memories
+
+**Response:**
+```json
+{
+  "memories": [
+    {
+      "id": "memory-uuid",
+      "memory": "Content of the memory...",
+      "name": "Memory name/title",
+      "metadata": {
+        "source": "chat",
+        "memory_type": "message",
+        "conversation_id": "conversation-uuid"
+      },
+      // Additional fields provided by Mem0...
+    },
+    // More memories...
+  ],
+  "total": 25,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+### GET /api/v1/memory/memory/{memory_id}
+
+Get a specific memory by ID.
+
+**Request:**
+```
+GET /api/v1/memory/memory/{memory_id}
+```
+
+**Response:**
+```json
+{
+  "id": "memory-uuid",
+  "memory": "Content of the memory...",
+  "name": "Memory name/title",
+  "metadata": {
+    "source": "chat",
+    "memory_type": "message",
+    "conversation_id": "conversation-uuid"
+  },
+  // Additional fields provided by Mem0...
+}
+```
+
+### DELETE /api/v1/memory/memory/{memory_id}
+
+Delete a specific memory by ID.
+
+**Request:**
+```
+DELETE /api/v1/memory/memory/{memory_id}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Memory memory-uuid deleted successfully"
+}
+```
+
+### GET /api/v1/memory/memory-by-conversation/{conversation_id}
+
+Get memories stored in Mem0 for a specific conversation.
+
+**Request:**
+```
+GET /api/v1/memory/memory-by-conversation/{conversation_id}?limit=20
+```
+
+Parameters:
+- `limit`: Maximum number of memories to return (default: 20)
+
+**Response:**
+```json
+{
+  "conversation_id": "conversation-uuid",
+  "total": 10,
+  "memories": [
+    // Array of memory objects...
+  ]
+}
+```
+
+### GET /api/v1/memory/trigger-process-conversation/{conversation_id}
+
+Manually trigger processing for all messages in a conversation.
+
+**Request:**
+```
+GET /api/v1/memory/trigger-process-conversation/{conversation_id}
+```
+
+**Response:**
+```json
+{
+  "status": "processing",
+  "conversation_id": "conversation-uuid",
+  "task_id": "task-uuid",
+  "message": "Processing has been triggered"
+}
+```
+
+### GET /api/v1/memory/trigger-graphiti-process/{conversation_id}
+
+Manually trigger Graphiti processing for all messages in a conversation.
+
+**Request:**
+```
+GET /api/v1/memory/trigger-graphiti-process/{conversation_id}
+```
+
+**Response:**
+```json
+{
+  "status": "processing",
+  "conversation_id": "conversation-uuid",
+  "task_id": "task-uuid",
+  "message": "Graphiti processing has been triggered"
+}
+```
+
+## Graph API
+
+### GET /api/v1/graph/nodes
+
+List graph nodes with pagination and optional filtering.
+
+**Request:**
+```
+GET /api/v1/graph/nodes?limit=10&offset=0&query=optional_search_query&node_type=optional_node_type
+```
+
+Parameters:
+- `limit`: Maximum number of nodes to return (default: 10)
+- `offset`: Offset for pagination (default: 0)
+- `query` (optional): Search query to filter nodes
+- `node_type` (optional): Filter by node type (e.g., "Person", "Skill")
+
+**Response:**
+```json
+{
+  "nodes": [
+    {
+      "id": "node-uuid",
+      "labels": ["Person"],
+      "properties": {
+        "name": "John Doe",
+        "created_at": "ISO-8601 timestamp"
+      }
+    },
+    // More nodes...
+  ],
+  "total": 25,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+### GET /api/v1/graph/relationships
+
+List graph relationships with pagination and optional filtering.
+
+**Request:**
+```
+GET /api/v1/graph/relationships?limit=10&offset=0&query=optional_search_query&rel_type=optional_relationship_type
+```
+
+Parameters:
+- `limit`: Maximum number of relationships to return (default: 10)
+- `offset`: Offset for pagination (default: 0)
+- `query` (optional): Search query to filter relationships
+- `rel_type` (optional): Filter by relationship type (e.g., "KNOWS", "HAS_SKILL")
+
+**Response:**
+```json
+{
+  "relationships": [
+    {
+      "id": "relationship-uuid",
+      "type": "KNOWS",
+      "start_node": "node-uuid-1",
+      "end_node": "node-uuid-2",
+      "properties": {
+        "since": "2023-01-01",
+        "confidence": 0.85
+      }
+    },
+    // More relationships...
+  ],
+  "total": 15,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+### GET /api/v1/graph/node/{node_id}
+
+Get a specific node by its ID.
+
+**Request:**
+```
+GET /api/v1/graph/node/{node_id}
+```
+
+**Response:**
+```json
+{
+  "id": "node-uuid",
+  "labels": ["Person"],
+  "properties": {
+    "name": "John Doe",
+    "created_at": "ISO-8601 timestamp"
+  }
+}
+```
+
+### DELETE /api/v1/graph/node/{node_id}
+
+Delete a specific node by its ID.
+
+**Request:**
+```
+DELETE /api/v1/graph/node/{node_id}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Node node-uuid deleted successfully"
+}
+```
+
+### GET /api/v1/graph/relationship/{relationship_id}
+
+Get a specific relationship by its ID.
+
+**Request:**
+```
+GET /api/v1/graph/relationship/{relationship_id}
+```
+
+**Response:**
+```json
+{
+  "id": "relationship-uuid",
+  "type": "KNOWS",
+  "start_node": "node-uuid-1",
+  "end_node": "node-uuid-2",
+  "properties": {
+    "since": "2023-01-01",
+    "confidence": 0.85
+  }
+}
+```
+
+### DELETE /api/v1/graph/relationship/{relationship_id}
+
+Delete a specific relationship by its ID.
+
+**Request:**
+```
+DELETE /api/v1/graph/relationship/{relationship_id}?logical=true
+```
+
+Parameters:
+- `logical`: Perform logical delete (set valid_to) instead of physical delete (default: true)
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Logically deleted relationship relationship-uuid"
+}
+```
+
+## Health API
+
+### GET /api/v1/health
+
+Health check endpoint that verifies database connection.
+
+**Request:**
+```
+GET /api/v1/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "database": "connected"
+}
+```
+
+## User Profile (Upcoming in V1)
+
+###` GET /api/v1/profile`
+
+Retrieves the current user's profile information including attributes, preferences, skills, interests, and relationships. The profile builds on extracted traits from all data sources (docs, chat logs, twitter, other data sources etc).
+
+**Request:**
+```
+GET /api/v1/profile
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "preferences": {
+    "theme": "dark",
+    "notification_frequency": "daily",
+    ...
+  },
+  "attributes": {
+    {"name": "has two cats", "confidence": 0.9, "source": "chat_inference"},
+    {"name": "has a husband named kyle", "confidence": 0.7, "source": "ingested_documents"},
+    ...
+  },
+  "interests": [
+    {"name": "machine learning", "confidence": 0.9, "source": "chat_inference"},
+    {"name": "hiking", "confidence": 0.7, "source": "user_input"},
+    ...
+  ],
+  "skills": [
+    {"name": "python", "proficiency": 0.8, "confidence": 0.95, "source": "chat_inference"},
+    {"name": "public speaking", "proficiency": 0.7, "confidence": 0.6, "source": "calendar_inference"},
+    ...
+  ],
+  "dislikes": [
+    {"name": "early meetings", "confidence": 0.85, "source": "calendar_inference"},
+    ...
+  ],
+  "communication_style": {
+    "preferred_tone": "direct",
+    "detailed_responses": true,
+    ...
+  },
+  "key_relationships": [
+    {"name": "Jane Doe", "relation": "colleague", "importance": 0.9, "source": "chat_inference"},
+    ...
+  ],
+  "metadata": {
+    "created_at": "ISO-8601 timestamp",
+    "updated_at": "ISO-8601 timestamp",
+    "confidence_scores": {
+      "overall": 0.75,
+      "interests": 0.8,
+      "skills": 0.9,
+      ...
+    },
+    "source_diversity": 0.65
+  }
+}
+```
+
+### `PUT /api/v1/profile`
+
+Updates the user's profile information. Supports partial updates.
+
+**Request:**
+```json
+{
+  "preferences": {
+    "theme": "light"
+  },
+  "interests": [
+    {"name": "gardening", "confidence": 1.0, "source": "user_input"}
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "updated_fields": ["preferences.theme", "interests"],
+  "metadata": {
+    "updated_at": "ISO-8601 timestamp"
+  }
+}
+```
 
 
 ## Recommendations (Upcoming in V1)
 
-### POST /api/v1/recommendations
+### `POST /api/v1/recommendations`
 
 Generates personalized recommendations based on the user's profile and provided context.
 

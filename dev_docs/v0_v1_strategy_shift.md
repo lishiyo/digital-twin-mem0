@@ -68,6 +68,7 @@ So we will need a LOT of sources of data beyond personal docs, and we'll focus n
         user: Mapped["User"] = relationship(back_populates="profile")
 
         # Store structured, extracted traits
+        attributes: Mapped[dict] = mapped_column(JSON, default=dict) # e.g., {"has a husband named Kyle", "has two kyles", "grew up in the Midwest"}
         preferences: Mapped[dict] = mapped_column(JSON, default=dict) # e.g., {"food": ["spicy", "vegetarian"], "travel": "budget"}
         interests: Mapped[list] = mapped_column(JSON, default=list)   # e.g., ["AI", "hiking", "jazz music"]
         skills: Mapped[list] = mapped_column(JSON, default=list)     # e.g., ["Python", "Project Management", "Data Analysis"]
@@ -83,6 +84,7 @@ So we will need a LOT of sources of data beyond personal docs, and we'll focus n
     *   Create relationships like `(:User)-[:HAS_SKILL]->(:Skill)`, `(:User)-[:INTERESTED_IN]->(:Interest)`, `(:User)-[:PREFERS]->(:Preference)`, which could look like:
 
 ```
+   (:User)-[:HAS_ATTRIBUTE {attribute}]->(:Attribute {name})
    (:User)-[:HAS_SKILL {proficiency}]->(:Skill {name})
    (:User)-[:INTERESTED_IN {level}]->(:Interest {name})
    (:User)-[:PREFERS {strength}]->(:Preference {category, value})
@@ -156,7 +158,7 @@ We need metrics for:
 1.  **Remove DAO:** Prune models, APIs, logic related to proposals and voting.
 2.  **Add UserProfile:** Create a structured store for distilled user traits.
 3.  **Expand Ingestion:** Integrate Calendar, Chats (Twin & External), Social Media, etc.
-4.  **Refine Graph:** Model Skills, Interests, Preferences explicitly; focus Person relationships.
+4.  **Refine Graph:** Model Attributes, Skills, Interests, Preferences explicitly; focus Person relationships.
 5.  **Enhance Agent:** Integrate Profile data, create dedicated Recommendation node, implement feedback loop.
 6.  **Update APIs:** Add Profile and Recommendation endpoints, remove DAO ones, ensure chat feedback.
 
