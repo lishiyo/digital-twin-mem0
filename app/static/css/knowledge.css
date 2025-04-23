@@ -167,7 +167,14 @@ body {
 .item-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-bottom: 10px;
+}
+
+.item-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .item-title {
@@ -471,4 +478,22 @@ body {
     font-size: 16px;
     margin-bottom: 10px;
     color: #4b5563;
+}
+
+/* Delete button styles */
+.delete-item-btn {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1;
+    padding: 5px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    margin-left: 10px;
+}
+
+.delete-item-btn:hover {
+    color: #ef4444;
 } 

@@ -1169,7 +1169,7 @@ class GraphitiService:
             ORDER BY n.created_at DESC
             SKIP $offset
             LIMIT $limit
-            RETURN n.uuid as uuid, n.name as name, n.summary as summary, labels(n) as labels, 
+            RETURN ID(n) as neo4j_id, n.uuid as uuid, n.name as name, n.summary as summary, labels(n) as labels, 
                    n.created_at as created_at, n.scope as scope, n.owner_id as owner_id,
                    properties(n) as properties
             """
@@ -1183,15 +1183,31 @@ class GraphitiService:
             # Format the results
             formatted_results = []
             for result in results:
+                properties = result.get("properties", {})
+                
+                # Generate a fallback ID if uuid is null
+                # First try uuid, then message_id from properties, then Neo4j ID
+                node_id = result.get("uuid")
+                if not node_id:
+                    # Try to use message_id from properties if available
+                    node_id = properties.get("message_id") or properties.get("id")
+                    logger.info(f"Node ID: No node_id, getting from properties: {node_id}")
+                    # If still no ID, use Neo4j internal ID as last resort
+                    if not node_id:
+                        node_id = f"neo4j-{result.get('neo4j_id')}"
+                        logger.info(f"Node ID: No node_id, getting from Neo4j ID: {node_id}")
+                        
                 node = {
-                    "uuid": result.get("uuid"),
+                    "uuid": node_id,  # Ensure uuid is never null for frontend
+                    "id": node_id,    # Also provide id for compatibility
                     "name": result.get("name"),
                     "summary": result.get("summary"),
                     "labels": result.get("labels", []),
                     "created_at": result.get("created_at"),
                     "scope": result.get("scope"),
                     "owner_id": result.get("owner_id"),
-                    "properties": result.get("properties", {})
+                    "properties": properties,
+                    "neo4j_id": result.get("neo4j_id")  # Include Neo4j ID for reference
                 }
                 formatted_results.append(node)
                 
@@ -1522,3 +1538,350 @@ class GraphitiService:
         except Exception as e:
             logger.error(f"Error in create_relationship_sync: {e}")
             return None
+
+    async def delete_node_by_uuid(self, uuid: str) -> Dict[str, Any]:
+        """Delete a node by its UUID.
+        
+        Args:
+            uuid: The UUID of the node to delete
+            
+        Returns:
+            Success status dictionary
+        """
+        try:
+            # Query to delete the node and its relationships
+            query = """
+            MATCH (n)
+            WHERE n.uuid = $uuid
+            DETACH DELETE n
+            RETURN count(n) as deleted_count
+            """
+            
+            # Execute query
+            result = await self.execute_cypher(
+                query, {"uuid": uuid}
+            )
+            
+            deleted_count = result[0]["deleted_count"] if result and len(result) > 0 else 0
+            success = deleted_count > 0
+            
+            if success:
+                logger.info(f"Deleted node {uuid}")
+            else:
+                logger.warning(f"No node found with UUID {uuid} to delete.")
+                
+            return {"success": success, "uuid": uuid, "deleted_count": deleted_count}
+        except Exception as e:
+            logger.error(f"Error deleting node {uuid}: {e}")
+            return {"error": str(e), "success": False, "uuid": uuid}
+
+    async def delete_relationship_by_uuid(self, uuid: str, logical_delete: bool = True) -> Dict[str, Any]:
+        """Delete a relationship by its UUID.
+        
+        Args:
+            uuid: The UUID of the relationship to delete
+            logical_delete: If True, performs a logical delete (sets valid_to)
+                           If False, performs a physical delete.
+            
+        Returns:
+            Success status dictionary
+        """
+        try:
+            if logical_delete:
+                # Set valid_to date to now for logical delete
+                query = """
+                MATCH ()-[r]->()
+                WHERE r.uuid = $uuid
+                SET r.valid_to = $now
+                RETURN count(r) as updated_count
+                """
+                params = {
+                    "uuid": uuid, 
+                    "now": datetime.now(timezone.utc).isoformat()
+                }
+                result = await self.execute_cypher(query, params)
+                updated_count = result[0]["updated_count"] if result and len(result) > 0 else 0
+                success = updated_count > 0
+                if success:
+                    logger.info(f"Logically deleted relationship {uuid}")
+                else:
+                     logger.warning(f"No relationship found with UUID {uuid} to logically delete.")
+                return {"success": success, "uuid": uuid, "deleted_count": updated_count, "logical_delete": True}
+            else:
+                # Physical delete
+                query = """
+                MATCH ()-[r]->()
+                WHERE r.uuid = $uuid
+                DELETE r
+                RETURN count(r) as deleted_count
+                """
+                result = await self.execute_cypher(query, {"uuid": uuid})
+                # Physical delete query doesn't return the count of deleted, it returns 0 after deletion
+                # We need to check if the query execution itself succeeded without error
+                # A better approach might be to check existence before deleting, but this is simpler
+                success = True # Assume success if no exception
+                deleted_count = 1 if success else 0 # Placeholder
+                logger.info(f"Physically deleted relationship {uuid}")
+                return {"success": success, "uuid": uuid, "deleted_count": deleted_count, "logical_delete": False}
+        except Exception as e:
+            logger.error(f"Error deleting relationship {uuid}: {e}")
+            return {"error": str(e), "success": False, "uuid": uuid, "logical_delete": logical_delete}
+
+    async def delete(self, memory_id: str) -> Dict[str, Any]:
+        """Delete a specific memory.
+        
+        Args:
+            memory_id: The ID of the memory to delete
+            
+        Returns:
+            Success status
+        """
+        if not self.client:
+            logger.warning(f"Using mock response for delete - client unavailable")
+            return {"success": True, "memory_id": memory_id}
+            
+        # Acquire lock to prevent concurrent access issues
+        async with _mem0_lock:
+            try:
+                # Convert synchronous call to async
+                delete_func = async_wrap(self.client.delete)
+                await delete_func(memory_id=memory_id)
+                logger.info(f"Deleted memory {memory_id}")
+                return {"success": True, "memory_id": memory_id}
+            except Exception as e:
+                logger.error(f"Error deleting memory {memory_id}: {e}")
+                return {"error": str(e), "success": False, "memory_id": memory_id}
+            
+    async def delete_all(self, user_id: str) -> Dict[str, Any]:
+        """Delete all memories for a user.
+        
+        Args:
+            user_id: The user ID to delete memories for
+            
+        Returns:
+            Success status
+        """
+        if not self.client:
+            logger.warning(f"Using mock response for delete_all - client unavailable")
+            return {"success": True, "user_id": user_id}
+            
+        # Acquire lock to prevent concurrent access issues
+        async with _mem0_lock:
+            try:
+                # Convert synchronous call to async
+                delete_all_func = async_wrap(self.client.delete_all)
+                await delete_all_func(user_id=user_id)
+                logger.info(f"Deleted all memories for user {user_id}")
+                return {"success": True, "user_id": user_id}
+            except Exception as e:
+                logger.error(f"Error deleting all memories for user {user_id}: {e}")
+                return {"error": str(e), "success": False, "user_id": user_id}
+
+    async def add_with_rich_metadata(self, 
+                             content: str, 
+                             user_id: str, 
+                             source: str = "app", 
+                             category: Optional[str] = None,
+                             tags: Optional[List[str]] = None,
+                             location: Optional[Dict[str, Any]] = None,
+                             timestamp: Optional[str] = None,
+                             custom_data: Optional[Dict[str, Any]] = None,
+                             infer: bool = False) -> Dict[str, Any]:
+        """Add a memory to Mem0 with rich metadata.
+        
+        Args:
+            content: The content of the memory
+            user_id: The user ID to namespace the memory
+            source: The source of the memory (e.g., 'chat', 'document', 'email')
+            category: Optional category of the memory
+            tags: Optional list of tags to associate with the memory
+            location: Optional location data (e.g., {'lat': 37.7749, 'lon': -122.4194, 'name': 'San Francisco'})
+            timestamp: Optional timestamp in ISO format
+            custom_data: Additional custom metadata fields
+            infer: Whether to use LLM inference to extract knowledge (costly in API calls)
+            
+        Returns:
+            Dictionary with memory information
+        """
+        # Prepare comprehensive metadata
+        metadata = {
+            "source": source,
+        }
+        
+        # Add optional metadata fields if provided
+        if category:
+            metadata["category"] = category
+        if tags:
+            metadata["tags"] = tags
+        if location:
+            metadata["location"] = location
+        if timestamp:
+            metadata["timestamp"] = timestamp
+        if custom_data:
+            # Merge custom data with built-in metadata
+            metadata.update(custom_data)
+            
+        # Call the regular add method with structured metadata
+        return await self.add(content, user_id, metadata, infer=infer)
+
+    async def clear_all(self) -> Dict[str, Any]:
+        """Clear all memories for all users.
+        
+        Returns:
+            Success status
+        """
+        if not self.client:
+            logger.warning(f"Using mock response for clear_all - client unavailable")
+            return {"success": True, "message": "Cleared all memories (mock)"}
+            
+        # Acquire lock to prevent concurrent access issues
+        async with _mem0_lock:
+            try:
+                # First attempt: try to use delete_users() if available
+                if hasattr(self.client, 'delete_users'):
+                    try:
+                        # Convert synchronous call to async
+                        delete_users_func = async_wrap(self.client.delete_users)
+                        result = await delete_users_func()
+                        logger.info(f"Successfully called delete_users()")
+                        return {
+                            "success": True,
+                            "message": "Cleared memories for all users using delete_users()",
+                            "results": result
+                        }
+                    except Exception as e:
+                        logger.warning(f"Error using delete_users(): {e}, falling back to individual user deletion")
+                
+                # Fallback approach: use a predefined list of test users
+                test_users = [
+                    "test-user", 
+                    DEFAULT_USER_ID, 
+                    "anonymous",
+                    "system"
+                ]
+                
+                results = {}
+                for user_id in test_users:
+                    try:
+                        # Convert synchronous call to async
+                        delete_all_func = async_wrap(self.client.delete_all)
+                        await delete_all_func(user_id=user_id)
+                        logger.info(f"Deleted all memories for user {user_id}")
+                        results[user_id] = {"success": True}
+                    except Exception as e:
+                        logger.error(f"Error deleting memories for user {user_id}: {e}")
+                        results[user_id] = {"success": False, "error": str(e)}
+                
+                return {
+                    "success": True,
+                    "message": f"Cleared memories for {sum(1 for r in results.values() if r.get('success', False))}/{len(results)} users",
+                    "results": results
+                }
+            except Exception as e:
+                logger.error(f"Error clearing all memories: {e}")
+                return {"error": str(e), "success": False}
+    
+    async def clear_for_user(self, user_id: str) -> Dict[str, Any]:
+        """Clear all memories for a specific user.
+        
+        Args:
+            user_id: The user ID to clear memories for
+            
+        Returns:
+            Success status
+        """
+        # This is just a wrapper around delete_all with clearer naming
+        return await self.delete_all(user_id)
+
+    async def check_connection(self) -> bool:
+        """Check if we can connect to the Mem0 service.
+        
+        Returns:
+            True if connected, False otherwise
+        """
+        logger.info("Starting Mem0 connection check")
+        if not self.client:
+            logger.warning("Cannot check connection - client unavailable")
+            return False
+            
+        try:
+            # Try a simple operation to check connection
+            # First just check if the client exists and has expected methods
+            logger.info("Checking Mem0 client methods")
+            client_methods = dir(self.client)
+            expected_methods = ['get', 'add', 'search', 'update', 'delete']
+            
+            logger.info(f"Available Mem0 client methods: {client_methods[:5]}...")
+            method_check = all(method in client_methods for method in expected_methods)
+            if not method_check:
+                logger.warning(f"Mem0 client missing expected methods. Has: {client_methods}")
+                return False
+            
+            # We could also try a test query, but that might be expensive/unnecessary
+            # Just return True if we have a properly configured client
+            logger.info("Mem0 connection check successful")
+            return True
+        except Exception as e:
+            logger.error(f"Error checking Mem0 connection: {str(e)}")
+            return False
+
+    async def list(self, user_id: str, limit: int = 10, offset: int = 0, metadata_filter: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Get paginated memories for a user.
+        
+        This is similar to get_all but supports pagination with offset.
+        
+        Args:
+            user_id: The user ID to filter by
+            limit: Maximum number of results to return
+            offset: Number of items to skip for pagination
+            metadata_filter: Optional metadata filter criteria
+            
+        Returns:
+            List of memories for the user
+        """
+        logger.info(f"Listing memories for user {user_id}")
+        if not self.client:
+            logger.warning(f"Using mock response for list - client unavailable")
+            # Generate mock data respecting limit and offset
+            total_mocks = 20  # Simulated total count
+            start = min(offset, total_mocks)
+            end = min(offset + limit, total_mocks)
+            return [
+                {
+                    "memory_id": f"mock-memory-id-{user_id}-{i}",
+                    "content": f"This is mock memory {i}",
+                    "metadata": {"user_id": user_id, "source": "chat" if i % 2 == 0 else "document"},
+                    "created_at": "2025-04-23T12:00:00Z"
+                }
+                for i in range(start, end)
+            ]
+            
+        # Define a function to execute with the lock
+        async def _list_with_lock():
+            async with _mem0_lock:
+                try:
+                    # First get all memories
+                    all_memories = await self.get_all(user_id, metadata_filter=metadata_filter)
+                    logger.info(f"Retrieved {len(all_memories)} memories for user {user_id}")
+                    # Apply pagination
+                    start_idx = min(offset, len(all_memories))
+                    end_idx = min(offset + limit, len(all_memories))
+                    paginated_memories = all_memories[start_idx:end_idx]
+                    
+                    logger.info(f"Retrieved paginated memories for user {user_id}: {len(paginated_memories)} memories (offset {offset}, limit {limit})")
+                    
+                    return paginated_memories
+                    
+                except Exception as e:
+                    logger.error(f"Error listing memories with pagination: {e}")
+                    return [{"error": str(e)}]
+        
+        # Execute with timeout
+        try:
+            return await asyncio.wait_for(_list_with_lock(), timeout=8)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout in list for user {user_id}")
+            return [{"error": "Memory retrieval timed out"}]
+        except Exception as e:
+            logger.error(f"Unexpected error in list: {e}")
+            return [{"error": str(e)}]

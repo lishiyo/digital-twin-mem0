@@ -169,6 +169,46 @@ async def get_node_by_id(
         )
 
 
+@router.delete("/node/{node_id}", status_code=200)
+async def delete_node_by_id_endpoint(
+    node_id: str,
+    current_user: dict = Depends(get_current_user_or_mock),
+):
+    """
+    Delete a specific node (entity) by its UUID.
+    
+    Deletes a single node and its relationships from the knowledge graph.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        graphiti_service = GraphitiService()
+        result = await graphiti_service.delete_node_by_uuid(node_id)
+        
+        if result.get("error"):
+             raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete node: {result.get('error')}"
+            )
+            
+        if not result.get("success"):
+             raise HTTPException(
+                status_code=404, # Assume failure means not found
+                detail=f"Node {node_id} not found or could not be deleted"
+            )
+        
+        return {"status": "success", "message": f"Node {node_id} deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting node {node_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete node: {str(e)}"
+        )
+
+
 @router.get("/relationship/{relationship_id}")
 async def get_relationship_by_id(
     relationship_id: str,
@@ -199,4 +239,49 @@ async def get_relationship_by_id(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch relationship: {str(e)}"
+        )
+
+
+@router.delete("/relationship/{relationship_id}", status_code=200)
+async def delete_relationship_by_id_endpoint(
+    relationship_id: str,
+    logical: bool = Query(True, description="Perform logical delete (set valid_to) instead of physical delete"),
+    current_user: dict = Depends(get_current_user_or_mock),
+):
+    """
+    Delete a specific relationship by its UUID.
+    
+    Allows for logical deletion (default) or physical deletion.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        graphiti_service = GraphitiService()
+        result = await graphiti_service.delete_relationship_by_uuid(
+            uuid=relationship_id, 
+            logical_delete=logical
+        )
+        
+        if result.get("error"):
+             raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete relationship: {result.get('error')}"
+            )
+            
+        if not result.get("success"):
+             raise HTTPException(
+                status_code=404, # Assume failure means not found
+                detail=f"Relationship {relationship_id} not found or could not be deleted"
+            )
+        
+        delete_type = "Logically" if logical else "Physically"
+        return {"status": "success", "message": f"{delete_type} deleted relationship {relationship_id}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting relationship {relationship_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete relationship: {str(e)}"
         ) 

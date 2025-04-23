@@ -285,8 +285,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 memoryCard.innerHTML = `
                     <div class="item-header">
                         <div class="item-title">${title}</div>
-                        <div class="item-meta">${date}</div>
-                    </div>
+                        <div class="item-header-right">
+                            <div class="item-meta">${date}</div>
+                            <button class="delete-item-btn" data-type="memory" data-id="${memoryId}" title="Delete Memory">&times;</button> 
+                        </div>
+                    </div> 
                     <div class="item-content">${content || 'No content available'}</div>
                     <div class="item-tags">
                         ${tagsHtml}
@@ -476,15 +479,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 entityCard.className = 'item-card entity-card';
                 
                 // Create the entity card HTML
+                const entityId = entity.uuid || entity.id || 'unknown'; // Prefer UUID
                 entityCard.innerHTML = `
                     <div class="item-header">
                         <div class="item-title">${entity.name || 'Unnamed entity'}</div>
-                        <div class="item-meta">${entity.labels ? entity.labels.join(', ') : 'No labels'}</div>
+                        <div class="item-header-right">
+                            <div class="item-meta">${entity.labels ? entity.labels.join(', ') : 'No labels'}</div>
+                            <button class="delete-item-btn" data-type="entity" data-id="${entityId}" title="Delete Entity">&times;</button>
+                        </div>
                     </div>
                     <div class="item-content">${entity.summary || 'No summary available'}</div>
                     <div class="item-tags">
                         ${entity.properties ? Object.entries(entity.properties)
-                            .filter(([key, value]) => key !== 'name' && key !== 'summary')
+                            .filter(([key, value]) => key !== 'name' && key !== 'summary' && key !== 'uuid') // Filter out common/id fields
                             .map(([key, value]) => `<span class="tag">${key}: ${value}</span>`)
                             .join('') : ''}
                     </div>
@@ -548,10 +555,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 relCard.className = 'item-card relationship-card';
                 
                 // Create the relationship card HTML
+                const relId = rel.id || rel.uuid || 'unknown'; // Prefer UUID if available
                 relCard.innerHTML = `
                     <div class="item-header">
                         <div class="item-title">${rel.type || 'Unknown relationship'}</div>
-                        <div class="item-meta">ID: ${rel.id ? rel.id.substring(0, 8) : 'N/A'}</div>
+                        <div class="item-header-right">
+                            <div class="item-meta">ID: ${relId.substring(0, 8)}</div>
+                            <button class="delete-item-btn" data-type="relationship" data-id="${relId}" title="Delete Relationship">&times;</button>
+                        </div>
                     </div>
                     <div class="item-content">
                         <strong>From:</strong> ${rel.source_node?.name || 'Unknown'} 
@@ -559,6 +570,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="item-tags">
                         ${rel.properties ? Object.entries(rel.properties)
+                            .filter(([key, value]) => key !== 'uuid') // Filter out uuid
                             .map(([key, value]) => `<span class="tag">${key}: ${value}</span>`)
                             .join('') : ''}
                     </div>
@@ -576,4 +588,80 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
     }
+
+    // --- Delete Item Logic ---
+    // Event delegation for delete buttons
+    document.body.addEventListener('click', function(event) {
+        if (event.target.classList.contains('delete-item-btn')) {
+            handleDeleteItemClick(event.target);
+        }
+    });
+
+    function handleDeleteItemClick(button) {
+        const type = button.dataset.type;
+        const id = button.dataset.id;
+        const cardElement = button.closest('.item-card'); // Find the parent card
+
+        if (!type || !id || !cardElement) {
+            console.error('Could not find type, id, or card element for delete button.');
+            alert('Error: Could not initiate delete.');
+            return;
+        }
+
+        // Confirmation dialog
+        const typeName = type.charAt(0).toUpperCase() + type.slice(1); // Capitalize type name
+        const confirmation = confirm(`Are you sure you want to delete this ${typeName} (ID: ${id.substring(0,8)})?`);
+
+        if (confirmation) {
+            deleteItem(type, id, cardElement);
+        }
+    }
+
+    async function deleteItem(type, id, cardElement) {
+        let apiUrl = '';
+        switch (type) {
+            case 'memory':
+                apiUrl = `/api/v1/memory/memory/${id}`;
+                break;
+            case 'entity':
+                apiUrl = `/api/v1/graph/node/${id}`;
+                break;
+            case 'relationship':
+                apiUrl = `/api/v1/graph/relationship/${id}?logical=false`; // Perform physical delete for UX
+                break;
+            default:
+                alert(`Error: Unknown item type '${type}'`);
+                return;
+        }
+
+        try {
+            // Optional: Add a loading indicator to the button or card
+            cardElement.style.opacity = '0.5'; 
+
+            const response = await fetch(apiUrl, {
+                method: 'DELETE',
+                headers: {
+                    // Add Authorization header if needed
+                    // 'Authorization': 'Bearer YOUR_TOKEN'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Unknown error occurred' }));
+                throw new Error(`Failed to delete ${type}: ${errorData.detail || response.statusText}`);
+            }
+
+            const result = await response.json();
+            
+            // Remove the card from the UI on successful deletion
+            cardElement.remove();
+            alert(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`);
+
+        } catch (error) {
+            console.error(`Error deleting ${type} ${id}:`, error);
+            alert(`Error deleting ${type}: ${error.message}`);
+            cardElement.style.opacity = '1'; // Restore opacity on error
+        }
+    }
+    // --- End Delete Item Logic ---
 }); 

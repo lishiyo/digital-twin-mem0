@@ -123,6 +123,53 @@ async def get_memory_by_id(
         )
 
 
+@router.delete("/memory/{memory_id}", status_code=200)
+async def delete_memory_by_id(
+    memory_id: str,
+    current_user: dict = Depends(get_current_user_or_mock),
+):
+    """
+    Delete a specific memory by its ID.
+    
+    Deletes a single memory from Mem0 using its ID.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        memory_service = MemoryService()
+        result = await memory_service.delete(memory_id)
+        
+        if result.get("error"):
+            # Check for not found error (though Mem0 delete might not error on not found)
+            if "not found" in str(result.get("error")).lower():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Memory {memory_id} not found"
+                )
+            # Other errors
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete memory: {result.get('error')}"
+            )
+            
+        if not result.get("success"):
+             raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete memory {memory_id}"
+            )
+        
+        return {"status": "success", "message": f"Memory {memory_id} deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting memory {memory_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete memory: {str(e)}"
+        )
+
+
 @router.get("/list")
 async def list_memories(
     limit: int = Query(10, description="Maximum number of memories to return"),
