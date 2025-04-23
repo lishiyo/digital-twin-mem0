@@ -43,6 +43,8 @@ class ConversationSummarizationService:
         3. The new summary is combined with the existing one
         
         This ensures context from the beginning of long conversations isn't lost.
+        This incremental summary is stored in Postgres's conversation table.
+        There is another summary of new unprocessed messages only, that is stored in mem0.
         
         Args:
             conversation_id: ID of the conversation to summarize
@@ -92,27 +94,42 @@ class ConversationSummarizationService:
             # Check if there's an existing summary to build upon
             existing_summary = conversation.summary
             
-            # Generate summary using Gemini
+            # Generate two summaries:
+            # 1. Summary of just the new messages (for Mem0)
+            # 2. Incremental summary combining existing and new (for PostgreSQL)
+            
+            # First, generate summary of just the new messages for Mem0
+            new_messages_summary = await self._generate_summary_with_gemini(formatted_messages)
+            
+            if not new_messages_summary:
+                logger.error(f"Failed to generate summary for new messages in conversation {conversation_id}")
+                return {
+                    "status": "error",
+                    "reason": "new_messages_summary_generation_failed",
+                    "conversation_id": conversation_id
+                }
+            
+            # Now, generate the incremental summary for PostgreSQL
             if existing_summary:
                 # If we have an existing summary, we'll use it as context
-                summary = await self._generate_incremental_summary_with_gemini(
+                full_summary = await self._generate_incremental_summary_with_gemini(
                     formatted_messages, 
                     existing_summary
                 )
             else:
-                # First-time summary for this conversation
-                summary = await self._generate_summary_with_gemini(formatted_messages)
+                # First-time summary, just use the new messages summary
+                full_summary = new_messages_summary
             
-            if not summary:
-                logger.error(f"Failed to generate summary for conversation {conversation_id}")
+            if not full_summary:
+                logger.error(f"Failed to generate full summary for conversation {conversation_id}")
                 return {
                     "status": "error",
-                    "reason": "summary_generation_failed",
+                    "reason": "full_summary_generation_failed",
                     "conversation_id": conversation_id
                 }
             
-            # Update conversation with new summary
-            conversation.summary = summary
+            # Update conversation with new full summary
+            conversation.summary = full_summary
             conversation.updated_at = datetime.now(UTC)
             
             # Auto-generate title if not already set
@@ -135,8 +152,7 @@ class ConversationSummarizationService:
                 if title:
                     conversation.title = title
             
-            # Store the new summary in mem0
-            # TODO (subtask 3.1.4): we should be using only the new messages for the memory, not the augmented conversation - this way mem0 has summaries for every batch of new messages, where we can order by `created_at` while postgres is the general summary of the whole current conversation
+            # Store ONLY the new messages summary in Mem0
             meta_data = {
                 "source": "conversation_summary",
                 "memory_type": "summary",  # Explicitly set memory_type for UI display
@@ -144,11 +160,12 @@ class ConversationSummarizationService:
                 "conversation_title": conversation.title,
                 "message_count": len(new_messages),
                 "created_at": datetime.now(UTC).isoformat(),
-                "summary_type": "incremental_conversation"
+                "summary_type": "recent_messages",
+                "message_ids": [str(msg.id) for msg in new_messages]  # Track which messages are summarized
             }
             
             mem0_result = await self.memory_service.add(
-                content=summary,
+                content=new_messages_summary,
                 metadata=meta_data,
                 user_id=conversation.user_id,
                 ttl_days=360  # Summaries are kept for a year
@@ -162,7 +179,7 @@ class ConversationSummarizationService:
                 # For assistant messages, mark them as stored in mem0 so they're not stored again
                 # We don't need them now that we have the summary
                 if message.role == MessageRole.ASSISTANT and not message.is_stored_in_mem0:
-                    message.is_stored_in_mem0 = True
+                    message.is_stored_in_mem0 = True # Not actually stored in mem0, just marking it as processed
             
             await self.db.commit()
             
@@ -170,7 +187,8 @@ class ConversationSummarizationService:
             return {
                 "status": "success",
                 "conversation_id": conversation_id,
-                "summary": summary,
+                "summary": full_summary,
+                "new_messages_summary": new_messages_summary,
                 "title": conversation.title,
                 "mem0_id": mem0_result.get("memory_id"),
                 "message_count": len(new_messages)
