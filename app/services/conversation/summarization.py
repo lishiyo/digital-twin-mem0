@@ -252,6 +252,8 @@ class ConversationSummarizationService:
             messages_result = await self.db.execute(messages_query)
             unprocessed_count = len(messages_result.scalars().all())
             
+            logger.info(f"Unprocessed count for conversation {conversation_id}: {unprocessed_count}")
+            
             # If we have more than MESSAGES_BEFORE_SUMMARY unprocessed messages, summarize
             return unprocessed_count >= self.MESSAGES_BEFORE_SUMMARY
             
@@ -273,7 +275,7 @@ class ConversationSummarizationService:
             String containing context from previous conversations
         """
         try:
-            # Get the most recent conversations for this user (excluding current)
+            # Get the most recent conversation summaries for this user (excluding current)
             query = (
                 select(Conversation)
                 .where(

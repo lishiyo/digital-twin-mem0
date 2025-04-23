@@ -189,8 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const memoryId = memory.memory_id || memory.id || 'unknown';
                 
                 // Extract memory type
-                const memoryType = memory.memory_type || 'unknown';
-                
+                const memoryType = memory.metadata.source || memory.memory_type || 'unknown';
+
                 // Extract content - the actual memory content
                 // In Mem0 v2 API, the content is stored in the 'memory' field
                 let content = memory.memory || memory.content || (memory.message?.content) || '';
@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             document.getElementById('modal-content').innerHTML = `
                                 <div class="memory-details">
                                     <p><strong>ID:</strong> ${memoryData.memory_id || memoryData.id}</p>
-                                    <p><strong>Type:</strong> ${memoryData.memory_type || 'Unknown'}</p>
+                                    <p><strong>Type:</strong> ${memoryData.metadata.source || memoryData.memory_type || 'Unknown'}</p>
                                     <p><strong>Created:</strong> ${date}</p>
                                     <div class="memory-content">
                                         <h3>Content</h3>

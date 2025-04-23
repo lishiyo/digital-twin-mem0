@@ -127,7 +127,7 @@ class EntityExtractor:
         - confidence: A confidence score between 0 and 1
         - context: The surrounding context
 
-        Only include high-quality entities - ignore common words, formatting markers, etc.
+        IMPORTANT: ONLY include high-quality entities - ignore common words, formatting markers, anything not useful or relevant about the text's author.
         If you detect text in bold (surrounded by ** characters), consider those as potential entities too.
         If you don't find any entities, return an empty JSON list.
 
@@ -212,7 +212,7 @@ class EntityExtractor:
         """
         # More structured prompt with explicit instructions
         prompt = f"""
-        Analyze the following text and extract named entities.
+        Analyze the following text and extract all useful named entities.
         
         TEXT: {text}
         

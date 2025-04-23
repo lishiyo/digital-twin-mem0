@@ -280,7 +280,7 @@ class TwinAgent:
                         # Create the summarization service
                         summarization_service = ConversationSummarizationService(self.db)
                         
-                        # Get context from previous conversations
+                        # Get context (ie the summary) from previous conversations
                         previous_context = await summarization_service.get_previous_conversation_context(
                             user_id=state_obj.user_id,
                             current_conversation_id=conversation_id
