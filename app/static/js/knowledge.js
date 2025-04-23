@@ -1,4 +1,30 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Add modal HTML to the body
+    const modalHtml = `
+        <div id="memory-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <h2 id="modal-title">Memory Details</h2>
+                <div id="modal-content"></div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Modal handling logic
+    const modal = document.getElementById('memory-modal');
+    const closeModal = document.querySelector('.close-modal');
+    
+    closeModal.onclick = function() {
+        modal.style.display = "none";
+    }
+    
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+    
     // Tab switching
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -162,6 +188,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Extract memory ID
                 const memoryId = memory.memory_id || memory.id || 'unknown';
                 
+                // Extract memory type
+                const memoryType = memory.memory_type || 'unknown';
+                
                 // Extract content - the actual memory content
                 // In Mem0 v2 API, the content is stored in the 'memory' field
                 let content = memory.memory || memory.content || (memory.message?.content) || '';
@@ -189,27 +218,68 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Extract tags from metadata
                 const tags = [];
+                let messageId = null;
+                let conversationId = null;
+                
+                // Add memory ID and type as tags
+                tags.push({text: `ID: ${memoryId.substring(0, 8)}`, isInteractive: true, type: 'memory', id: memoryId});
+                tags.push({text: `${memoryType}`, isInteractive: false});
+                
                 if (memory.metadata) {
-                    if (memory.metadata.source) tags.push(memory.metadata.source);
-                    if (memory.metadata.conversation_id) tags.push('Conversation');
-                    if (memory.metadata.source_file) tags.push(memory.metadata.source_file);
-                    if (memory.metadata.category) tags.push(memory.metadata.category);
+                    // Store IDs for potential modal use
+                    messageId = memory.metadata.message_id;
+                    conversationId = memory.metadata.conversation_id;
+                    
+                    // Add chat tag if message_id exists
+                    if (messageId) {
+                        tags.push({
+                            html: `<span class="tag interactive chat" data-type="chat" data-id="${messageId}">chat</span>`,
+                            isInteractive: true
+                        });
+                    }
+                    
+                    // Add conversation tag
+                    if (conversationId) {
+                        tags.push({
+                            html: `<span class="tag interactive conversation" data-type="conversation" data-id="${conversationId}">Conversation</span>`,
+                            isInteractive: true
+                        });
+                    }
+                    
+                    if (memory.metadata.source) tags.push({text: memory.metadata.source, isInteractive: false});
+                    if (memory.metadata.source_file) tags.push({text: memory.metadata.source_file, isInteractive: false});
+                    if (memory.metadata.category) tags.push({text: memory.metadata.category, isInteractive: false});
                     // Add any additional tags
                     if (memory.metadata.tags && Array.isArray(memory.metadata.tags)) {
-                        memory.metadata.tags.forEach(tag => tags.push(tag));
+                        memory.metadata.tags.forEach(tag => tags.push({text: tag, isInteractive: false}));
                     }
                 }
                 
                 // Add any categories as tags
                 if (memory.categories && Array.isArray(memory.categories)) {
-                    memory.categories.forEach(category => tags.push(category));
+                    memory.categories.forEach(category => tags.push({text: category, isInteractive: false}));
                 }
                 
                 // If similarity score exists, show it
                 if (memory.similarity !== undefined) {
                     const score = Math.round(memory.similarity * 100);
-                    tags.push(`Match: ${score}%`);
+                    tags.push({text: `Match: ${score}%`, isInteractive: false});
                 }
+                
+                // Process tags to HTML
+                const tagsHtml = tags.map(tag => {
+                    if (tag.isInteractive) {
+                        if (tag.html) {
+                            return tag.html;
+                        } else if (tag.type === 'memory') {
+                            return `<span class="tag interactive memory" data-type="memory" data-id="${tag.id}">${tag.text}</span>`;
+                        } else {
+                            return `<span class="tag interactive" data-type="${tag.type}" data-id="${tag.id}">${tag.text}</span>`;
+                        }
+                    } else {
+                        return `<span class="tag">${tag.text}</span>`;
+                    }
+                }).join(' ');
                 
                 // Create the memory card HTML
                 memoryCard.innerHTML = `
@@ -219,11 +289,136 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="item-content">${content || 'No content available'}</div>
                     <div class="item-tags">
-                        ${tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                        ${tagsHtml}
                     </div>
                 `;
                 
                 container.appendChild(memoryCard);
+            });
+            
+            // Add event listeners to interactive tags
+            document.querySelectorAll('.tag.interactive').forEach(tag => {
+                tag.addEventListener('click', async function() {
+                    const type = this.dataset.type;
+                    const id = this.dataset.id;
+                    
+                    try {
+                        // Show loading state
+                        document.getElementById('modal-title').textContent = `Loading ${type} details...`;
+                        document.getElementById('modal-content').innerHTML = '<div class="loading">Loading...</div>';
+                        modal.style.display = "block";
+                        
+                        if (type === 'chat') {
+                            // Fetch message details
+                            const response = await fetch(`/api/v1/chat/messages/${id}`);
+                            if (!response.ok) {
+                                throw new Error(`Failed to load message: ${response.statusText}`);
+                            }
+                            
+                            const messageData = await response.json();
+                            
+                            // Display message details
+                            document.getElementById('modal-title').textContent = 'Chat Message';
+                            document.getElementById('modal-content').innerHTML = `
+                                <div class="message-details">
+                                    <p><strong>From:</strong> ${messageData.role || 'Unknown'}</p>
+                                    <p><strong>Timestamp:</strong> ${new Date(messageData.timestamp).toLocaleString()}</p>
+                                    <div class="message-content">
+                                        <p>${messageData.content || 'No content available'}</p>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (type === 'conversation') {
+                            // Fetch conversation
+                            const response = await fetch(`/api/v1/chat/conversations/${id}`);
+                            if (!response.ok) {
+                                throw new Error(`Failed to load conversation: ${response.statusText}`);
+                            }
+                            
+                            const conversationData = await response.json();
+                            
+                            // Display conversation details
+                            document.getElementById('modal-title').textContent = conversationData.title || 'Conversation';
+                            
+                            let messagesHtml = '';
+                            if (conversationData.messages && conversationData.messages.length > 0) {
+                                messagesHtml = conversationData.messages.map(msg => `
+                                    <div class="conversation-message ${msg.role}">
+                                        <div class="message-header">
+                                            <span class="message-role">${msg.role}</span>
+                                            <span class="message-time">${new Date(msg.timestamp || msg.created_at).toLocaleString()}</span>
+                                        </div>
+                                        <div class="message-body">${msg.content}</div>
+                                    </div>
+                                `).join('');
+                            } else {
+                                messagesHtml = '<p>No messages in this conversation</p>';
+                            }
+                            
+                            document.getElementById('modal-content').innerHTML = `
+                                <div class="conversation-details">
+                                    <p><strong>Created:</strong> ${new Date(conversationData.created_at).toLocaleString()}</p>
+                                    <div class="conversation-messages">
+                                        ${messagesHtml}
+                                    </div>
+                                </div>
+                            `;
+                        } else if (type === 'memory') {
+                            // Fetch memory details using the correct endpoint path
+                            const response = await fetch(`/api/v1/memory/memory/${id}`);
+                            if (!response.ok) {
+                                throw new Error(`Failed to load memory: ${response.statusText}`);
+                            }
+                            
+                            const memoryData = await response.json();
+                            
+                            // Format date
+                            const date = memoryData.created_at 
+                                ? new Date(memoryData.created_at).toLocaleString() 
+                                : memoryData.timestamp 
+                                    ? new Date(memoryData.timestamp).toLocaleString()
+                                    : 'Unknown date';
+                            
+                            // Extract content
+                            const content = memoryData.memory || memoryData.content || '';
+                            
+                            // Process metadata
+                            const metadataHtml = memoryData.metadata 
+                                ? Object.entries(memoryData.metadata)
+                                    .map(([key, value]) => `<tr><td><strong>${key}:</strong></td><td>${JSON.stringify(value)}</td></tr>`)
+                                    .join('')
+                                : '<tr><td colspan="2">No metadata available</td></tr>';
+                            
+                            // Display memory details
+                            document.getElementById('modal-title').textContent = 'Memory Details';
+                            document.getElementById('modal-content').innerHTML = `
+                                <div class="memory-details">
+                                    <p><strong>ID:</strong> ${memoryData.memory_id || memoryData.id}</p>
+                                    <p><strong>Type:</strong> ${memoryData.memory_type || 'Unknown'}</p>
+                                    <p><strong>Created:</strong> ${date}</p>
+                                    <div class="memory-content">
+                                        <h3>Content</h3>
+                                        <p>${content || 'No content available'}</p>
+                                    </div>
+                                    <div class="memory-metadata">
+                                        <h3>Metadata</h3>
+                                        <table class="metadata-table">
+                                            ${metadataHtml}
+                                        </table>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    } catch (error) {
+                        console.error(`Error loading ${type} details:`, error);
+                        document.getElementById('modal-title').textContent = 'Error';
+                        document.getElementById('modal-content').innerHTML = `
+                            <div class="error-state">
+                                <p>Error loading ${type} details: ${error.message}</p>
+                            </div>
+                        `;
+                    }
+                });
             });
             
         } catch (error) {

@@ -39,7 +39,7 @@ class BaseChatMem0Ingestion(abc.ABC):
         # Default importance by role
         base_importance = {
             MessageRole.USER: 0.5,
-            MessageRole.ASSISTANT: 0.4,
+            MessageRole.ASSISTANT: 0.1, # super low because assistants are using already-stored memories already
             MessageRole.SYSTEM: 0.7
         }.get(message.role, 0.3)
         

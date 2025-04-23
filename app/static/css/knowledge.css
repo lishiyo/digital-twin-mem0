@@ -273,4 +273,202 @@ body {
     color: #b91c1c;
     text-align: center;
     margin: 20px 0;
+}
+
+/* Interactive tags */
+.tag.interactive {
+    background-color: #e0f2fe;
+    color: #0284c7;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.tag.interactive:hover {
+    background-color: #bae6fd;
+    transform: scale(1.05);
+}
+
+.tag.interactive.chat,
+.tag.interactive.conversation {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+.tag.interactive.chat:hover,
+.tag.interactive.conversation:hover {
+    background-color: #bbf7d0;
+}
+
+.tag.interactive.memory {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.tag.interactive.memory:hover {
+    background-color: #fde68a;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    overflow: auto;
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    width: 80%;
+    max-width: 800px;
+    position: relative;
+    animation: modalFadeIn 0.3s;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.close-modal {
+    position: absolute;
+    right: 20px;
+    top: 15px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #6b7280;
+    cursor: pointer;
+}
+
+.close-modal:hover {
+    color: #111827;
+}
+
+#modal-title {
+    margin-bottom: 15px;
+    color: #10a37f;
+    padding-right: 30px;
+}
+
+#modal-content {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Message and conversation styling in modal */
+.message-details, .conversation-details {
+    padding: 10px;
+}
+
+.message-content {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f9fafb;
+    border-radius: 6px;
+    line-height: 1.6;
+}
+
+.conversation-message {
+    margin-bottom: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    background-color: #f9fafb;
+}
+
+.conversation-message.user {
+    background-color: #f0f9ff;
+    border-left: 3px solid #0ea5e9;
+}
+
+.conversation-message.assistant {
+    background-color: #f0fdf4;
+    border-left: 3px solid #10b981;
+}
+
+.conversation-message.system {
+    background-color: #faf5ff;
+    border-left: 3px solid #8b5cf6;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.message-role {
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.message-time {
+    color: #6b7280;
+}
+
+.message-body {
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* Memory details styling in modal */
+.memory-details {
+    padding: 15px;
+}
+
+.memory-content {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #fafaf9;
+    border-radius: 6px;
+    line-height: 1.6;
+}
+
+.memory-metadata {
+    margin-top: 20px;
+}
+
+.memory-metadata h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #4b5563;
+}
+
+.metadata-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.metadata-table tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.metadata-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.metadata-table td:first-child {
+    width: 30%;
+    font-weight: 600;
+}
+
+.memory-content h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #4b5563;
 } 

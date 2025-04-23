@@ -320,3 +320,59 @@ async def get_message_mem0_status(
             status_code=500,
             detail=f"Failed to get mem0 status: {str(e)}"
         )
+
+
+@router.get("/messages/{message_id}")
+async def get_message(
+    message_id: str,
+    current_user: dict = Depends(get_current_user_or_mock),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get details for a specific chat message.
+    
+    Returns the message content and metadata.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        from sqlalchemy import select
+        from app.db.models.chat_message import ChatMessage
+        from app.db.models.conversation import Conversation
+        
+        # Query to get the message and verify ownership
+        query = (
+            select(ChatMessage)
+            .join(Conversation)
+            .where(ChatMessage.id == message_id)
+            .where(Conversation.user_id == user_id)
+        )
+        
+        result = await db.execute(query)
+        message = result.scalars().first()
+        
+        if not message:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Message {message_id} not found or not authorized"
+            )
+        
+        # Return message details
+        return {
+            "id": str(message.id),
+            "conversation_id": str(message.conversation_id),
+            "role": message.role.value,
+            "content": message.content,
+            "timestamp": message.created_at.isoformat(),
+            "metadata": message.meta_data,
+            "is_stored_in_mem0": message.is_stored_in_mem0,
+            "importance_score": message.importance_score
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting message {message_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get message: {str(e)}"
+        )
