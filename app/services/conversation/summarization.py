@@ -37,6 +37,13 @@ class ConversationSummarizationService:
     async def generate_summary(self, conversation_id: str) -> Dict[str, Any]:
         """Generate a summary for a conversation.
         
+        This uses an incremental approach:
+        1. If there's an existing summary, it's preserved as context
+        2. Only new unprocessed messages are summarized
+        3. The new summary is combined with the existing one
+        
+        This ensures context from the beginning of long conversations isn't lost.
+        
         Args:
             conversation_id: ID of the conversation to summarize
             
@@ -57,28 +64,44 @@ class ConversationSummarizationService:
                     "conversation_id": conversation_id
                 }
             
-            # Get messages for this conversation
+            # Get unprocessed messages for this conversation
             messages_query = (
                 select(ChatMessage)
-                .where(ChatMessage.conversation_id == conversation_id)
+                .where(
+                    ChatMessage.conversation_id == conversation_id,
+                    ChatMessage.processed == False
+                )
                 .order_by(ChatMessage.created_at)
             )
             messages_result = await self.db.execute(messages_query)
-            messages = messages_result.scalars().all()
+            new_messages = messages_result.scalars().all()
             
-            if not messages:
-                logger.warning(f"No messages found for conversation {conversation_id}")
+            if not new_messages:
+                logger.info(f"No new messages to summarize for conversation {conversation_id}")
                 return {
-                    "status": "error",
-                    "reason": "no_messages",
-                    "conversation_id": conversation_id
+                    "status": "success",
+                    "reason": "no_new_messages",
+                    "conversation_id": conversation_id,
+                    "summary": conversation.summary,
+                    "title": conversation.title
                 }
             
-            # Format messages for summarization
-            formatted_messages = self._format_messages_for_summarization(messages)
+            # Format new messages for summarization
+            formatted_messages = self._format_messages_for_summarization(new_messages)
+            
+            # Check if there's an existing summary to build upon
+            existing_summary = conversation.summary
             
             # Generate summary using Gemini
-            summary = await self._generate_summary_with_gemini(formatted_messages)
+            if existing_summary:
+                # If we have an existing summary, we'll use it as context
+                summary = await self._generate_incremental_summary_with_gemini(
+                    formatted_messages, 
+                    existing_summary
+                )
+            else:
+                # First-time summary for this conversation
+                summary = await self._generate_summary_with_gemini(formatted_messages)
             
             if not summary:
                 logger.error(f"Failed to generate summary for conversation {conversation_id}")
@@ -88,24 +111,39 @@ class ConversationSummarizationService:
                     "conversation_id": conversation_id
                 }
             
-            # Update conversation with summary
+            # Update conversation with new summary
             conversation.summary = summary
             conversation.updated_at = datetime.now(UTC)
             
             # Auto-generate title if not already set
-            if not conversation.title or conversation.title.startswith("Untitled") or conversation.title == messages[0].content[:min(50, len(messages[0].content))]:
-                title = await self._generate_title_with_gemini(formatted_messages)
+            if not conversation.title or conversation.title.startswith("Untitled"):
+                # Get a sample of messages for title generation (first few if available)
+                title_messages_query = (
+                    select(ChatMessage)
+                    .where(ChatMessage.conversation_id == conversation_id)
+                    .order_by(ChatMessage.created_at)
+                    .limit(10)
+                )
+                title_messages_result = await self.db.execute(title_messages_query)
+                title_messages = title_messages_result.scalars().all()
+                
+                # Format messages for title generation
+                formatted_title_messages = self._format_messages_for_summarization(title_messages)
+                
+                # Generate title
+                title = await self._generate_title_with_gemini(formatted_title_messages)
                 if title:
                     conversation.title = title
             
-            # Store the summary in mem0
+            # Store the new summary in mem0
             meta_data = {
                 "source": "conversation_summary",
+                "memory_type": "summary",  # Explicitly set memory_type for UI display
                 "conversation_id": conversation.id,
                 "conversation_title": conversation.title,
-                "message_count": len(messages),
+                "message_count": len(new_messages),
                 "created_at": datetime.now(UTC).isoformat(),
-                "summary_type": "full_conversation"
+                "summary_type": "incremental_conversation"
             }
             
             mem0_result = await self.memory_service.add(
@@ -115,10 +153,9 @@ class ConversationSummarizationService:
                 ttl_days=360  # Summaries are kept for a year
             )
             
-            # Update messages as processed
-            for message in messages:
-                if not message.processed:
-                    message.processed = True
+            # Mark only the new messages as processed
+            for message in new_messages:
+                message.processed = True
                 
                 # For assistant messages, mark them as stored in mem0 so they're not stored again
                 # We don't need them now that we have the summary
@@ -134,7 +171,7 @@ class ConversationSummarizationService:
                 "summary": summary,
                 "title": conversation.title,
                 "mem0_id": mem0_result.get("id"),
-                "message_count": len(messages)
+                "message_count": len(new_messages)
             }
             
         except Exception as e:
@@ -262,21 +299,43 @@ class ConversationSummarizationService:
             return False
     
     async def get_previous_conversation_context(self, user_id: str, current_conversation_id: str) -> str:
-        """Get context from previous conversations for the current conversation.
+        """Get context from conversations for the current conversation.
         
-        This is the core of context preservation between sessions - it retrieves summaries
-        from previous conversations to provide context for the current conversation.
+        This function retrieves:
+        1. The summary from the current conversation (if it exists) - will be summary of last 20 messages
+        2. Summaries from previous other conversations
+        
+        This provides a continuous context including both the current conversation's 
+        history and knowledge from previous conversations.
         
         Args:
             user_id: User ID
             current_conversation_id: Current conversation ID
             
         Returns:
-            String containing context from previous conversations
+            String containing context from current and previous conversations
         """
         try:
-            # Get the most recent conversation summaries for this user (excluding current)
-            query = (
+            context = ""
+            
+            # First, get the current conversation summary if it exists
+            if current_conversation_id:
+                current_query = select(Conversation).where(
+                    Conversation.id == current_conversation_id,
+                    Conversation.summary != None
+                )
+                current_result = await self.db.execute(current_query)
+                current_conversation = current_result.scalars().first()
+                
+                if current_conversation and current_conversation.summary:
+                    # Format current conversation summary as context
+                    updated_at = current_conversation.updated_at.strftime("%Y-%m-%d %H:%M")
+                    context += "Context from current conversation:\n\n"
+                    context += f"Conversation: \"{current_conversation.title}\" ({updated_at})\n"
+                    context += f"Summary: {current_conversation.summary}\n\n"
+            
+            # Then, get summaries from other conversations
+            other_query = (
                 select(Conversation)
                 .where(
                     Conversation.user_id == user_id,
@@ -286,25 +345,26 @@ class ConversationSummarizationService:
                 .order_by(desc(Conversation.updated_at))
                 .limit(self.MAX_NEXT_CONVERSATION_CONTEXT)
             )
-            result = await self.db.execute(query)
-            recent_conversations = result.scalars().all()
+            other_result = await self.db.execute(other_query)
+            other_conversations = other_result.scalars().all()
             
-            if not recent_conversations:
-                return ""
-            
-            # Format previous conversation summaries as context
-            context = "Context from previous conversations:\n\n"
-            
-            for i, conv in enumerate(recent_conversations):
-                # Add conversation title and timestamp
-                updated_at = conv.updated_at.strftime("%Y-%m-%d %H:%M")
-                context += f"Conversation: \"{conv.title}\" ({updated_at})\n"
-                context += f"Summary: {conv.summary}\n\n"
+            if other_conversations:
+                # Add a header for previous conversations if we already have current context
+                if context:
+                    context += "Context from previous conversations:\n\n"
+                else:
+                    context = "Context from previous conversations:\n\n"
+                
+                # Format previous conversation summaries
+                for conv in other_conversations:
+                    updated_at = conv.updated_at.strftime("%Y-%m-%d %H:%M")
+                    context += f"Conversation: \"{conv.title}\" ({updated_at})\n"
+                    context += f"Summary: {conv.summary}\n\n"
             
             return context
         
         except Exception as e:
-            logger.error(f"Error getting previous conversation context for user {user_id}: {str(e)}")
+            logger.error(f"Error getting conversation context for user {user_id}: {str(e)}")
             return ""
     
     def _format_messages_for_summarization(self, messages: List[ChatMessage]) -> str:
@@ -398,4 +458,49 @@ class ConversationSummarizationService:
             
         except Exception as e:
             logger.error(f"Error generating title with Gemini: {str(e)}")
+            return None
+    
+    async def _generate_incremental_summary_with_gemini(self, formatted_new_messages: str, existing_summary: str) -> Optional[str]:
+        """Generate an incremental summary using Gemini, building on existing summary.
+        
+        Args:
+            formatted_new_messages: Formatted new messages to summarize
+            existing_summary: Existing summary to build upon
+            
+        Returns:
+            Updated summary or None
+        """
+        try:
+            prompt = f"""
+            I have an existing summary of a conversation, and new messages that need to be incorporated.
+            
+            Existing summary:
+            {existing_summary}
+            
+            New messages to incorporate:
+            {formatted_new_messages}
+            
+            Provide an updated comprehensive summary that includes both the information from the 
+            existing summary and the key points from the new messages (these give the most recent info, so should be at the end). The summary should be coherent and read as a single continuous summary, not as two separate parts.
+            
+            Focus on:
+            1. Maintaining all important information from the existing summary
+            2. Adding key topics from the new messages
+            3. Questions asked and answers provided in the new messages
+            4. Any new decisions or conclusions reached
+            5. Important new information shared
+            
+            Updated summary:
+            """
+            
+            # Use entity extractor's Gemini model to generate summary
+            response = self.entity_extractor._model.generate_content(prompt)
+            
+            if not response or not response.text:
+                return None
+                
+            return response.text.strip()
+            
+        except Exception as e:
+            logger.error(f"Error generating incremental summary with Gemini: {str(e)}")
             return None 

@@ -324,38 +324,37 @@ class TwinAgent:
                     
                     merged_context += f"{i+1}. {content_preview} (relevance: {relevance_str}, {meta_str})\n\n"
             
-            # Add Graphiti entity results
-            if state_obj.graphiti_results and "entities" in state_obj.graphiti_results:
-                entities = state_obj.graphiti_results["entities"]
-                if entities:
-                    merged_context += "From knowledge graph (entities):\n"
-                    for i, entity in enumerate(entities):
-                        name = entity.get("name", "")
-                        labels = entity.get("labels", [])
-                        summary = entity.get("summary", "")
+            # Add Graphiti entity results - disabled for now
+            # if state_obj.graphiti_results and "entities" in state_obj.graphiti_results:
+            #     entities = state_obj.graphiti_results["entities"]
+            #     if entities:
+            #         merged_context += "From knowledge graph (entities):\n"
+            #         for i, entity in enumerate(entities):
+            #             name = entity.get("name", "")
+            #             labels = entity.get("labels", [])
+            #             summary = entity.get("summary", "")
                         
-                        # Safely format labels
-                        labels_str = ", ".join(labels) if labels else ""
+            #             # Safely format labels
+            #             labels_str = ", ".join(labels) if labels else ""
                         
-                        merged_context += f"{i+1}. {name} ({labels_str}): {summary}\n\n"
+            #             merged_context += f"{i+1}. {name} ({labels_str}): {summary}\n\n"
             
-            # Add Graphiti graph results
-            if state_obj.graphiti_results and "graph" in state_obj.graphiti_results:
-                graph = state_obj.graphiti_results["graph"]
-                if graph:
-                    merged_context += "From knowledge graph (facts):\n"
-                    for i, fact in enumerate(graph):
-                        fact_text = fact.get("fact", "")
-                        score = fact.get("score", 0)
+            # Add Graphiti graph results - disabled for now
+            # if state_obj.graphiti_results and "graph" in state_obj.graphiti_results:
+            #     graph = state_obj.graphiti_results["graph"]
+            #     if graph:
+            #         merged_context += "From knowledge graph (facts):\n"
+            #         for i, fact in enumerate(graph):
+            #             fact_text = fact.get("fact", "")
+            #             score = fact.get("score", 0)
                         
-                        # Handle potentially None score with safe default
-                        safe_score = 0.0 if score is None else score
+            #             # Handle potentially None score with safe default
+            #             safe_score = 0.0 if score is None else score
                         
-                        merged_context += f"{i+1}. {fact_text} (confidence: {safe_score:.2f})\n\n"
+            #             merged_context += f"{i+1}. {fact_text} (confidence: {safe_score:.2f})\n\n"
             
             state_obj.merged_context = merged_context
             logger.info("Successfully merged context from different sources")
-            # logger.info(f"Final merged context:\n{merged_context}") # already logged in _generate_response
             
         except Exception as e:
             state_obj.error = f"Context merging error: {str(e)}"

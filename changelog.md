@@ -1,5 +1,29 @@
 # Changelog
 
+## 2025-04-26: Conversation Summarization and Context Improvements
+
+We've made significant enhancements to the conversation summarization and context preservation system:
+
+### Incremental Summarization
+- Implemented incremental summarization that builds upon existing summaries rather than replacing them
+- Added a new `_generate_incremental_summary_with_gemini` method to intelligently combine existing summaries with new content
+- Fixed metadata tagging to explicitly include "memory_type": "summary" to prevent "unknown" tags in the Knowledge UI
+- Enhanced prompt to ensure recent information appears at the end of summaries for better chronological organization
+
+### Context Preservation
+- Improved `get_previous_conversation_context` to include both current conversation summaries and previous conversation summaries
+- Enhanced context continuity between different parts of conversations and across separate conversations
+- Added clear section headers to distinguish context from current vs. previous conversations
+- Ensured important information isn't lost in long-running conversations
+
+### User Interface Improvements
+- Added a "Summarize" button to the chat UI for manually triggering conversation summarization
+- Implemented polling for summarization status after triggering a summary
+- Added proper error handling and loading states during summarization
+- Enhanced CSS styling for action buttons in the chat interface
+
+These improvements significantly enhance the digital twin's ability to maintain context in lengthy conversations and provide continuity across multiple sessions, addressing key requirements from task 3.1.4 "Implement session management" in our v1 migration plan.
+
 ## 2025-04-25: Added User Attribute Support
 
 To better represent user facts that don't fit existing trait categories, we've added a new "attribute" type:
