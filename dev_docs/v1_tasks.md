@@ -122,13 +122,13 @@ This approach allows tracking both when a task should be done (phase) and what f
 **3.1.3. Extract entity information and update UserProfile**
 - [x] Create Graphiti node/relationship creation service for chats (see `GraphitiService`) - make sure to dedupe
 - [x] Implement LLM-based entity and trait extraction from chat logs if any (entity extraction already in `entity_extraction_gemini.py`, extend for traits)
-- [ ] Create mappers to UserProfile fields (preferences, interests, skills, etc)
-- [ ] Develop confidence scoring for extracted traits
-- [ ] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
-- [ ] Implement conflict resolution for contradictory information
-- [ ] Create direct UserProfile updates for high-confidence traits
-- [ ] Create api endpoints to view the UserProfile to verify this is working
+- [x] Create mappers to UserProfile fields (preferences, interests, skills, etc)
+- [x] Develop confidence scoring for extracted traits
+- [x] Set thresholds for profile updates (e.g., minimum 0.6 confidence)
+- [x] Implement conflict resolution for contradictory information (based on confidence)
+- [x] Create direct UserProfile updates for high-confidence traits
 - [x] Create simple page to view stored user knowledge (memories and graph data)
+- [ ] Add ability to delete an individual memory, or graphiti entity or relationship in the UX
 
 **3.1.4. Implement session management**
 - [ ] Implement conversation summarization service
@@ -239,6 +239,8 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create profile service
 - [ ] Add response serialization
 - [ ] Implement error handling
+- [ ] Frontend view to show the UserProfile
+- [ ] Api endpoint and button to clear out the UserProfile
 
 **5.2.2. Implement PUT /api/v1/profile**
 - [ ] Create route handler for updates
@@ -278,7 +280,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Create metadata enrichment from conversation context
 
 **5.4.3. Integrate chat insights with background processing**
-- [ ] Connect chat processing pipeline to trait extraction (3.1.3)
+- [x] Connect chat processing pipeline to trait extraction (3.1.3)
 - [ ] Implement message chunking and batching for efficient processing
 - [ ] Create background task scheduling for non-blocking operation
 - [ ] Set up retry logic and error handling for failed extractions

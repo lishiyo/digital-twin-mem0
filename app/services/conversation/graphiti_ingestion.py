@@ -3,6 +3,7 @@
 from typing import Dict, List, Any, Optional, Tuple, Set
 import logging
 import json
+from collections import defaultdict
 
 from app.db.models.chat_message import ChatMessage
 from app.db.models.conversation import Conversation
@@ -563,142 +564,186 @@ class ChatGraphitiIngestion:
         }
     
     def _update_user_profile(self, profile: UserProfile, traits: List[Dict[str, Any]]) -> None:
-        """Update user profile with extracted traits.
+        """Update user profile with extracted traits, handling confidence and conflicts.
         
         Args:
             profile: UserProfile to update
             traits: List of extracted traits
         """
         try:
-            # Initialize profile sections if they don't exist
-            if profile.skills is None:
-                profile.skills = []
-            if profile.interests is None:
-                profile.interests = []
-            if profile.preferences is None:
-                profile.preferences = {}
-            if profile.dislikes is None:
-                profile.dislikes = []
-            if profile.attributes is None:
-                profile.attributes = []
+            # Initialize profile sections if they don't exist or load from JSON
+            skills = profile.skills if isinstance(profile.skills, list) else json.loads(profile.skills or '[]')
+            interests = profile.interests if isinstance(profile.interests, list) else json.loads(profile.interests or '[]')
+            preferences = profile.preferences if isinstance(profile.preferences, dict) else json.loads(profile.preferences or '{}')
+            dislikes = profile.dislikes if isinstance(profile.dislikes, list) else json.loads(profile.dislikes or '[]')
+            attributes = profile.attributes if isinstance(profile.attributes, list) else json.loads(profile.attributes or '[]')
             
-            # Convert to Python objects if stored as JSON strings
-            skills = profile.skills if isinstance(profile.skills, list) else json.loads(profile.skills)
-            interests = profile.interests if isinstance(profile.interests, list) else json.loads(profile.interests)
-            preferences = profile.preferences if isinstance(profile.preferences, dict) else json.loads(profile.preferences)
-            dislikes = profile.dislikes if isinstance(profile.dislikes, list) else json.loads(profile.dislikes)
-            attributes = profile.attributes if isinstance(profile.attributes, list) else json.loads(profile.attributes)
+            # Ensure profile fields are mutable lists/dicts for updates
+            profile.skills = list(skills)
+            profile.interests = list(interests)
+            profile.preferences = dict(preferences)
+            profile.dislikes = list(dislikes)
+            profile.attributes = list(attributes)
+
+            # Create maps of existing traits for deduplication and confidence checks
+            # Store index along with data for easier update/removal
+            skill_map = {s.get("name", "").lower(): (idx, s) for idx, s in enumerate(profile.skills) if isinstance(s, dict) and s.get("name")}
+            interest_map = {i.get("name", "").lower(): (idx, i) for idx, i in enumerate(profile.interests) if isinstance(i, dict) and i.get("name")}
+            preference_map = {}
+            for category, prefs_dict in profile.preferences.items():
+                if isinstance(prefs_dict, dict):
+                    for name, details in prefs_dict.items():
+                        if isinstance(details, dict):
+                           preference_map[name.lower()] = (category, name, details) # Store category, original name, details
+            dislike_map = {d.get("name", "").lower(): (idx, d) for idx, d in enumerate(profile.dislikes) if isinstance(d, dict) and d.get("name")}
+            attribute_map = {a.get("name", "").lower(): (idx, a) for idx, a in enumerate(profile.attributes) if isinstance(a, dict) and a.get("name")}
             
-            # Create maps of existing traits for deduplication
-            skill_map = {s.get("name").lower(): s for s in skills if isinstance(s, dict) and "name" in s}
-            interest_map = {i.get("name").lower(): i for i in interests if isinstance(i, dict) and "name" in i}
-            dislike_map = {d.get("name").lower(): d for d in dislikes if isinstance(d, dict) and "name" in d}
-            attribute_map = {a.get("name").lower(): a for a in attributes if isinstance(a, dict) and "name" in a}
-            
-            # Process each trait
+            # Track staged additions (items not found in existing maps)
+            staged_skills = []
+            staged_interests = []
+            staged_preferences = defaultdict(dict) # category -> {name: details}
+            staged_dislikes = []
+            staged_attributes = []
+
+            # --- Step 1: Process incoming traits --- 
             for trait in traits:
                 trait_type = trait.get("trait_type", "").lower()
                 name = trait.get("name", "").strip()
                 confidence = trait.get("confidence", 0.7)
-                strength = trait.get("strength", 0.7)
+                strength = trait.get("strength", 0.7) # Used for skill proficiency
+                evidence = trait.get("evidence", "")
                 
-                logger.info(f"Trait: {trait} with confidence: {confidence}, strength: {strength}, name: {name}")
+                logger.info(f"Processing trait: {trait} with confidence: {confidence}, strength: {strength}, name: {name}")
                 if not name:
                     continue
                 
-                # Skip low confidence traits
+                # Skip low confidence traits below the general threshold
                 if confidence < self.MIN_CONFIDENCE_TRAIT:
+                    logger.info(f"Skipping trait {name} with confidence {confidence} below threshold {self.MIN_CONFIDENCE_TRAIT}")
                     continue
                 
                 name_lower = name.lower()
                 
-                # Update or add based on trait type
+                # Prepare the data structure for the trait
+                trait_data = {
+                    "name": name,
+                    "confidence": confidence,
+                    "source": "chat_inference",
+                    "evidence": evidence
+                }
+
+                # Handle each trait type
                 if trait_type == "skill" and confidence >= self.MIN_CONFIDENCE_TRAIT_SKILL:
+                    trait_data["proficiency"] = strength
                     if name_lower in skill_map:
-                        # Update existing skill if new confidence is higher
-                        existing = skill_map[name_lower]
-                        if confidence > existing.get("confidence", 0):
-                            existing["confidence"] = confidence
-                            existing["source"] = "chat_inference"
+                        idx, existing_skill = skill_map[name_lower]
+                        # Update existing only if new confidence is higher or equal
+                        if confidence >= existing_skill.get("confidence", 0):
+                            profile.skills[idx] = trait_data 
+                            logger.info(f"Updating existing skill: {name}")
                     else:
-                        # Add new skill
-                        skills.append({
-                            "name": name,
-                            "proficiency": strength,
-                            "confidence": confidence,
-                            "source": "chat_inference"
-                        })
+                        # Stage trait for addition if it doesn't exist
+                        staged_skills.append(trait_data)
                         
                 elif trait_type == "interest" and confidence >= self.MIN_CONFIDENCE_TRAIT_INTEREST:
                     if name_lower in interest_map:
-                        # Update existing interest if new confidence is higher
-                        existing = interest_map[name_lower]
-                        if confidence > existing.get("confidence", 0):
-                            existing["confidence"] = confidence
-                            existing["source"] = "chat_inference"
+                        idx, existing_interest = interest_map[name_lower]
+                        if confidence >= existing_interest.get("confidence", 0):
+                            profile.interests[idx] = trait_data
+                            logger.info(f"Updating existing interest: {name}")
                     else:
-                        # Add new interest
-                        interests.append({
-                            "name": name,
-                            "confidence": confidence,
-                            "source": "chat_inference"
-                        })
+                        staged_interests.info(trait_data)
                         
                 elif trait_type == "preference" and confidence >= self.MIN_CONFIDENCE_TRAIT_PREFERENCE:
-                    # For preferences, use a dictionary structure
-                    category = "general"  # Default category
-                    preferences.setdefault(category, {})
-                    preferences[category][name] = {
-                        "confidence": confidence,
-                        "source": "chat_inference"
-                    }
+                    category = "general" # Default category
+                    if name_lower in preference_map:
+                        orig_category, orig_name, existing_preference = preference_map[name_lower]
+                        if confidence >= existing_preference.get("confidence", 0):
+                            # Update directly in the profile's preference dict
+                            profile.preferences[orig_category][orig_name] = trait_data
+                            logger.info(f"Updating existing preference: {name} in category {orig_category}")
+                    else:
+                        # Stage new preference under its category
+                        staged_preferences[category][name] = trait_data
                     
                 elif trait_type == "dislike" and confidence >= self.MIN_CONFIDENCE_TRAIT_DISLIKE:
                     if name_lower in dislike_map:
-                        # Update existing dislike if new confidence is higher
-                        existing = dislike_map[name_lower]
-                        if confidence > existing.get("confidence", 0):
-                            existing["confidence"] = confidence
-                            existing["source"] = "chat_inference"
+                        idx, existing_dislike = dislike_map[name_lower]
+                        if confidence >= existing_dislike.get("confidence", 0):
+                            profile.dislikes[idx] = trait_data
+                            logger.info(f"Updating existing dislike: {name}")
                     else:
-                        # Add new dislike
-                        dislikes.append({
-                            "name": name,
-                            "confidence": confidence,
-                            "source": "chat_inference"
-                        })
+                        staged_dislikes.append(trait_data)
                         
                 elif trait_type == "attribute" and confidence >= self.MIN_CONFIDENCE_TRAIT_ATTRIBUTE:
                     if name_lower in attribute_map:
-                        # Update existing attribute if new confidence is higher
-                        existing = attribute_map[name_lower]
-                        if confidence > existing.get("confidence", 0):
-                            existing["confidence"] = confidence
-                            existing["source"] = "chat_inference"
-                            if "evidence" in trait:
-                                existing["evidence"] = trait["evidence"]
+                        idx, existing_attribute = attribute_map[name_lower]
+                        if confidence >= existing_attribute.get("confidence", 0):
+                            profile.attributes[idx] = trait_data
+                            logger.info(f"Updating existing attribute: {name}")
                     else:
-                        # Add new attribute
-                        attribute_data = {
-                            "name": name,
-                            "confidence": confidence,
-                            "source": "chat_inference"
-                        }
-                        if "evidence" in trait:
-                            attribute_data["evidence"] = trait["evidence"]
-                        attributes.append(attribute_data)
+                        staged_attributes.append(trait_data)
             
-            # Update profile
-            profile.skills = skills
-            profile.interests = interests
-            profile.preferences = preferences
-            profile.dislikes = dislikes
-            profile.attributes = attributes
+            # --- Step 2: Add staged new traits ---
+            if staged_skills:
+                profile.skills.extend(staged_skills)
+                logger.info(f"Adding {len(staged_skills)} new skills")
+            if staged_interests:
+                profile.interests.extend(staged_interests)
+                logger.info(f"Adding {len(staged_interests)} new interests")
+            if staged_dislikes:
+                profile.dislikes.extend(staged_dislikes)
+                logger.info(f"Adding {len(staged_dislikes)} new dislikes")
+            if staged_attributes:
+                profile.attributes.extend(staged_attributes)
+                logger.info(f"Adding {len(staged_attributes)} new attributes")
             
+            # Merge staged preferences into the profile preferences dictionary
+            if staged_preferences:
+                for category, new_prefs in staged_preferences.items():
+                    if category not in profile.preferences:
+                        profile.preferences[category] = {}
+                    profile.preferences[category].update(new_prefs)
+                    logger.info(f"Adding {len(new_prefs)} new preferences to category '{category}'")
+
+            # --- Step 3: Conflict Resolution between lists (Interest vs. Dislike) ---
+            # Rebuild maps based on the potentially updated lists
+            interest_map_final = {i.get("name", "").lower(): (idx, i) for idx, i in enumerate(profile.interests) if isinstance(i, dict) and i.get("name")}
+            dislike_map_final = {d.get("name", "").lower(): (idx, d) for idx, d in enumerate(profile.dislikes) if isinstance(d, dict) and d.get("name")}
+            
+            conflicting_names = set(interest_map_final.keys()) & set(dislike_map_final.keys())
+            
+            # Keep track of indices to remove to avoid modifying list while iterating
+            indices_to_remove_from_interests = set()
+            indices_to_remove_from_dislikes = set()
+
+            if conflicting_names:
+                logger.warning(f"Found conflicts between interests and dislikes for: {conflicting_names}")
+                
+                for name_lower in conflicting_names:
+                    interest_idx, interest_item = interest_map_final[name_lower]
+                    dislike_idx, dislike_item = dislike_map_final[name_lower]
+                    
+                    # Keep the one with higher or equal confidence
+                    if interest_item.get("confidence", 0) >= dislike_item.get("confidence", 0):
+                        indices_to_remove_from_dislikes.add(dislike_idx)
+                        logger.info(f"Resolving conflict for '{interest_item.get("name")}': Keeping interest, removing dislike.")
+                    else:
+                        indices_to_remove_from_interests.add(interest_idx)
+                        logger.info(f"Resolving conflict for '{dislike_item.get("name")}': Keeping dislike, removing interest.")
+                        
+                # Filter out the lower confidence items using list comprehension with indices
+                # Sort indices in reverse to avoid shifting issues during removal
+                if indices_to_remove_from_interests:
+                    profile.interests = [item for idx, item in enumerate(profile.interests) if idx not in indices_to_remove_from_interests]
+                if indices_to_remove_from_dislikes:
+                    profile.dislikes = [item for idx, item in enumerate(profile.dislikes) if idx not in indices_to_remove_from_dislikes]
+
+            # --- Step 4: Commit Changes ---
             self.db.commit()
-            logger.info(f"Updated user profile with {len(traits)} traits")
+            logger.info(f"Updated user profile {profile.id} after processing traits.")
             
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error updating user profile: {str(e)}")
+            logger.error(f"Error updating user profile {profile.id}: {str(e)}")
             
