@@ -216,14 +216,28 @@ def _summarize_conversation_sync(conversation_id: str) -> Dict[str, Any]:
                     "conversation_id": conversation_id
                 }
             
-            # This will be implemented as part of Task 3.1.4
-            logger.info(f"Would summarize conversation {conversation_id}")
+            # Import here to avoid circular imports
+            from app.services.conversation.summarization import ConversationSummarizationService
+            # We need to run in an async context, since the service is async
+            import asyncio
             
-            return {
-                "status": "not_implemented",
-                "conversation_id": conversation_id,
-                "message": "Conversation summarization will be implemented in Task 3.1.4"
-            }
+            async def run_summarization():
+                # Get memory service
+                from app.services.memory import MemoryService
+                from app.db.session import get_async_session
+                
+                async with get_async_session() as async_db:
+                    memory_service = MemoryService()
+                    summarization_service = ConversationSummarizationService(async_db, memory_service)
+                    return await summarization_service.generate_summary(conversation_id)
+            
+            # Run the async function in a new event loop
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(run_summarization())
+                return result
+            finally:
+                loop.close()
             
         except Exception as e:
             logger.error(f"Error in _summarize_conversation_sync: {str(e)}")

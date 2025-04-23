@@ -339,15 +339,23 @@ class ChatGraphitiIngestion:
                     logger.warning(f"Entity {entity_name} exists in Graphiti but has no valid ID. Creating a new instance.")
 
                 # Create new entity - use synchronous approach
-                entity_properties = {
-                    "name": entity_name,
+                entity_properties = {}
+                
+                # For Document entities, use "title" property instead of "name"
+                if entity_type == "Document":
+                    entity_properties["title"] = entity_name
+                else:
+                    entity_properties["name"] = entity_name
+                    
+                # Add other common properties
+                entity_properties.update({
                     "user_id": user_id,
                     "source": "chat",
                     "confidence": entity.get("confidence", 0.7),
                     "context": entity.get("context", ""),
                     "message_id": message_id,
                     "conversation_title": conversation_title
-                }
+                })
                 
                 entity_id = self.graphiti.create_entity_sync(
                     entity_type=entity_type,
@@ -652,7 +660,7 @@ class ChatGraphitiIngestion:
                             profile.interests[idx] = trait_data
                             logger.info(f"Updating existing interest: {name}")
                     else:
-                        staged_interests.info(trait_data)
+                        staged_interests.append(trait_data)
                         
                 elif trait_type == "preference" and confidence >= self.MIN_CONFIDENCE_TRAIT_PREFERENCE:
                     category = "general" # Default category

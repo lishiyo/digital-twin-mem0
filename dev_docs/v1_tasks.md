@@ -128,12 +128,13 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Implement conflict resolution for contradictory information (based on confidence)
 - [x] Create direct UserProfile updates for high-confidence traits
 - [x] Create simple page to view stored user knowledge (memories and graph data)
-- [ ] Add ability to delete an individual memory, or graphiti entity or relationship in the UX
+- [x] Add ability to delete an individual memory, or graphiti entity or relationship in the UX
 
 **3.1.4. Implement session management**
-- [ ] Implement conversation summarization service
+- [ ] Add button to conversation UI to trigger summarization of the conversation, implement conversation summarization 
 - [ ] Add automatic title generation for conversations
-- [ ] Create conversation boundary detection
+- [ ] Create conversation boundary detection (for simplicity we can say this is when user creates a new conversation, or when we hit 20 new unsummarized messages in the conversation)
+- [ ] Store summaries as memories in mem0 (make sure to track summarized messages, so we can dedupe and not re-summarize the already-summarized), and remove twin/assistant messages from mem0 now that we no longer need them
 - [ ] Develop context preservation between sessions
 - [ ] Create conversation pruning/archiving strategy
 - [ ] Implement conversation status tracking (active, archived, deleted)
@@ -240,7 +241,7 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [ ] Add response serialization
 - [ ] Implement error handling
 - [ ] Frontend view to show the UserProfile
-- [ ] Api endpoint and button to clear out the UserProfile
+- [ ] Add api endpoint and button to clear out the UserProfile
 
 **5.2.2. Implement PUT /api/v1/profile**
 - [ ] Create route handler for updates

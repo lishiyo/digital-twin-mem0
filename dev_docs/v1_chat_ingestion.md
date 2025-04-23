@@ -477,7 +477,7 @@ class AIService:
         response = await openai.Completion.acreate(
             engine=settings.OPENAI_ANALYSIS_MODEL,
             prompt=prompt,
-            max_tokens=500,
+            max_tokens=5000,
             temperature=0.2
         )
         

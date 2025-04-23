@@ -253,8 +253,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
     def _maybe_generate_summary(self, conversation_id: str) -> Optional[str]:
         """Generate a summary for a conversation if needed.
         
-        This is a placeholder for LLM-based summarization that would be implemented
-        in Task 3.1.4.
+        This is now implemented using the ConversationSummarizationService.
         
         Args:
             conversation_id: The conversation ID
@@ -262,10 +261,46 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
         Returns:
             Generated summary or None
         """
-        # This will be implemented as part of Task 3.1.4
-        # For now, just log that we would generate a summary
-        logger.info(f"Would generate summary for conversation {conversation_id}")
-        return None
+        try:
+            # Import needed modules
+            import asyncio
+            from app.services.conversation.summarization import ConversationSummarizationService
+            from app.services.memory.service import MemoryService
+            from app.db.session import get_async_session
+            
+            # We need to run this in an async context
+            async def check_and_summarize():
+                async with get_async_session() as async_db:
+                    memory_service = MemoryService(async_db)
+                    summarization_service = ConversationSummarizationService(async_db, memory_service)
+                    
+                    # Check if we should summarize this conversation
+                    should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
+                    
+                    if should_summarize:
+                        logger.info(f"Auto-summarizing conversation {conversation_id} because it has enough new messages")
+                        
+                        # Generate summary directly
+                        result = await summarization_service.generate_summary(conversation_id)
+                        
+                        if result["status"] == "success":
+                            logger.info(f"Successfully auto-summarized conversation {conversation_id}")
+                            return result["summary"]
+                        else:
+                            logger.warning(f"Failed to auto-summarize conversation {conversation_id}: {result.get('reason', 'unknown')}")
+                    
+                    return None
+            
+            # Run in new event loop
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(check_and_summarize())
+            finally:
+                loop.close()
+                
+        except Exception as e:
+            logger.error(f"Error checking/generating summary for conversation {conversation_id}: {str(e)}")
+            return None
         
     def _calculate_importance(self, message: ChatMessage) -> float:
         """Synchronous implementation of importance calculation."""

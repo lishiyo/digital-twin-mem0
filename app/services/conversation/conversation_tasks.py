@@ -154,10 +154,7 @@ async def _async_process_conversation(conversation_id: str) -> Dict[str, Any]:
 
 
 async def _async_summarize_conversation(conversation_id: str) -> Dict[str, Any]:
-    """Async implementation of summarize_conversation.
-    
-    This is a placeholder until we implement Task 3.1.4 (Conversation summarization).
-    """
+    """Async implementation of summarize_conversation."""
     async with get_async_session() as db:
         # Get conversation
         query = select(Conversation).where(Conversation.id == conversation_id)
@@ -171,11 +168,13 @@ async def _async_summarize_conversation(conversation_id: str) -> Dict[str, Any]:
                 "conversation_id": conversation_id
             }
         
-        # This will be implemented as part of Task 3.1.4
-        logger.info(f"Would summarize conversation {conversation_id}")
+        # Import the summarization service
+        from app.services.conversation.summarization import ConversationSummarizationService
+        from app.services.memory import MemoryService
         
-        return {
-            "status": "not_implemented",
-            "conversation_id": conversation_id,
-            "message": "Conversation summarization will be implemented in Task 3.1.4"
-        } 
+        # Create the summarization service
+        memory_service = MemoryService()
+        summarization_service = ConversationSummarizationService(db, memory_service)
+        
+        # Generate summary
+        return await summarization_service.generate_summary(conversation_id) 

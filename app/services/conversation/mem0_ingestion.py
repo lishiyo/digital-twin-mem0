@@ -227,8 +227,7 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
     async def _maybe_generate_summary(self, conversation_id: str) -> Optional[str]:
         """Generate a summary for a conversation if needed.
         
-        This is a placeholder for LLM-based summarization that would be implemented
-        in Task 3.1.4.
+        This is now implemented using the ConversationSummarizationService.
         
         Args:
             conversation_id: The conversation ID
@@ -236,7 +235,30 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
         Returns:
             Generated summary or None
         """
-        # This will be implemented as part of Task 3.1.4
-        # For now, just log that we would generate a summary
-        logger.info(f"Would generate summary for conversation {conversation_id}")
-        return None 
+        try:
+            # Import the summarization service here to avoid circular imports
+            from app.services.conversation.summarization import ConversationSummarizationService
+            
+            # Create the summarization service
+            summarization_service = ConversationSummarizationService(self.db, self.memory_service)
+            
+            # Check if we should summarize this conversation
+            should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
+            
+            if should_summarize:
+                logger.info(f"Auto-summarizing conversation {conversation_id} because it has enough new messages")
+                
+                # Generate summary directly
+                result = await summarization_service.generate_summary(conversation_id)
+                
+                if result["status"] == "success":
+                    logger.info(f"Successfully auto-summarized conversation {conversation_id}")
+                    return result["summary"]
+                else:
+                    logger.warning(f"Failed to auto-summarize conversation {conversation_id}: {result.get('reason', 'unknown')}")
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error checking/generating summary for conversation {conversation_id}: {str(e)}")
+            return None 

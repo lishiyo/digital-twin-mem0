@@ -163,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Add assistant response to UI
-                appendMessage('assistant', data.twin_response);
+                appendMessage('assistant', data.message);
                 
                 // Update conversation title if this was a new conversation
                 if (currentConversationTitle.textContent === 'New Conversation') {
