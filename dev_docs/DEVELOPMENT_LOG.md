@@ -2,6 +2,34 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
+## 2025-04-23: ChatMessage Field Naming Fix and Celery Task Improvements
+
+We've addressed several issues related to the ChatMessage model and background processing:
+
+### ChatMessage Field Naming
+- Fixed inconsistencies in how we track processing status of chat messages:
+  - Renamed `processed` to `processed_in_mem0` to clearly indicate processing through Mem0 ingestion
+  - Renamed `ingested` to `processed_in_summary` to track message inclusion in conversation summaries
+  - Added new field `processed_in_graphiti` to properly track Graphiti processing status
+  - Updated all relevant service methods to use the new field names consistently
+  - Created and applied database migration (111d3837be93_rename_chat_message_fields.py)
+  - Added clear comments to each field to document its purpose
+  - Added the helper method `needs_summarization()` to the ChatMessage model
+
+### Celery Task Improvements
+- Fixed asyncio event loop issues in the conversation summarization task:
+  - Properly isolated event loops for each task execution to prevent the "attached to a different loop" error
+  - Used explicit event loop creation and cleanup instead of relying on `asyncio.run()`
+  - Ensured proper resource cleanup with try/finally blocks
+  - Added improved exception handling with detailed error logging
+
+### UI Updates
+- Updated the Knowledge viewer interface to display the new processing status fields
+- Enhanced the Chat Message details modal to show summarization status
+- Added visual indicators in the conversation view for messages that have been processed in summaries
+
+These changes fix a critical bug where unsummarized messages weren't being correctly identified due to field name confusion, ensuring our conversation summarization pipeline works correctly.
+
 ## 2025-04-26: Conversation Summarization and Context Improvements
 
 We've made significant enhancements to the conversation summarization and context preservation system:

@@ -2,6 +2,42 @@
 
 This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updates; the latest update is on top.
 
+## 2025-04-23 20:10 PDT
+
+**Current Guide Section:** 
+- Completed bug fix for ChatMessage field naming (bug_chat_message.md)
+- Fixed asyncio event loop issue in Celery conversation summarization task
+
+**What's Working:**
+- Chat Log Ingestion with fixed field names:
+  - Renamed `processed` to `processed_in_mem0` to indicate messages processed through Mem0 chat ingestion
+  - Renamed `ingested` to `processed_in_summary` for messages included in summaries
+  - Added new field `processed_in_graphiti` for messages processed through Graphiti
+  - Properly labeled fields with comments to clearly explain their purpose
+  - Created and applied Alembic migration (111d3837be93_rename_chat_message_fields.py)
+  - Updated all relevant services to use the new field names
+  - Added helper method `needs_summarization()` to the ChatMessage model
+- Fixed bug in Celery task `_summarize_conversation_sync`:
+  - Resolved "attached to a different loop" error in the conversation summarization task
+  - Properly created isolated event loops for each task execution
+
+**What's Broken/Incomplete:**
+- UI updates for Chat Message details modal to show the new field names are in progress
+- Knowledge viewer interface updates needed to display the correct processing status
+- Need to verify all ingestion services are correctly checking and updating the new fields
+
+**Database/Model State:**
+- PostgreSQL database schema has been updated with the new field names
+- Database migration has been successfully applied
+- ChatMessage model now has clear separation between processing flags and storage status
+- Service code is now consistent with the new field names
+
+**Pending Tasks:**
+- Complete UI updates for the Knowledge viewer
+- Add comprehensive tests for the corrected ingestion flow
+- Monitor impact on performance and database queries
+- Verify all Celery tasks are correctly updating the fields
+
 ## 2025-04-27 15:29 PDT
 
 **Current Guide Section:** 
