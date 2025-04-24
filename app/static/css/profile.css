@@ -215,13 +215,16 @@ body {
 }
 
 .evidence {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    color: #666;
     font-style: italic;
-    color: var(--medium-gray);
+}
+
+.small-text {
+    font-size: 0.85rem;
+    color: #777;
+    margin-top: 0.5rem;
+    line-height: 1.2;
 }
 
 .empty-state {

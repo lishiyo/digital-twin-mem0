@@ -128,7 +128,14 @@ function renderTraitList(container, items, type) {
         return;
     }
     
-    items.forEach(item => {
+    // Sort items by confidence level, highest first
+    const sortedItems = [...items].sort((a, b) => {
+        const confidenceA = parseFloat(a.confidence) || 0;
+        const confidenceB = parseFloat(b.confidence) || 0;
+        return confidenceB - confidenceA; // Descending order
+    });
+    
+    sortedItems.forEach(item => {
         if (!item || typeof item !== 'object') return;
         
         const confidence = parseFloat(item.confidence) || 0;
@@ -149,7 +156,7 @@ function renderTraitList(container, items, type) {
             <div class="confidence">
                 <div class="confidence-bar" style="width: ${confidence * 100}%"></div>
             </div>
-            ${evidence ? `<div class="evidence">"${escapeHtml(evidence)}"</div>` : ''}
+            ${evidence ? `<div class="evidence small-text">"${escapeHtml(evidence)}"</div>` : ''}
         `;
         
         // Add event listener to delete button
@@ -191,11 +198,22 @@ function renderPreferences(container, preferences) {
         const categoryContainer = document.createElement('div');
         categoryContainer.className = 'items-container';
         
-        for (const prefName in categoryPrefs) {
-            const pref = categoryPrefs[prefName];
+        // Convert preferences object to array and sort by confidence
+        const prefsArray = Object.entries(categoryPrefs).map(([name, pref]) => ({
+            name,
+            ...pref
+        }));
+        
+        const sortedPrefs = prefsArray.sort((a, b) => {
+            const confidenceA = parseFloat(a.confidence) || 0;
+            const confidenceB = parseFloat(b.confidence) || 0;
+            return confidenceB - confidenceA; // Descending order
+        });
+        
+        sortedPrefs.forEach(pref => {
+            if (typeof pref !== 'object') return;
             
-            if (typeof pref !== 'object') continue;
-            
+            const prefName = pref.name;
             const confidence = parseFloat(pref.confidence) || 0;
             const evidence = pref.evidence || '';
             
@@ -211,7 +229,7 @@ function renderPreferences(container, preferences) {
                 <div class="confidence">
                     <div class="confidence-bar" style="width: ${confidence * 100}%"></div>
                 </div>
-                ${evidence ? `<div class="evidence">"${escapeHtml(evidence)}"</div>` : ''}
+                ${evidence ? `<div class="evidence small-text">"${escapeHtml(evidence)}"</div>` : ''}
             `;
             
             // Add event listener to delete button
@@ -222,7 +240,7 @@ function renderPreferences(container, preferences) {
             });
             
             categoryContainer.appendChild(itemEl);
-        }
+        });
         
         container.appendChild(categoryContainer);
     }

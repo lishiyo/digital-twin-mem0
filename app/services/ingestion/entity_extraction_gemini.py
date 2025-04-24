@@ -403,7 +403,7 @@ class EntityExtractor:
         
         For each trait, provide:
         - trait_type: One of [skill, interest, preference, dislike, attribute]
-        - name: The specific trait
+        - name: The specific trait, as a detailed description
         - confidence: How certain you are (0.0-1.0)
         - evidence: The part of the text supporting this trait
         - strength: How strong this trait is (0.0-1.0, optional)
