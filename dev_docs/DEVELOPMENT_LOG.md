@@ -2,6 +2,37 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
+## 2025-04-24: User Profile Trait Deletion and UI Improvements
+
+We've made several improvements to the user profile management and UI:
+
+### Individual Trait Deletion
+- Added capability to delete individual traits from the user profile:
+  - Implemented new DELETE endpoint at `/api/v1/profile/trait/{trait_type}/{trait_name}`
+  - Created `delete_trait` method in ProfileService that handles proper removal of traits from UserProfile
+  - Implemented special handling for preferences with category.name format
+  - Added proper validation and error handling for missing traits or invalid formats
+  - Updated all methods to use `last_updated_source` tracking to indicate manual deletion
+
+### UI Enhancements
+- Improved profile page with trait deletion buttons:
+  - Added small "×" delete buttons to the top-right corner of each trait card
+  - Implemented subtle styling that becomes more prominent on hover
+  - Added confirmation dialogs before proceeding with deletion
+  - Provided immediate UI feedback after successful deletion
+  - Ensured proper escaping of trait names with special characters
+  - Added title attributes for better accessibility
+
+### Consistent Navigation
+- Standardized header navigation across all pages:
+  - Updated all templates (chat.html, knowledge.html, profile.html) for consistent navigation
+  - Ensured proper styling of active navigation links
+  - Updated CSS files to share common header styles
+  - Improved layout handling for responsive design considerations
+  - Fixed container structure to ensure proper content placement
+
+These improvements enhance the user experience by providing more granular control over profile data, allowing users to selectively remove traits that may be incorrect or outdated without clearing the entire profile.
+
 ## 2025-04-23: ChatMessage Field Naming Fix and Celery Task Improvements
 
 We've addressed several issues related to the ChatMessage model and background processing:

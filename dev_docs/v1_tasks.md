@@ -240,12 +240,12 @@ This approach allows tracking both when a task should be done (phase) and what f
 ### 5.2. User Profile Endpoints
 
 **5.2.1. Create GET /api/v1/profile endpoint**
-- [ ] Implement route handler
-- [ ] Create profile service
-- [ ] Add response serialization
-- [ ] Implement error handling
-- [ ] Frontend view to see the UserProfile
-- [ ] Add api endpoint and button to clear out the UserProfile
+- [x] Implement route handler
+- [x] Create profile service
+- [x] Add response serialization
+- [x] Implement error handling
+- [x] Frontend view to see the UserProfile
+- [x] Add api endpoint and button to clear out the UserProfile
 
 **5.2.2. Implement PUT /api/v1/profile**
 - [ ] Create route handler for updates
