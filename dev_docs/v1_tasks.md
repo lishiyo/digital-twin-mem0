@@ -135,9 +135,10 @@ This approach allows tracking both when a task should be done (phase) and what f
 - [x] Add automatic title generation for conversations
 - [x] Create conversation boundary detection (for simplicity we can say this is when user creates a new conversation, or when we hit 20 new unsummarized messages in the conversation)
 - [x] Store summaries in Posgres - only has one summary field for each conversation, which updates it each time with the new messages
-- [ ] Store memories in mem0 - these should be a new memory for each batch of new messages (we are storing them right now but not )
+- [x] Store memories in mem0 - these should be a new memory for each batch of new messages (we are storing them right now but not )
 - [x] Make sure to track summarized messages, then we can dedupe and not re-summarize the already-summarized in Postgres and Mem0
-- [ ] remove twin/assistant messages from mem0 now that we no longer need them
+- [ ] remove twin/assistant messages from mem0 (we will just use summary memories)
+- [ ] remove twin/assistant messages from grafiti (no need for them)
 - [x] Develop context preservation between sessions
 - [ ] Create conversation pruning/archiving strategy
 - [ ] Implement conversation status tracking (active, archived, deleted)

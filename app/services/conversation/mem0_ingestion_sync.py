@@ -265,7 +265,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             # Import needed modules
             import asyncio
             from app.services.conversation.summarization import ConversationSummarizationService
-            from app.services.memory.service import MemoryService
+            from app.services.memory import MemoryService
             from app.db.session import get_async_session
             
             # We need to run this in an async context
