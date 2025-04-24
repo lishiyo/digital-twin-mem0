@@ -20,6 +20,7 @@ const attributesContainer = document.getElementById('attributes-container');
 // API Endpoints
 const API_PROFILE = '/api/v1/profile';
 const API_CLEAR_PROFILE = '/api/v1/profile/clear';
+const API_DELETE_TRAIT = '/api/v1/profile/trait';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -138,6 +139,7 @@ function renderTraitList(container, items, type) {
         itemEl.className = 'item-card';
         
         itemEl.innerHTML = `
+            <button class="delete-trait-btn" data-type="${type}s" data-name="${escapeHtml(name)}" title="Delete ${escapeHtml(name)}">×</button>
             <div class="item-name">${escapeHtml(name)}</div>
             <div class="item-meta">
                 ${type === 'skill' ? `Proficiency: ${Math.round((parseFloat(item.proficiency) || 0) * 100)}%` : ''}
@@ -149,6 +151,13 @@ function renderTraitList(container, items, type) {
             </div>
             ${evidence ? `<div class="evidence">"${escapeHtml(evidence)}"</div>` : ''}
         `;
+        
+        // Add event listener to delete button
+        const deleteBtn = itemEl.querySelector('.delete-trait-btn');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteTrait(type + 's', name);
+        });
         
         container.appendChild(itemEl);
     });
@@ -194,6 +203,7 @@ function renderPreferences(container, preferences) {
             itemEl.className = 'item-card';
             
             itemEl.innerHTML = `
+                <button class="delete-trait-btn" data-type="preferences" data-name="${escapeHtml(category)}.${escapeHtml(prefName)}" title="Delete ${escapeHtml(prefName)}">×</button>
                 <div class="item-name">${escapeHtml(prefName)}</div>
                 <div class="item-meta">
                     Confidence: ${Math.round(confidence * 100)}%
@@ -203,6 +213,13 @@ function renderPreferences(container, preferences) {
                 </div>
                 ${evidence ? `<div class="evidence">"${escapeHtml(evidence)}"</div>` : ''}
             `;
+            
+            // Add event listener to delete button
+            const deleteBtn = itemEl.querySelector('.delete-trait-btn');
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteTrait('preferences', `${category}.${prefName}`);
+            });
             
             categoryContainer.appendChild(itemEl);
         }
@@ -281,4 +298,39 @@ function escapeHtml(unsafe) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+/**
+ * Delete a trait
+ */
+async function deleteTrait(traitType, traitName) {
+    if (!confirm(`Are you sure you want to delete '${traitName}'?`)) {
+        return;
+    }
+    
+    try {
+        // Encode the trait name to handle special characters in the URL
+        const encodedTraitName = encodeURIComponent(traitName);
+        
+        const response = await fetch(`${API_DELETE_TRAIT}/${traitType}/${encodedTraitName}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to delete trait: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            // Reload profile data to reflect changes
+            loadProfileData();
+        } else {
+            showError(data.message || 'Failed to delete trait');
+        }
+    } catch (error) {
+        console.error('Error deleting trait:', error);
+        showError('Error deleting trait: ' + error.message);
+    }
 } 

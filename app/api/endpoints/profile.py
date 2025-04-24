@@ -63,4 +63,34 @@ async def clear_profile(
             detail=result["message"]
         )
     
+    return result
+
+@router.delete("/trait/{trait_type}/{trait_name}")
+async def delete_trait(
+    trait_type: str,
+    trait_name: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user_or_mock)
+) -> Dict[str, Any]:
+    """Delete a specific trait from the current user profile.
+    
+    Args:
+        trait_type: Type of trait (skills, interests, dislikes, attributes, preferences)
+        trait_name: Name of the trait to delete (for preferences use format: "category.name")
+        db: Database session
+        current_user: Current user dict (from auth)
+        
+    Returns:
+        Dictionary with operation status
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    profile_service = ProfileService(db)
+    result = await profile_service.delete_trait(user_id, trait_type, trait_name)
+    
+    if result["status"] == "error":
+        raise HTTPException(
+            status_code=400,
+            detail=result["message"]
+        )
+    
     return result 

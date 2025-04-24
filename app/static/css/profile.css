@@ -183,6 +183,7 @@ body {
     background-color: var(--light-bg);
     box-shadow: var(--shadow);
     transition: transform 0.2s ease;
+    position: relative;
 }
 
 .item-card:hover {
@@ -251,6 +252,35 @@ body {
 
 .loading-state {
     animation: pulse 1.5s infinite;
+}
+
+.delete-trait-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    background: none;
+    border: none;
+    color: var(--medium-gray);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.delete-trait-btn:hover {
+    opacity: 1;
+    color: var(--danger-color);
+    background-color: rgba(229, 62, 62, 0.1);
+}
+
+.delete-trait-btn:focus {
+    outline: none;
 }
 
 /* Responsive adjustments */

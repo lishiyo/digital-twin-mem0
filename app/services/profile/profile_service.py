@@ -133,4 +133,75 @@ class ProfileService:
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error clearing profile for user {user_id}: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    async def delete_trait(self, user_id: str, trait_type: str, trait_name: str) -> Dict[str, Any]:
+        """Delete a specific trait from user profile.
+        
+        Args:
+            user_id: ID of the user
+            trait_type: Type of trait (skills, interests, dislikes, attributes)
+            trait_name: Name of the trait to delete
+            
+        Returns:
+            Dictionary with operation status
+        """
+        try:
+            # Query user with profile
+            query = (
+                select(User)
+                .where(User.id == user_id)
+                .options(joinedload(User.profile))
+            )
+            
+            # Execute the query
+            result = await self.db.execute(query)
+            user = result.unique().scalars().first()
+            
+            if not user:
+                logger.warning(f"User {user_id} not found")
+                return {"status": "error", "message": "User not found"}
+            
+            profile = user.profile
+            
+            if not profile:
+                logger.warning(f"Profile for user {user_id} not found")
+                return {"status": "error", "message": "Profile not found"}
+            
+            # Handle trait deletion based on trait_type
+            if trait_type == "skills" and hasattr(profile, "skills") and isinstance(profile.skills, list):
+                profile.skills = [skill for skill in profile.skills if skill.get("name") != trait_name]
+            elif trait_type == "interests" and hasattr(profile, "interests") and isinstance(profile.interests, list):
+                profile.interests = [interest for interest in profile.interests if interest.get("name") != trait_name]
+            elif trait_type == "dislikes" and hasattr(profile, "dislikes") and isinstance(profile.dislikes, list):
+                profile.dislikes = [dislike for dislike in profile.dislikes if dislike.get("name") != trait_name]
+            elif trait_type == "attributes" and hasattr(profile, "attributes") and isinstance(profile.attributes, list):
+                profile.attributes = [attribute for attribute in profile.attributes if attribute.get("name") != trait_name]
+            elif trait_type == "preferences" and hasattr(profile, "preferences") and isinstance(profile.preferences, dict):
+                # For preferences, we need to know the category and name
+                # Format expected: {category}.{name}
+                if "." in trait_name:
+                    category, name = trait_name.split(".", 1)
+                    if category in profile.preferences and name in profile.preferences[category]:
+                        del profile.preferences[category][name]
+                        # If category is now empty, remove it
+                        if not profile.preferences[category]:
+                            del profile.preferences[category]
+                else:
+                    return {"status": "error", "message": f"Invalid preference format: {trait_name}"}
+            else:
+                return {"status": "error", "message": f"Unknown trait type: {trait_type}"}
+            
+            # Update last_updated_source
+            profile.last_updated_source = "manual_delete"
+            
+            # Commit changes
+            await self.db.commit()
+            
+            logger.info(f"Deleted trait {trait_name} of type {trait_type} for user {user_id}")
+            return {"status": "success", "message": f"Trait '{trait_name}' deleted successfully"}
+            
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error deleting trait for user {user_id}: {str(e)}")
             return {"status": "error", "message": str(e)} 
