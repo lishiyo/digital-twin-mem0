@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Script to clear out Mem0 and Graphiti data.
+"""Script to clear out Mem0, Graphiti data, and PostgreSQL tables.
 
 This utility script helps with clearing data during testing and development.
 WARNING: This script deletes data permanently. Use with caution.
@@ -10,12 +10,22 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services.memory import MemoryService
 from app.services.graph import GraphitiService
+from app.db.session import get_db
+from app.db.models.chat_message import ChatMessage
+from app.db.models.conversation import Conversation
+from app.db.models.ingested_document import IngestedDocument
+from app.db.models.message_feedback import MessageFeedback
+from app.db.models.user_profile import UserProfile
+from sqlalchemy import delete, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 # Configure logging
 logging.basicConfig(
@@ -85,6 +95,109 @@ async def clear_graphiti(user_id=None, all_users=False, scope=None):
         return {"error": "No user_id provided and all_users=False"}
 
 
+async def clear_postgres_tables(user_id=None, all_users=False):
+    """Clear data from PostgreSQL tables.
+    
+    Args:
+        user_id: Specific user ID to clear data for
+        all_users: Whether to clear data for all users
+        
+    Returns:
+        Dict with results
+    """
+    db = next(get_db())
+    results = {}
+    
+    try:
+        # Clear ChatMessage table
+        if all_users:
+            logger.warning("⚠️ Clearing ALL chat messages from PostgreSQL...")
+            stmt = delete(ChatMessage)
+            await db.execute(stmt)
+            results["chat_messages"] = "All chat messages deleted"
+        elif user_id:
+            logger.warning(f"⚠️ Clearing chat messages for user: {user_id}")
+            stmt = delete(ChatMessage).where(ChatMessage.user_id == user_id)
+            result = await db.execute(stmt)
+            results["chat_messages"] = f"Deleted {result.rowcount} chat messages for user {user_id}"
+        
+        # Clear Conversation table
+        if all_users:
+            logger.warning("⚠️ Clearing ALL conversations from PostgreSQL...")
+            stmt = delete(Conversation)
+            await db.execute(stmt)
+            results["conversations"] = "All conversations deleted"
+        elif user_id:
+            logger.warning(f"⚠️ Clearing conversations for user: {user_id}")
+            stmt = delete(Conversation).where(Conversation.user_id == user_id)
+            result = await db.execute(stmt)
+            results["conversations"] = f"Deleted {result.rowcount} conversations for user {user_id}"
+        
+        # Clear IngestedDocument table
+        if all_users:
+            logger.warning("⚠️ Clearing ALL ingested documents from PostgreSQL...")
+            stmt = delete(IngestedDocument)
+            await db.execute(stmt)
+            results["ingested_documents"] = "All ingested documents deleted"
+        elif user_id:
+            logger.warning(f"⚠️ Clearing ingested documents for user: {user_id}")
+            stmt = delete(IngestedDocument).where(IngestedDocument.user_id == user_id)
+            result = await db.execute(stmt)
+            results["ingested_documents"] = f"Deleted {result.rowcount} ingested documents for user {user_id}"
+        
+        # Clear MessageFeedback table
+        if all_users:
+            logger.warning("⚠️ Clearing ALL message feedback from PostgreSQL...")
+            stmt = delete(MessageFeedback)
+            await db.execute(stmt)
+            results["message_feedback"] = "All message feedback deleted"
+        elif user_id:
+            logger.warning(f"⚠️ Clearing message feedback for user: {user_id}")
+            stmt = delete(MessageFeedback).where(MessageFeedback.user_id == user_id)
+            result = await db.execute(stmt)
+            results["message_feedback"] = f"Deleted {result.rowcount} message feedback for user {user_id}"
+        
+        # Reset UserProfile fields (don't delete the profile itself)
+        if all_users:
+            logger.warning("⚠️ Resetting ALL user profiles in PostgreSQL...")
+            stmt = update(UserProfile).values(
+                preferences={},
+                interests=[],
+                skills=[],
+                dislikes=[],
+                attributes=[],
+                communication_style={},
+                key_relationships=[]
+            )
+            await db.execute(stmt)
+            results["user_profiles"] = "All user profiles reset"
+        elif user_id:
+            logger.warning(f"⚠️ Resetting user profile for user: {user_id}")
+            stmt = update(UserProfile).where(UserProfile.user_id == user_id).values(
+                preferences={},
+                interests=[],
+                skills=[],
+                dislikes=[],
+                attributes=[],
+                communication_style={},
+                key_relationships=[]
+            )
+            result = await db.execute(stmt)
+            results["user_profiles"] = f"Reset profile for user {user_id}"
+        
+        # Commit the changes
+        await db.commit()
+        logger.info("✅ PostgreSQL tables cleared successfully")
+        
+    except Exception as e:
+        await db.rollback()
+        error_msg = f"❌ Error clearing PostgreSQL tables: {str(e)}"
+        logger.error(error_msg)
+        results["error"] = error_msg
+    
+    return results
+
+
 def confirm_action():
     """Ask for user confirmation before proceeding with destructive action."""
     response = input("⚠️ This will permanently delete data. Are you sure? (y/N): ")
@@ -120,14 +233,26 @@ async def main(args):
             logger.error("❌ Either --all or --user-id must be specified")
             return
     
-    # Clear both if neither is specifically requested
-    if not args.mem0 and not args.graphiti:
+    # Clear PostgreSQL if requested
+    if args.postgres:
+        if args.all:
+            results["postgres"] = await clear_postgres_tables(all_users=True)
+        elif args.user_id:
+            results["postgres"] = await clear_postgres_tables(user_id=args.user_id)
+        else:
+            logger.error("❌ Either --all or --user-id must be specified")
+            return
+    
+    # Clear all services if none is specifically requested
+    if not args.mem0 and not args.graphiti and not args.postgres:
         if args.all:
             results["mem0"] = await clear_mem0(all_users=True)
             results["graphiti"] = await clear_graphiti(all_users=True)
+            results["postgres"] = await clear_postgres_tables(all_users=True)
         elif args.user_id:
             results["mem0"] = await clear_mem0(user_id=args.user_id)
             results["graphiti"] = await clear_graphiti(user_id=args.user_id, scope=args.scope)
+            results["postgres"] = await clear_postgres_tables(user_id=args.user_id)
         else:
             logger.error("❌ Either --all or --user-id must be specified")
             return
@@ -140,11 +265,12 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Clear data from Mem0 and Graphiti")
+    parser = argparse.ArgumentParser(description="Clear data from Mem0, Graphiti, and PostgreSQL")
     
     # Options for what to clear
     parser.add_argument("--mem0", action="store_true", help="Clear Mem0 data only")
     parser.add_argument("--graphiti", action="store_true", help="Clear Graphiti data only")
+    parser.add_argument("--postgres", action="store_true", help="Clear PostgreSQL data only")
     
     # Options for who to clear
     group = parser.add_mutually_exclusive_group(required=True)

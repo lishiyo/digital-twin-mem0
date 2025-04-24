@@ -19,7 +19,9 @@ from app.db.models.user_profile import UserProfile
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-TEST_USER_ID = "digital-twin-test-user"
+from app.core.constants import DEFAULT_USER_ID, DEFAULT_USER_NAME
+
+TEST_USER_ID = DEFAULT_USER_ID
 
 def create_test_user_profile():
     """Create or update the test user profile."""
@@ -59,6 +61,7 @@ def create_test_user_profile():
                 interests=[],
                 preferences={},
                 dislikes=[],
+                attributes=[],
                 communication_style={
                     "preferred_tone": "friendly",
                     "detailed_responses": True
