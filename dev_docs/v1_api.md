@@ -682,11 +682,11 @@ GET /api/v1/profile
     "notification_frequency": "daily",
     ...
   },
-  "attributes": {
+  "attributes": [
     {"name": "has two cats", "confidence": 0.9, "source": "chat_inference"},
     {"name": "has a husband named kyle", "confidence": 0.7, "source": "ingested_documents"},
     ...
-  },
+  ],
   "interests": [
     {"name": "machine learning", "confidence": 0.9, "source": "chat_inference"},
     {"name": "hiking", "confidence": 0.7, "source": "user_input"},

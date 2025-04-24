@@ -15,6 +15,7 @@ We've addressed several issues related to the ChatMessage model and background p
   - Created and applied database migration (111d3837be93_rename_chat_message_fields.py)
   - Added clear comments to each field to document its purpose
   - Added the helper method `needs_summarization()` to the ChatMessage model
+  - Removed twin/assistant messages from mem0 and graphiti ingestion
 
 ### Celery Task Improvements
 - Fixed asyncio event loop issues in the conversation summarization task:

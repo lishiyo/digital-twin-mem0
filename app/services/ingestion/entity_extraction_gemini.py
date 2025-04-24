@@ -446,10 +446,10 @@ class EntityExtractor:
             return []
     
     def process_document(self, content: str, chunk_boundaries: List[Tuple[int, int]] = None) -> Dict[str, Any]:
-        """Process a document and extract entities, relationships, traits, and keywords.
+        """Process a document or chat message and extract entities, relationships, traits, and keywords.
         
         Args:
-            content: Document content
+            content: Piece of text - document, chat message
             chunk_boundaries: Optional list of chunk boundaries as (start, end) tuples
             
         Returns:

@@ -20,6 +20,7 @@ This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updat
 - Fixed bug in Celery task `_summarize_conversation_sync`:
   - Resolved "attached to a different loop" error in the conversation summarization task
   - Properly created isolated event loops for each task execution
+  - Removed twin/assistant messages from mem0 and graphiti ingestion
 
 **What's Broken/Incomplete:**
 - UI updates for Chat Message details modal to show the new field names are in progress
