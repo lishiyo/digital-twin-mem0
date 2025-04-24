@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="/static/css/profile.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>User Profile</h1>
+            <nav class="app-nav">
+                <a href="/" class="nav-link">Chat</a>
+                <a href="/knowledge" class="nav-link">Knowledge</a>
+                <a href="/profile" class="nav-link active">Profile</a>
+            </nav>
+        </header>
+        
+        <div class="profile-container">
+            <div class="profile-header">
+                <h2>Digital Twin Knowledge About You</h2>
+                <button id="clear-profile" class="danger-button">Clear Profile</button>
+            </div>
+            
+            <div class="profile-stats">
+                <div class="stat-box" id="skills-count">
+                    <h3>Skills</h3>
+                    <div class="count">0</div>
+                </div>
+                <div class="stat-box" id="interests-count">
+                    <h3>Interests</h3>
+                    <div class="count">0</div>
+                </div>
+                <div class="stat-box" id="preferences-count">
+                    <h3>Preferences</h3>
+                    <div class="count">0</div>
+                </div>
+                <div class="stat-box" id="dislikes-count">
+                    <h3>Dislikes</h3>
+                    <div class="count">0</div>
+                </div>
+                <div class="stat-box" id="attributes-count">
+                    <h3>Attributes</h3>
+                    <div class="count">0</div>
+                </div>
+            </div>
+            
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="skills">Skills</button>
+                    <button class="tab-button" data-tab="interests">Interests</button>
+                    <button class="tab-button" data-tab="preferences">Preferences</button>
+                    <button class="tab-button" data-tab="dislikes">Dislikes</button>
+                    <button class="tab-button" data-tab="attributes">Attributes</button>
+                </div>
+                
+                <div class="tab-content active" id="skills-tab">
+                    <div class="items-container" id="skills-container">
+                        <!-- Skills will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="interests-tab">
+                    <div class="items-container" id="interests-container">
+                        <!-- Interests will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="preferences-tab">
+                    <div class="items-container" id="preferences-container">
+                        <!-- Preferences will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="dislikes-tab">
+                    <div class="items-container" id="dislikes-container">
+                        <!-- Dislikes will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="attributes-tab">
+                    <div class="items-container" id="attributes-container">
+                        <!-- Attributes will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/profile.js"></script>
+</body>
+</html> 
