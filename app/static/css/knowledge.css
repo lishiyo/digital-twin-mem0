@@ -52,7 +52,7 @@ body {
 
 .nav-link.active {
     color: #10a37f;
-    background-color: rgba(16, 163, 127, 0.1);
+    border-bottom: 2px solid #10a37f;
 }
 
 /* Tabs styles */

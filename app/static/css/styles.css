@@ -13,11 +13,51 @@ body {
     flex-direction: column;
 }
 
+/* App Container and Header */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 100%;
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid #e6e9ef;
+    background-color: #ffffff;
+}
+
+.app-nav {
+    display: flex;
+    gap: 1rem;
+}
+
+.nav-link {
+    text-decoration: none;
+    color: #6b7280;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+    background-color: #f0f2f5;
+    color: #10a37f;
+}
+
+.nav-link.active {
+    color: #10a37f;
+    font-weight: 500;
+    border-bottom: 2px solid #10a37f;
+}
+
 /* Chat container layout */
 .chat-container {
     display: flex;
-    height: 100vh;
-    max-height: 100vh;
+    flex: 1;
     overflow: hidden;
 }
 
@@ -49,24 +89,6 @@ body {
 
 .new-conversation-btn:hover {
     background-color: #0d8c6f;
-}
-
-.nav-links {
-    margin-top: 15px;
-}
-
-.nav-link {
-    display: block;
-    text-decoration: none;
-    color: #6b7280;
-    padding: 8px 0;
-    font-size: 14px;
-    text-align: center;
-    transition: color 0.2s;
-}
-
-.nav-link:hover {
-    color: #10a37f;
 }
 
 .conversations-list {
