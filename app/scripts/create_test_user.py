@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_session
-from app.core.constants import DEFAULT_USER_ID, DEFAULT_USER_NAME
+from app.core.constants import DEFAULT_USER_ID, DEFAULT_USER_NAME, DEFAULT_USER_EMAIL
 from app.db.models.user import User
 
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +31,7 @@ async def create_test_user():
         user = User(
             id=DEFAULT_USER_ID,
             handle=DEFAULT_USER_NAME,
-            email="test@example.com",
+            email=DEFAULT_USER_EMAIL,
         )
         
         db.add(user)

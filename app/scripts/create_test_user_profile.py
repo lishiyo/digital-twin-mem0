@@ -19,26 +19,24 @@ from app.db.models.user_profile import UserProfile
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-from app.core.constants import DEFAULT_USER_ID, DEFAULT_USER_NAME
-
-TEST_USER_ID = DEFAULT_USER_ID
+from app.core.constants import DEFAULT_USER_ID, DEFAULT_USER_NAME, DEFAULT_USER_EMAIL
 
 def create_test_user_profile():
     """Create or update the test user profile."""
     try:
         with get_db_session() as db:
             # Check if user exists
-            query = select(User).where(User.id == TEST_USER_ID)
+            query = select(User).where(User.id == DEFAULT_USER_ID)
             result = db.execute(query)
             user = result.scalars().first()
             
             if not user:
                 # Create test user
-                logger.info(f"Creating test user with ID {TEST_USER_ID}")
+                logger.info(f"Creating test user with ID {DEFAULT_USER_ID}")
                 user = User(
-                    id=TEST_USER_ID,
-                    email="test@example.com",
-                    name="Test User",
+                    id=DEFAULT_USER_ID,
+                    email=DEFAULT_USER_EMAIL,
+                    handle=DEFAULT_USER_NAME,
                     is_active=True
                 )
                 db.add(user)
@@ -48,11 +46,11 @@ def create_test_user_profile():
                 
             # Check if user profile exists
             if user.profile:
-                logger.info(f"User profile already exists for {TEST_USER_ID}")
+                logger.info(f"User profile already exists for {DEFAULT_USER_ID}")
                 return user.profile
                 
             # Create user profile
-            logger.info(f"Creating user profile for {TEST_USER_ID}")
+            logger.info(f"Creating user profile for {DEFAULT_USER_ID}")
             profile = UserProfile(
                 id=str(uuid.uuid4()),  # Generate a new UUID for the profile
                 user_id=user.id,
@@ -71,7 +69,7 @@ def create_test_user_profile():
             db.add(profile)
             db.commit()
             
-            logger.info(f"Successfully created user profile for {TEST_USER_ID}")
+            logger.info(f"Successfully created user profile for {DEFAULT_USER_ID}")
             return profile
             
     except Exception as e:
