@@ -10,30 +10,13 @@ from app.api.deps import get_current_user, get_db, security
 from app.core.constants import DEFAULT_USER
 from app.services.memory import MemoryService
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.api.deps import get_current_user_or_mock
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Optional security scheme that doesn't raise an error for missing credentials
 optional_security = HTTPBearer(auto_error=False)
-
-# Optional authentication dependency - enables testing in development
-async def get_current_user_or_mock(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
-):
-    """Get the current authenticated user or a mock user for development."""
-    if credentials:
-        try:
-            return await get_current_user(credentials)
-        except HTTPException:
-            # Fall back to mock user if authentication fails
-            logger.warning("Authentication failed, using mock user")
-            return DEFAULT_USER
-    
-    # No credentials provided, use mock user
-    logger.warning("No authentication provided, using mock user")
-    return DEFAULT_USER
-
 
 @router.get("/check")
 async def check_mem0_connection():

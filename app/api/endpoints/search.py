@@ -15,6 +15,7 @@ from app.services.memory import MemoryService
 from app.services.graph import GraphitiService
 from app.core.constants import DEFAULT_USER
 from app.schemas.ingested_document import IngestedDocument
+from app.api.deps import get_current_user_or_mock
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,24 +27,6 @@ optional_security = HTTPBearer(auto_error=False)
 def get_memory_service():
     """Get memory service instance."""
     return MemoryService()
-
-# Optional authentication dependency - enables testing in development
-async def get_current_user_or_mock(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
-):
-    """Get the current authenticated user or a mock user for development."""
-    if credentials:
-        try:
-            return await get_current_user(credentials)
-        except HTTPException:
-            # Fall back to mock user if authentication fails
-            logger.warning("Authentication failed, using mock user")
-            return DEFAULT_USER
-    
-    # No credentials provided, use mock user
-    logger.warning("No authentication provided, using mock user")
-    return DEFAULT_USER
-
 
 @router.get("")
 async def search_content(

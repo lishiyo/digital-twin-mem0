@@ -9,7 +9,7 @@ import logging
 from pydantic import BaseModel, Field
 from uuid import uuid4
 
-from app.api.deps import get_current_user, get_db, security
+from app.api.deps import get_current_user, get_db, security, get_current_user_or_mock
 from app.services.agent.graph_agent import TwinAgent
 from app.core.config import settings
 from app.core.constants import DEFAULT_USER
@@ -21,6 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Optional security scheme that doesn't raise an error for missing credentials
+optional_security = HTTPBearer(auto_error=False)
 
 # Model for the chat request
 class ChatRequest(BaseModel):
@@ -35,27 +38,6 @@ class ConversationResponse(BaseModel):
     created_at: str
     updated_at: str
     message_count: int = 0
-
-# Optional security scheme that doesn't raise an error for missing credentials
-optional_security = HTTPBearer(auto_error=False)
-
-# Optional authentication dependency - enables testing in development
-async def get_current_user_or_mock(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
-):
-    """Get the current authenticated user or a mock user for development."""
-    if credentials:
-        try:
-            return await get_current_user(credentials)
-        except HTTPException:
-            # Fall back to mock user if authentication fails
-            logger.warning("Authentication failed, using mock user")
-            return DEFAULT_USER
-    
-    # No credentials provided, use mock user
-    logger.warning("No authentication provided, using mock user")
-    return DEFAULT_USER
-
 
 @router.post("")
 async def chat(

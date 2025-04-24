@@ -97,7 +97,7 @@ async def ingest_file(file_path: str, user_id: str = DEFAULT_USER_ID, scope: str
             # Print up to 5 memories if available
             memory_count = min(len(memories), 5)
             for i in range(memory_count):
-                logger.info(f"Memory {i}: {memories[i]}")
+                logger.info(f"Memory {i}: {memories[i]['content']}")
         else:
             logger.info(f"Retrieved memories of type {type(memories)}: {memories}")
             

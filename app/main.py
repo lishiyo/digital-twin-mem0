@@ -74,6 +74,12 @@ async def knowledge_page(request: Request):
     return templates.TemplateResponse("knowledge.html", {"request": request})
 
 
+@app.get("/profile")
+async def profile_page(request: Request):
+    """Serve the user profile interface."""
+    return templates.TemplateResponse("profile.html", {"request": request})
+
+
 if __name__ == "__main__":
     import uvicorn
 

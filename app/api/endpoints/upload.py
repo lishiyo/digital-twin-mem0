@@ -13,24 +13,17 @@ from app.core.constants import DEFAULT_USER
 from app.worker import tasks
 from app.services.ingestion import FileService
 from app.services.ingestion.file_service import SUPPORTED_EXTENSIONS
-
+from app.api.deps import get_current_user_or_mock
+from fastapi.security import HTTPBearer
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Optional security scheme that doesn't raise an error for missing credentials
+optional_security = HTTPBearer(auto_error=False)
 
 # Optional auth dependency for development
 def get_optional_user(current_user: dict = Depends(get_current_user)):
     return current_user
-
-async def get_current_user_or_mock():
-    """
-    Get the current user if authenticated, otherwise return a mock user.
-    This is for development purposes only and should be replaced with proper auth in production.
-    """
-    # For now, just return the mock user directly without trying authentication
-    # Remove this bypass and implement proper auth for production
-    logger.warning("⚠️ AUTH BYPASSED - Using mock user - FOR DEVELOPMENT ONLY")
-    return DEFAULT_USER
-
 
 @router.post("")
 async def upload_file(
