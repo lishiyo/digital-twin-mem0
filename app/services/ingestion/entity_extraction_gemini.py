@@ -394,7 +394,7 @@ class EntityExtractor:
         
         # Trait extraction prompt
         traits_prompt = f"""
-        Extract user traits from the following message. Focus on:
+        Extract relevant user traits, if any, from the following message. Focus on:
         1. Skills (things the user knows how to do)
         2. Interests (things the user likes or is curious about)
         3. Preferences (things the user prefers over alternatives)
@@ -405,7 +405,7 @@ class EntityExtractor:
         - trait_type: One of [skill, interest, preference, dislike, attribute]
         - name: The specific trait, as a detailed description
         - confidence: How certain you are (0.0-1.0)
-        - evidence: The part of the text supporting this trait
+        - evidence: The part of the text supporting this trait (give full line if possible)
         - strength: How strong this trait is (0.0-1.0, optional)
         
         Example format:
@@ -428,7 +428,7 @@ class EntityExtractor:
         MESSAGE:
         {content}
         
-        Only include traits that are clearly evidenced in the text with high confidence.
+        Important: ONLY include traits that are clearly evidenced in the text with high confidence. If there are none, that's fine, return an empty list.
         """
         
         try:

@@ -36,8 +36,8 @@ class ChatGraphitiIngestion:
     MIN_CONFIDENCE_RELATIONSHIP = 0.6
     MIN_CONFIDENCE_TRAIT = 0.8
     MIN_CONFIDENCE_TRAIT_SKILL = 0.85
-    MIN_CONFIDENCE_TRAIT_INTEREST = 0.85
-    MIN_CONFIDENCE_TRAIT_PREFERENCE = 0.85
+    MIN_CONFIDENCE_TRAIT_INTEREST = 0.8
+    MIN_CONFIDENCE_TRAIT_PREFERENCE = 0.8
     MIN_CONFIDENCE_TRAIT_DISLIKE = 0.85
     MIN_CONFIDENCE_TRAIT_ATTRIBUTE = 0.85
 
@@ -463,7 +463,9 @@ class ChatGraphitiIngestion:
                     "name": trait_name,
                     "type": trait_type,
                     "trait_type": trait.get("trait_type"),
-                    "confidence": trait.get("confidence", 0.7)
+                    "confidence": trait.get("confidence", 0.7),
+                    "evidence": trait.get("evidence", ""),
+                    "strength": trait.get("strength", 0.7)
                 })
             except Exception as e:
                 logger.error(f"Error handling trait {trait_name}: {str(e)}")
@@ -654,7 +656,7 @@ class ChatGraphitiIngestion:
                 strength = trait.get("strength", 0.7) # Used for skill proficiency
                 evidence = trait.get("evidence", "")
                 
-                logger.info(f"Processing trait: {trait} with confidence: {confidence}, strength: {strength}, name: {name}")
+                logger.info(f"Processing trait: {trait} with confidence: {confidence}, strength: {strength}, name: {name} and evidence: {evidence}")
                 if not name:
                     continue
                 
