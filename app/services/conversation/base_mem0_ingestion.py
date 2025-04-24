@@ -25,6 +25,18 @@ class BaseChatMem0Ingestion(abc.ABC):
             db_session: SQLAlchemy session (sync or async)
         """
         self.db = db_session
+    
+    def should_ingest(self, message: ChatMessage) -> bool:
+        """Determine if a message should be ingested into Mem0.
+        
+        Args:
+            message: ChatMessage to evaluate
+            
+        Returns:
+            True if the message should be ingested, False otherwise
+        """
+        # Only ingest user messages, not assistant/twin messages
+        return message.role == MessageRole.USER or message.role == MessageRole.SYSTEM
         
     @abc.abstractmethod
     def _calculate_importance(self, message: ChatMessage) -> float:
@@ -36,10 +48,14 @@ class BaseChatMem0Ingestion(abc.ABC):
         Returns:
             Importance score (0.0-1.0)
         """
+        # If it's an assistant/twin message, return 0 importance
+        if message.role == MessageRole.ASSISTANT:
+            return 0.0
+            
         # Default importance by role
         base_importance = {
             MessageRole.USER: 0.5,
-            MessageRole.ASSISTANT: 0.1, # super low because assistants are using already-stored memories already
+            MessageRole.ASSISTANT: 0.0,  # set to 0 to never store assistant messages
             MessageRole.SYSTEM: 0.7
         }.get(message.role, 0.3)
         

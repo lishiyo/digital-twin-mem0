@@ -46,6 +46,19 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
                     "message_id": message.id
                 }
             
+            # Skip assistant/twin messages
+            if not self.should_ingest(message):
+                logger.info(f"Message {message.id} with role {message.role} not ingested (assistant/twin messages are excluded)")
+                # Mark as processed but not stored
+                message.processed_in_mem0 = True
+                message.is_stored_in_mem0 = False
+                await self.db.commit()
+                return {
+                    "status": "skipped",
+                    "reason": "assistant_message_excluded",
+                    "message_id": message.id
+                }
+            
             # Calculate importance score if not already set
             if message.importance_score is None:
                 message.importance_score = await self._calculate_importance(message)

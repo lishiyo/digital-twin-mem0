@@ -5,7 +5,7 @@ import logging
 import json
 from collections import defaultdict
 
-from app.db.models.chat_message import ChatMessage
+from app.db.models.chat_message import ChatMessage, MessageRole
 from app.db.models.conversation import Conversation
 from app.db.models.user_profile import UserProfile
 from app.services.graph import GraphitiService
@@ -64,6 +64,18 @@ class ChatGraphitiIngestion:
         
         self.extractor = entity_extractor
     
+    def should_ingest(self, message: ChatMessage) -> bool:
+        """Determine if a message should be ingested into Graphiti.
+        
+        Args:
+            message: ChatMessage to evaluate
+            
+        Returns:
+            True if the message should be ingested, False otherwise
+        """
+        # Only ingest user messages, not assistant/twin messages
+        return message.role == MessageRole.USER or message.role == MessageRole.SYSTEM
+    
     def process_message(self, message: ChatMessage) -> Dict[str, Any]:
         """Process a chat message and extract entities, relationships, and traits.
         
@@ -79,6 +91,19 @@ class ChatGraphitiIngestion:
                 return {
                     "status": "skipped",
                     "reason": "already_processed",
+                    "message_id": message.id
+                }
+            
+            # Skip assistant/twin messages
+            if not self.should_ingest(message):
+                logger.info(f"Message {message.id} with role {message.role} not ingested (assistant/twin messages are excluded)")
+                # Mark as processed but not stored
+                message.processed_in_graphiti = True
+                message.is_stored_in_graphiti = False
+                self.db.commit()
+                return {
+                    "status": "skipped",
+                    "reason": "assistant_message_excluded",
                     "message_id": message.id
                 }
             
