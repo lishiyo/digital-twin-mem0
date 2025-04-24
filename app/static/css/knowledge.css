@@ -381,6 +381,28 @@ body {
     padding: 10px;
 }
 
+/* Add styling for conversation summary */
+.conversation-summary {
+    margin: 15px 0 20px;
+    padding: 15px;
+    background-color: #f0fdfa;
+    border-radius: 8px;
+    border-left: 3px solid #10a37f;
+}
+
+.conversation-summary h3 {
+    color: #10a37f;
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.summarized-label {
+    color: #10a37f;
+    font-weight: 500;
+    font-style: italic;
+    margin-right: 5px;
+}
+
 .message-content {
     margin-top: 15px;
     padding: 15px;

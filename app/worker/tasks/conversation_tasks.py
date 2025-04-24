@@ -232,20 +232,17 @@ def _summarize_conversation_sync(conversation_id: str) -> Dict[str, Any]:
                     summarization_service = ConversationSummarizationService(async_db, memory_service)
                     return await summarization_service.generate_summary(conversation_id)
             
-            # Use asyncio.run which handles event loop creation and cleanup properly
+            # Create a brand new event loop
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            
             try:
-                # asyncio.run manages the event loop lifecycle properly
-                result = asyncio.run(run_summarization())
+                # Use the new loop to run the coroutine to completion
+                result = new_loop.run_until_complete(run_summarization())
                 return result
-            except RuntimeError as e:
-                # Handle the case where asyncio.run is called from a running event loop
-                # This is a safer fallback for when we're in a context that already has a loop
-                if "RuntimeError: asyncio.run() cannot be called from a running event loop" in str(e):
-                    logger.warning("Using get_event_loop().run_until_complete() as fallback because we're inside an existing event loop")
-                    loop = asyncio.get_event_loop()
-                    return loop.run_until_complete(run_summarization())
-                else:
-                    raise
+            finally:
+                # Always clean up the loop to prevent resource leaks
+                new_loop.close()
             
         except Exception as e:
             logger.error(f"Error in _summarize_conversation_sync: {str(e)}")

@@ -71,7 +71,7 @@ class ConversationSummarizationService:
                 select(ChatMessage)
                 .where(
                     ChatMessage.conversation_id == conversation_id,
-                    ChatMessage.processed == False
+                    ChatMessage.processed_in_summary == False
                 )
                 .order_by(ChatMessage.created_at)
             )
@@ -172,14 +172,14 @@ class ConversationSummarizationService:
             )
             # logger.info(f"Successfully stored summary in mem0: {mem0_result}")
             
-            # Mark only the new messages as processed
+            # Mark only the new messages as processed in summary
             for message in new_messages:
-                message.processed = True
+                message.processed_in_summary = True
                 
-                # For assistant messages, mark them as stored in mem0 so they're not stored again
-                # We don't need them now that we have the summary
-                if message.role == MessageRole.ASSISTANT and not message.is_stored_in_mem0:
-                    message.is_stored_in_mem0 = True # Not actually stored in mem0, just marking it as processed
+                # We don't need to store assistant messages in Mem0 since we have the summary
+                # This doesn't actually store them in Mem0, just prevents future attempts to process them
+                if message.role == MessageRole.ASSISTANT:
+                    message.processed_in_mem0 = True
             
             await self.db.commit()
             
@@ -298,12 +298,12 @@ class ConversationSummarizationService:
             if not conversation:
                 return False
             
-            # Get count of messages that haven't been processed
+            # Get count of messages that haven't been processed in summary
             messages_query = (
                 select(ChatMessage)
                 .where(
                     ChatMessage.conversation_id == conversation_id,
-                    ChatMessage.processed == False
+                    ChatMessage.processed_in_summary == False
                 )
             )
             messages_result = await self.db.execute(messages_query)

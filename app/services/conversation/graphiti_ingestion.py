@@ -65,7 +65,7 @@ class ChatGraphitiIngestion:
         self.extractor = entity_extractor
     
     def process_message(self, message: ChatMessage) -> Dict[str, Any]:
-        """Process a chat message and extract entities and traits for Graphiti.
+        """Process a chat message and extract entities, relationships, and traits.
         
         Args:
             message: The ChatMessage to process
@@ -74,7 +74,7 @@ class ChatGraphitiIngestion:
             Dictionary with processing results
         """
         try:
-            if message.is_stored_in_graphiti:
+            if message.processed_in_graphiti:
                 logger.info(f"Message {message.id} already processed for Graphiti")
                 return {
                     "status": "skipped",
@@ -85,7 +85,8 @@ class ChatGraphitiIngestion:
             # Skip empty messages
             if not message.content or not message.content.strip():
                 logger.info(f"Message {message.id} has no content, skipping Graphiti processing")
-                message.is_stored_in_graphiti = True
+                message.processed_in_graphiti = True  # Mark as processed
+                message.is_stored_in_graphiti = False  # Nothing was actually stored
                 self.db.commit()
                 return {
                     "status": "skipped",
@@ -125,7 +126,8 @@ class ChatGraphitiIngestion:
             if (not extraction_results.get("entities") and not extraction_results.get("traits")) or \
                (len(extraction_results.get("entities", [])) == 0 and len(extraction_results.get("traits", [])) == 0):
                 logger.info(f"Message {message.id} has no entities or traits, skipping Graphiti processing")
-                message.is_stored_in_graphiti = True
+                message.processed_in_graphiti = True  # Mark as processed
+                message.is_stored_in_graphiti = False  # Nothing was actually stored
                 self.db.commit()
                 return {
                     "status": "skipped",
@@ -146,7 +148,13 @@ class ChatGraphitiIngestion:
                 self._update_user_profile(user.profile, processing_result["traits"])
             
             # Mark message as processed
-            message.is_stored_in_graphiti = True
+            message.processed_in_graphiti = True  # Always mark as processed
+
+            # Only mark as stored if something was actually created
+            entities_created = len(processing_result.get("entities", [])) > 0
+            traits_created = len(processing_result.get("traits", [])) > 0
+            message.is_stored_in_graphiti = entities_created or traits_created
+            
             self.db.commit()
             
             logger.info(f"Successfully processed message {message.id} for Graphiti")
@@ -168,7 +176,7 @@ class ChatGraphitiIngestion:
             }
     
     def process_pending_messages(self, limit: int = 50) -> Dict[str, Any]:
-        """Process pending messages that haven't been ingested to Graphiti.
+        """Process pending messages that haven't been processed through Graphiti.
         
         Args:
             limit: Maximum number of messages to process
@@ -180,7 +188,7 @@ class ChatGraphitiIngestion:
             # Find unprocessed messages
             query = (
                 select(ChatMessage)
-                .where(ChatMessage.is_stored_in_graphiti == False)
+                .where(ChatMessage.processed_in_graphiti == False)
                 .limit(limit)
             )
             
@@ -234,7 +242,7 @@ class ChatGraphitiIngestion:
             query = (
                 select(ChatMessage)
                 .where(ChatMessage.conversation_id == conversation_id)
-                .where(ChatMessage.is_stored_in_graphiti == False)
+                .where(ChatMessage.processed_in_graphiti == False)
             )
             
             result = self.db.execute(query)

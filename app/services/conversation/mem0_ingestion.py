@@ -38,11 +38,11 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
             Dictionary with processing results
         """
         try:
-            if message.is_stored_in_mem0:
-                logger.info(f"Message {message.id} already ingested to Mem0")
+            if message.processed_in_mem0:
+                logger.info(f"Message {message.id} already processed for Mem0")
                 return {
                     "status": "skipped",
-                    "reason": "already_ingested",
+                    "reason": "already_processed",
                     "message_id": message.id
                 }
             
@@ -74,19 +74,44 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
             # Determine TTL based on importance
             ttl_days = self._get_ttl_for_importance(message.importance_score)
             
+             # Get formatted messages for Mem0
+            messages = self._format_mem0_messages(message.content)
+            
             # Add to memory
-            memory_result = await self.memory_service.add(
-                content=message.content,
+            raw_result = await self.memory_service.add(
+                messages, 
+                user_id=message.user_id, 
                 metadata=meta_data,
-                user_id=message.user_id,
+                version="v2",
+                output_format="v1.1",
                 ttl_days=ttl_days
             )
             
-            # Update message with Mem0 ID - use mem0_message_id for consistency with SyncChatMem0Ingestion
-            message.mem0_message_id = memory_result.get("id")
-            message.is_stored_in_mem0 = True
-            message.processed = True
+             # Process the result to handle different response formats
+            memory_id = None
+            if isinstance(raw_result, dict):
+                # Handle v2 API format which returns {'results': [...]}
+                if "results" in raw_result and raw_result["results"]:
+                    result_obj = raw_result["results"][0]
+                    memory_id = result_obj.get("id") or result_obj.get("memory_id")
+                # Direct response format (v1)
+                elif "memory_id" in raw_result:
+                    memory_id = raw_result["memory_id"]
+                elif "id" in raw_result:
+                    memory_id = raw_result["id"]
+                # Handle empty results array case
+                elif "results" in raw_result and not raw_result["results"]:
+                    # Don't generate a memory ID since Mem0 decided not to store it
+                    memory_id = None
+                    logger.info(f"Mem0 returned empty results array - content not stored in Mem0")
             
+            # Update message with Mem0 ID
+            message.mem0_message_id = memory_id
+            # Mark as processed always, whether it was stored or not
+            message.processed_in_mem0 = True
+            # Set is_stored_in_mem0 based on whether we got a memory ID
+            message.is_stored_in_mem0 = memory_id is not None
+                                    
             await self.db.commit()
             
             logger.info(f"Successfully ingested message {message.id} to Mem0 with ID {message.mem0_message_id}")
@@ -108,7 +133,7 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
             }
     
     async def process_pending_messages(self, limit: int = 50) -> Dict[str, Any]:
-        """Process pending messages that haven't been ingested to Mem0.
+        """Process pending messages that haven't been processed for Mem0.
         
         Args:
             limit: Maximum number of messages to process
@@ -120,8 +145,7 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
             # Find unprocessed messages
             query = (
                 select(ChatMessage)
-                .where(ChatMessage.is_stored_in_mem0 == False)
-                .where(ChatMessage.processed == False)
+                .where(ChatMessage.processed_in_mem0 == False)
                 .limit(limit)
             )
             
@@ -175,7 +199,7 @@ class ChatMem0Ingestion(BaseChatMem0Ingestion):
             query = (
                 select(ChatMessage)
                 .where(ChatMessage.conversation_id == conversation_id)
-                .where(ChatMessage.is_stored_in_mem0 == False)
+                .where(ChatMessage.processed_in_mem0 == False)
             )
             
             result = await self.db.execute(query)

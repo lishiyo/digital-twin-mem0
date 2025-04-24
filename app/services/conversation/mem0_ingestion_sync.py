@@ -41,11 +41,11 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             Dictionary with processing results
         """
         try:
-            if message.is_stored_in_mem0:
-                logger.info(f"Message {message.id} already ingested to Mem0")
+            if message.processed_in_mem0:
+                logger.info(f"Message {message.id} already processed for Mem0")
                 return {
                     "status": "skipped",
-                    "reason": "already_ingested",
+                    "reason": "already_processed",
                     "message_id": message.id
                 }
             
@@ -110,8 +110,8 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             
             # Update message with Mem0 ID
             message.mem0_message_id = memory_id
-            # Mark as processed regardless of whether storage succeeded
-            message.processed = True
+            # Mark as processed always, whether it was stored or not
+            message.processed_in_mem0 = True
             # Set is_stored_in_mem0 based on whether we got a memory ID
             message.is_stored_in_mem0 = memory_id is not None
             
@@ -136,7 +136,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             }
     
     def process_pending_messages(self, limit: int = 50) -> Dict[str, Any]:
-        """Process pending messages that haven't been ingested to Mem0.
+        """Process pending messages that haven't been processed for Mem0.
         
         Args:
             limit: Maximum number of messages to process
@@ -148,8 +148,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             # Find unprocessed messages
             query = (
                 select(ChatMessage)
-                .where(ChatMessage.is_stored_in_mem0 == False)
-                .where(ChatMessage.processed == False)
+                .where(ChatMessage.processed_in_mem0 == False)
                 .limit(limit)
             )
             
@@ -203,7 +202,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             query = (
                 select(ChatMessage)
                 .where(ChatMessage.conversation_id == conversation_id)
-                .where(ChatMessage.is_stored_in_mem0 == False)
+                .where(ChatMessage.processed_in_mem0 == False)
             )
             
             result = self.db.execute(query)

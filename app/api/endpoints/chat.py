@@ -239,6 +239,8 @@ async def get_conversation_details(
                     "content": msg.content,
                     "created_at": msg.created_at.isoformat(),
                     "is_stored_in_mem0": msg.is_stored_in_mem0,
+                    "is_stored_in_graphiti": msg.is_stored_in_graphiti,
+                    "is_processed_in_summary": msg.processed_in_summary,
                     "importance_score": msg.importance_score
                 } for msg in messages
             ]
@@ -293,7 +295,7 @@ async def get_message_mem0_status(
             "is_stored_in_mem0": message.is_stored_in_mem0,
             "mem0_memory_id": message.mem0_message_id,
             "importance_score": message.importance_score,
-            "processed": message.processed,
+            "processed": message.processed_in_mem0,
             "created_at": message.created_at.isoformat()
         }
     except HTTPException:
@@ -350,6 +352,10 @@ async def get_message(
             "timestamp": message.created_at.isoformat(),
             "metadata": message.meta_data,
             "is_stored_in_mem0": message.is_stored_in_mem0,
+            "is_stored_in_graphiti": message.is_stored_in_graphiti,
+            "processed_in_mem0": message.processed_in_mem0,
+            "processed_in_graphiti": message.processed_in_graphiti,
+            "processed_in_summary": message.processed_in_summary,
             "importance_score": message.importance_score
         }
     except HTTPException:

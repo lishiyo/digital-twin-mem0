@@ -62,7 +62,11 @@ def mock_message(test_user_id):
     message.created_at = datetime.now()
     message.conversation_id = str(uuid.uuid4())
     message.user_id = test_user_id
-    message.processed = False
+    message.processed_in_mem0 = False
+    message.processed_in_graphiti = False
+    message.processed_in_summary = False
+    message.is_stored_in_mem0 = False
+    message.is_stored_in_graphiti = False
     message.meta_data = {}
     return message
 
