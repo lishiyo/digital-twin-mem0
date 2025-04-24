@@ -13,6 +13,7 @@ from app.services.ingestion.file_service import FileService
 from app.services.ingestion.parsers import parse_file
 from app.services.ingestion.chunking import DocumentChunker
 from app.services.ingestion.entity_extraction_factory import get_entity_extractor
+from app.services.traits import TraitExtractionService
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +171,7 @@ class IngestionService:
                 logger.error(f"Error adding chunk to memory: {e}")
                 failures += 1
         
-        # Extract entities and relationships using NLP
+        # Extract entities and relationships using Gemini
         extraction_results = {"entities": [], "relationships": []}
         try:
             # Create chunk boundaries for entity extraction
@@ -182,11 +183,50 @@ class IngestionService:
                 chunk_boundaries.append((current_offset, current_offset + content_length))
                 current_offset += content_length
             
+            # Extract entities and relationships using Gemini
             extraction_results = self.entity_extractor.process_document(
                 parsed_content, 
-                chunk_boundaries=chunk_boundaries
+                chunk_boundaries=chunk_boundaries,
+                extract_traits=False
             )
             logger.info(f"Extracted {len(extraction_results['entities'])} entities and {len(extraction_results['relationships'])} relationships")
+            
+            # Extract and process traits for UserProfile
+            try:
+                # Use TraitExtractionService to extract and process traits
+                from sqlalchemy.ext.asyncio import AsyncSession
+                from app.db.session import get_db
+
+                # Get database session
+                db = await get_db()
+                
+                # Create trait extraction service
+                trait_service = TraitExtractionService(db)
+                
+                # Extract traits from entire document content
+                # This will also update the UserProfile
+                trait_result = await trait_service.extract_traits(
+                    content=parsed_content,
+                    source_type="document",
+                    user_id=user_id,
+                    metadata={
+                        "file_path": file_path,
+                        "title": combined_metadata.get("title", os.path.basename(file_path)),
+                        **combined_metadata
+                    },
+                    update_profile=True
+                )
+                
+                logger.info(f"Extracted and processed {len(trait_result.get('traits', []))} traits from document")
+                
+                # Store trait extraction result for later use
+                trait_extraction_result = trait_result
+                
+                # Add traits to extraction_results to be used by Graphiti
+                extraction_results["traits"] = trait_result.get("traits", [])
+            except Exception as e:
+                logger.error(f"Error extracting traits for UserProfile: {e}")
+                trait_extraction_result = {"status": "error", "message": str(e), "traits": []}
             
             # Keep name extraction but remove redundant filtering
             filtered_entities = extraction_results["entities"].copy()
@@ -333,7 +373,8 @@ class IngestionService:
                         "total_chunks": len(chunks),
                         "failed_chunks": failures,
                         "skipped_chunks": skipped_chunks,
-                        "keywords": combined_metadata.get("keywords", [])
+                        "keywords": combined_metadata.get("keywords", []),
+                        "traits": extraction_results["traits"]
                     },
                     scope=scope,
                     owner_id=owner_id
@@ -597,6 +638,7 @@ class IngestionService:
                 "count": embedding_count
             },
             "graphiti_result": graphiti_result,
+            "trait_extraction": trait_extraction_result if 'trait_extraction_result' in locals() else None,
             "scope": scope,
             "owner_id": owner_id
         }

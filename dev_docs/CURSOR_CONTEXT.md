@@ -159,6 +159,42 @@ This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updat
 - Add comprehensive tests for the conversation summarization functionality
 - Optimize memory usage in Mem0 by implementing more intelligent TTL strategies 
 
+## 2023-06-21
+
+### Current Focus
+
+Implemented the Trait Extraction Agent, focusing on the first phase of the implementation plan outlined in `v1_trait_extraction_agent.md`. This serves Task 4.5 from `v1_tasks.md` to enable document trait extraction and update user profiles.
+
+### Key Components Created
+
+1. **Trait Extractors**: Implemented base `TraitExtractor` interface and source-specific implementations (`ChatTraitExtractor`, `DocumentTraitExtractor`) in `app/services/traits/extractors.py`.
+
+2. **Trait Extraction Service**: Implemented a unified service that handles extraction, processing, and updating user profiles in `app/services/traits/service.py`.
+
+3. **Integration Points**: 
+   - Updated `app/services/ingestion/service.py` to extract traits from documents
+   - Updated `app/services/conversation/graphiti_ingestion.py` to use the new trait extraction service
+
+### Current Patterns and Preferences
+
+- We're following a composable, interface-based design where specialized extractors inherit from a common base class.
+- Source-specific confidence adjustments are applied based on the reliability of each source type.
+- Trait update logic uses a consistent approach for handling conflicts and confidence scores.
+- Decoupled trait extraction from Graphiti operations for better separation of concerns.
+
+### Next Steps
+
+1. Move forward with Phase 2 of trait extraction: implement advanced confidence scoring, cross-source validation, temporal weighting, and trait categorization.
+
+2. Consider implementing trait evolution tracking to maintain a history of how traits change over time.
+
+3. Begin exploring additional data sources (calendar, social media) for future integration as outlined in Phase 3.
+
+### Learnings
+
+- The existing trait extraction code in the chat pipeline had good conflict resolution logic that was worth preserving.
+- The document ingestion pipeline already extracted traits but didn't use them, making this a relatively straightforward integration point.
+- Separating trait extraction from Graphiti operations allows for more flexibility in how we use and evolve these features independently.
 
 ## 2025-04-18 01:27 PDT
 

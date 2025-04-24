@@ -355,13 +355,15 @@ This approach allows tracking both when a task should be done (phase) and what f
 
 ### 4.5. Trait Extraction Agent
 
+See [v1_trait_extraction_agent.md](./v1_trait_extraction_agent.md) for implementation detail.
+
 **4.5.1. Develop comprehensive trait extraction system**
-- [ ] Build upon the chat-specific extraction (3.1.3)
-- [ ] Extend extraction to handle ingested docs, updating UserProfile
-- [ ] Extend extraction to handle our other data sources (chat, calendar, social media etc), updating UserProfile
-- [ ] Create unified processing workflow across sources
-- [ ] Implement source-specific extractors with consistent output format
-- [ ] Develop advanced prompt templates with source-specific considerations
+- [x] Build upon the chat-specific extraction (3.1.3)
+- [x] Extend extraction to handle ingested docs, updating UserProfile
+- [x] Extend extraction to handle our other data sources (chat, calendar, social media etc), updating UserProfile
+- [x] Create unified processing workflow across sources
+- [x] Implement source-specific extractors with consistent output format
+- [x] Develop advanced prompt templates with source-specific considerations
 
 **4.5.2. Implement advanced confidence scoring**
 - [ ] Design multi-source confidence calculation algorithm
