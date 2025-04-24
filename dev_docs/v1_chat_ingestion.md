@@ -98,18 +98,38 @@ class ChatMessage(Base):
     
     id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     conversation_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation.id"), nullable=False)
-    sender_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'user' or 'twin'
+    role: Mapped[MessageRole] = mapped_column(SQLEnum(MessageRole), nullable=False, index=True)  # 'user', 'assistant', or 'system'
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    meta_data: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    is_processed: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Processing status flags
+    processed_in_mem0: Mapped[bool] = mapped_column(Boolean, default=False, index=True, 
+                                          comment="Indicates if message has been processed through Mem0 chat ingestion")
+    processed_in_summary: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                             comment="Indicates if message has been processed as part of a conversation summary")
+    processed_in_graphiti: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                              comment="Indicates if message has been processed through Graphiti")
+    
+    # Mem0 integration fields
+    is_stored_in_mem0: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                          comment="Indicates if message has been actually stored in Mem0")
+    mem0_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True,
+                                                 comment="Mem0 memory ID if stored in Mem0")
+    importance_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    
+    # Graphiti integration field
+    is_stored_in_graphiti: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                              comment="Indicates if message has been actually stored in Graphiti")
     
     # Relationships
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
+    user: Mapped["User"] = relationship("User", back_populates="messages")
     feedback: Mapped[list["MessageFeedback"]] = relationship("MessageFeedback", back_populates="message", cascade="all, delete-orphan")
     
-    def __repr__(self):
-        return f"<ChatMessage(id={self.id}, conversation={self.conversation_id}, sender={self.sender_type})>"
+    def needs_summarization(self) -> bool:
+        """Check if message needs to be included in a summary."""
+        return not self.processed_in_summary
 
 
 # app/db/models/message_feedback.py
@@ -235,7 +255,7 @@ We'll implement a hybrid approach for chat ingestion into Mem0 and Graphiti:
     - Add metadata tags like session_id, timestamp, topic
     - Set TTL (time-to-live) policies to eventually expire older raw messages
 2. Create periodic session summaries
-    - Generate summaries at logical breakpoints
+    - Generate summaries at logical breakpoints (for now whenever we manually hit summarize, or every 20 messages)
         - End of sessions
         - After key decisions/insights
         - When context shifts significantly
@@ -243,6 +263,9 @@ We'll implement a hybrid approach for chat ingestion into Mem0 and Graphiti:
         - Preferences and traits for UserProfile
         - Key decisions or commitments
         - Questions asked and answers provided
+    - Store summaries in Postgres and Mem0
+        - each conversation in Postgres uses the previous summary and augments it with the new messages
+        - each bunch of new messages goes into Mem0
 3. Implement a tiered memory system
 - Short-term: Recent raw messages (high detail, recency bias)
 - Medium-term: Session summaries (moderate detail, last few months)
@@ -477,7 +500,7 @@ class AIService:
         response = await openai.Completion.acreate(
             engine=settings.OPENAI_ANALYSIS_MODEL,
             prompt=prompt,
-            max_tokens=500,
+            max_tokens=5000,
             temperature=0.2
         )
         

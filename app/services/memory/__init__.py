@@ -125,7 +125,7 @@ class MemoryService:
                         infer=infer,  # Use the provided infer parameter
                         ttl_days=ttl_days  # Use the provided ttl_days parameter
                     )
-                    logger.info(f"Memory added for user {user_id}")
+                    logger.info(f"Memory added for user {user_id}: raw_result: {raw_result}")
                     
                     # Normalize the response format
                     if isinstance(raw_result, dict):

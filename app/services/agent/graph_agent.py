@@ -80,26 +80,47 @@ class AgentState:
 class TwinAgent:
     """LangGraph-based agent implementing the digital twin."""
     
-    def __init__(self, user_id: str, model_name: str = "gpt-4.1-2025-04-14"):
-        """Initialize the twin agent.
+    def __init__(self, db_session):
+        """Initialize the agent.
         
         Args:
-            user_id: The user ID the agent is representing
-            model_name: The OpenAI model to use
+            db_session: SQLAlchemy session
         """
-        self.user_id = user_id
-        self.memory_service = MemoryService()
+        self.db = db_session
+        self.mem0_service = MemoryService()
         self.graphiti_service = GraphitiService()
         
         # Initialize LLM
         self.llm = ChatOpenAI(
-            model=model_name,
-            temperature=0.7,
             api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_MODEL,
+            temperature=settings.OPENAI_TEMPERATURE,
         )
         
-        # Build the agent workflow
-        self.workflow = self._build_workflow()
+        # Build the workflow
+        self.workflow = StateGraph(AgentStateDict)
+        
+        # Define nodes
+        self.workflow.add_node("retrieve_from_mem0", self._retrieve_from_mem0)
+        self.workflow.add_node("retrieve_from_graphiti", self._retrieve_from_graphiti)
+        self.workflow.add_node("merge_context", self._merge_context)
+        self.workflow.add_node("generate_response", self._generate_response)
+        
+        # Connect nodes
+        self.workflow.set_entry_point("retrieve_from_mem0")
+        self.workflow.add_edge("retrieve_from_mem0", "retrieve_from_graphiti")
+        self.workflow.add_edge("retrieve_from_graphiti", "merge_context")
+        self.workflow.add_edge("merge_context", "generate_response")
+        
+        # Define exit
+        self.workflow.add_conditional_edges(
+            "generate_response",
+            self._should_end,
+            {
+                END: END,
+                "retrieve_from_graphiti": "retrieve_from_graphiti" # fallback loop
+            }
+        )
     
     async def _retrieve_from_mem0(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve relevant context from Mem0."""
@@ -118,7 +139,7 @@ class TwinAgent:
                 return state_obj.to_dict()
             
             # Directly await the async call - we're already in an event loop
-            mem0_results = await self.memory_service.search(
+            mem0_results = await self.mem0_service.search(
                 query=last_user_message,
                 user_id=state_obj.user_id,
                 limit=5
@@ -231,12 +252,44 @@ class TwinAgent:
         
         return state_obj.to_dict()
     
-    def _merge_context(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge context from Mem0 and Graphiti."""
+    async def _merge_context(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge context from different sources."""
         state_obj = AgentState.from_dict(state)
         
         try:
             merged_context = "Relevant context:\n\n"
+            
+            # Get previous conversation context if this is a new conversation
+            try:
+                # Import the summarization service here to avoid circular imports
+                from app.services.conversation.summarization import ConversationSummarizationService
+                
+                # Extract conversation ID from messages if available
+                conversation_id = None
+                if state_obj.messages and len(state_obj.messages) > 0:
+                    # Look for the conversation_id in message metadata
+                    for msg in state_obj.messages:
+                        if hasattr(msg, 'additional_kwargs') and 'conversation_id' in msg.additional_kwargs:
+                            conversation_id = msg.additional_kwargs['conversation_id']
+                            break
+                
+                if conversation_id:
+                    # Check if this is a new conversation with few messages - good time to add previous context
+                    # We can do this by checking the message count
+                    if len(state_obj.messages) <= 3:  # Only add for new/short conversations
+                        # Create the summarization service
+                        summarization_service = ConversationSummarizationService(self.db)
+                        
+                        # Get context (ie the summary) from previous conversations
+                        previous_context = await summarization_service.get_previous_conversation_context(
+                            user_id=state_obj.user_id,
+                            current_conversation_id=conversation_id
+                        )
+                        
+                        if previous_context:
+                            merged_context += previous_context + "\n\n"
+            except Exception as e:
+                logger.warning(f"Error getting previous conversation context: {str(e)}")
             
             # Add Mem0 results
             if state_obj.mem0_results:
@@ -271,38 +324,37 @@ class TwinAgent:
                     
                     merged_context += f"{i+1}. {content_preview} (relevance: {relevance_str}, {meta_str})\n\n"
             
-            # Add Graphiti entity results
-            if state_obj.graphiti_results and "entities" in state_obj.graphiti_results:
-                entities = state_obj.graphiti_results["entities"]
-                if entities:
-                    merged_context += "From knowledge graph (entities):\n"
-                    for i, entity in enumerate(entities):
-                        name = entity.get("name", "")
-                        labels = entity.get("labels", [])
-                        summary = entity.get("summary", "")
+            # Add Graphiti entity results - disabled for now
+            # if state_obj.graphiti_results and "entities" in state_obj.graphiti_results:
+            #     entities = state_obj.graphiti_results["entities"]
+            #     if entities:
+            #         merged_context += "From knowledge graph (entities):\n"
+            #         for i, entity in enumerate(entities):
+            #             name = entity.get("name", "")
+            #             labels = entity.get("labels", [])
+            #             summary = entity.get("summary", "")
                         
-                        # Safely format labels
-                        labels_str = ", ".join(labels) if labels else ""
+            #             # Safely format labels
+            #             labels_str = ", ".join(labels) if labels else ""
                         
-                        merged_context += f"{i+1}. {name} ({labels_str}): {summary}\n\n"
+            #             merged_context += f"{i+1}. {name} ({labels_str}): {summary}\n\n"
             
-            # Add Graphiti graph results
-            if state_obj.graphiti_results and "graph" in state_obj.graphiti_results:
-                graph = state_obj.graphiti_results["graph"]
-                if graph:
-                    merged_context += "From knowledge graph (facts):\n"
-                    for i, fact in enumerate(graph):
-                        fact_text = fact.get("fact", "")
-                        score = fact.get("score", 0)
+            # Add Graphiti graph results - disabled for now
+            # if state_obj.graphiti_results and "graph" in state_obj.graphiti_results:
+            #     graph = state_obj.graphiti_results["graph"]
+            #     if graph:
+            #         merged_context += "From knowledge graph (facts):\n"
+            #         for i, fact in enumerate(graph):
+            #             fact_text = fact.get("fact", "")
+            #             score = fact.get("score", 0)
                         
-                        # Handle potentially None score with safe default
-                        safe_score = 0.0 if score is None else score
+            #             # Handle potentially None score with safe default
+            #             safe_score = 0.0 if score is None else score
                         
-                        merged_context += f"{i+1}. {fact_text} (confidence: {safe_score:.2f})\n\n"
+            #             merged_context += f"{i+1}. {fact_text} (confidence: {safe_score:.2f})\n\n"
             
             state_obj.merged_context = merged_context
             logger.info("Successfully merged context from different sources")
-            # logger.info(f"Final merged context:\n{merged_context}") # already logged in _generate_response
             
         except Exception as e:
             state_obj.error = f"Context merging error: {str(e)}"
@@ -355,65 +407,46 @@ class TwinAgent:
         # Continue to retrieve from Graphiti
         return "retrieve_from_graphiti"
     
-    def _build_workflow(self) -> StateGraph:
-        """Build the LangGraph workflow."""
-        # Create a state graph with TypedDict schema
-        workflow = StateGraph(AgentStateDict)
-        
-        # Add nodes - note that we're adding async functions
-        workflow.add_node("retrieve_from_mem0", self._retrieve_from_mem0)
-        workflow.add_node("retrieve_from_graphiti", self._retrieve_from_graphiti)
-        workflow.add_node("merge_context", self._merge_context)
-        workflow.add_node("generate_response", self._generate_response)
-        
-        # Add edges
-        workflow.add_edge("retrieve_from_mem0", "retrieve_from_graphiti")
-        workflow.add_edge("retrieve_from_graphiti", "merge_context")
-        workflow.add_edge("merge_context", "generate_response")
-        workflow.add_edge("generate_response", END)
-        
-        # Set entry point
-        workflow.set_entry_point("retrieve_from_mem0")
-        
-        # Compile the graph
-        return workflow.compile()
-    
-    async def chat(self, user_message: str) -> str:
+    async def chat(self, user_message: str, user_id: str, conversation_id: Optional[str] = None) -> str:
         """Process a user message and generate a response.
         
         Args:
             user_message: The user's message
+            user_id: The user ID
+            conversation_id: Optional conversation ID for context preservation
             
         Returns:
             The agent's response
         """
         try:
-            # Initialize state as a dictionary for LangGraph (not as AgentState instance)
-            initial_state = {
-                "user_id": self.user_id,
-                "messages": [HumanMessage(content=user_message)],
-                "mem0_results": [],
-                "graphiti_results": {},
-                "merged_context": None,
-                "twin_response": None,
-                "error": None
-            }
+            # Create initial state with user message
+            # Add conversation_id to the message metadata for context preservation
+            user_msg = HumanMessage(content=user_message)
+            if conversation_id:
+                user_msg.additional_kwargs = {"conversation_id": conversation_id}
+                
+            state = AgentState(
+                user_id=user_id,
+                messages=[user_msg],
+                mem0_results=[],
+                graphiti_results={},
+            ).to_dict()
             
-            # Run the workflow with dictionary state
-            # Use ainvoke instead of invoke for async workflows
-            result = await self.workflow.ainvoke(initial_state)
+            # Execute the workflow on this state - using compile() and invoke directly
+            compiled_graph = self.workflow.compile()
+            result = await compiled_graph.ainvoke(state)
+            
+            # Create final state object from result
             final_state = AgentState.from_dict(result)
             
-            if final_state.error:
-                logger.error(f"Error in agent workflow: {final_state.error}")
+            # Return the response or an error message
+            if final_state.twin_response:
+                return final_state.twin_response
+            elif final_state.error:
                 return f"I encountered an error: {final_state.error}"
-            
-            if not final_state.twin_response:
-                logger.error("No response generated")
-                return "I'm unable to generate a response right now. Please try again later."
-            
-            return final_state.twin_response
-            
+            else:
+                return "I'm sorry, I wasn't able to generate a response. Please try again."
+                
         except Exception as e:
-            logger.error(f"Error running agent workflow: {e}")
-            return f"I encountered an error: {e}" 
+            logger.error(f"Error in agent.chat: {str(e)}")
+            return f"I encountered an unexpected error: {str(e)}" 

@@ -1,0 +1,55 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+IMPORTANT: The following files in `dev_docs/` provide guidelines to navigate this codebase and remember what we are implementing. There may be additional documents on specific features, api etc that I will add explicitly, but these are core and you MUST read them before starting on a new task:
+1. `v0_v1_strategy_shift.md`
+   * foundation document that shapes all other fines
+   * defines core requirements and goals
+   * includes high-level implementation strategy
+3. `v1_architecture.md`
+   * System architecture
+   * Key technical decisions
+   * Design patterns in use
+   * Key component and their interactions
+4. `v1_tasks.md`
+   * exact tasks and subtasks breakdown, as todo lists
+   * todos should be checked off if implemented
+   * lists critical implementation paths
+5. `v1_api.md`
+   * list of expected api endpoints for different components
+5. `DEVELOPMENT_LOG.md` - our changelog
+   * Current status - what's working, what's broken
+   * Commands run
+   * Evolution of project decisions
+   * Next steps planned 
+6. `CURSOR_CONTEXT.md`
+   * Current work focus - which section of `v1_tasks.md` we are on
+   * Recent changes
+   * Active decisions and considerations
+   * Important patterns and preferences
+   * Learnings and project insights
+   * Current database/model state
+
+If touching chats or conversations, also review `v1_chat_ingestion.md`.
+
+When starting a new session:
+- Read `CURSOR_CONTEXT.md`, `DEVELOPMENT_LOG.md`, and `v1_tasks.md` first for the current state, what's been implemented, what to prioritize next
+- Acknowledge the current state
+- Reference relevant sections from these `dev_docs` files
+- Format for updates to `CURSOR_CONTEXT.md` and `DEVELOPMENT_LOG.md`:
+  - Use the current datetime in PST for each entry (use `date` in terminal for the current datetime unless I tell you it)
+  - append new updates to TOP of those files, so that the top is the most recent
+
+Important: When triggered by **update dev docs**, you MUST review every dev doc file, even if some don't require updates. Focus particularly on `DEVELOPMENT_LOG.md` and `CURSOR_CONTEXT.md` as they track current state.
+
+### Documentation Updates
+
+Update to these `dev_docs` files occur when:
+1. Discovering new project patterns
+2. After implementing significant changes
+3. When user requests with **update dev docs** (MUST review ALL files)
+4. When context needs clarification
+5. When we've completed a task or subtask, update `v1_tasks.md`
+

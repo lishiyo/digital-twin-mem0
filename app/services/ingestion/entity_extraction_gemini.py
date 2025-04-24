@@ -127,8 +127,9 @@ class EntityExtractor:
         - confidence: A confidence score between 0 and 1
         - context: The surrounding context
 
-        Only include high-quality entities - ignore common words, formatting markers, etc.
+        IMPORTANT: ONLY include high-quality entities - ignore common words, formatting markers, anything not useful or relevant about the text's author.
         If you detect text in bold (surrounded by ** characters), consider those as potential entities too.
+        If you don't find any entities, return an empty JSON list.
 
         TEXT:
         {text}
@@ -138,6 +139,8 @@ class EntityExtractor:
             # Make API call to Gemini - note: generate_content is not async
             response = self._model.generate_content(prompt)
             response_text = response.text
+            
+            # logger.info(f"Gemini response from entity extraction: {response_text}")
             
             # Try to extract JSON from response
             entities = self._extract_json_from_response(response_text)
@@ -209,11 +212,12 @@ class EntityExtractor:
         """
         # More structured prompt with explicit instructions
         prompt = f"""
-        Analyze the following text and extract named entities.
+        Analyze the following text and extract all useful named entities.
         
         TEXT: {text}
         
-        Respond ONLY with a JSON array of entities. Each entity should have these exact fields:
+        Respond ONLY with a JSON array of entities. If you cannot find any entities, return an empty list. 
+        If you do find any, each entity should have these exact fields:
         - text: The exact text of the entity
         - label: One of these categories: PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT
         - start: Approximate character position where the entity starts (integer)
@@ -442,10 +446,10 @@ class EntityExtractor:
             return []
     
     def process_document(self, content: str, chunk_boundaries: List[Tuple[int, int]] = None) -> Dict[str, Any]:
-        """Process a document and extract entities, relationships, traits, and keywords.
+        """Process a document or chat message and extract entities, relationships, traits, and keywords.
         
         Args:
-            content: Document content
+            content: Piece of text - document, chat message
             chunk_boundaries: Optional list of chunk boundaries as (start, end) tuples
             
         Returns:

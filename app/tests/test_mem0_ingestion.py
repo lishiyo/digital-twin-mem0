@@ -417,7 +417,7 @@ async def test_process_message_db(mock_db_session, mock_memory_service):
     # Verify message was updated
     assert message.is_stored_in_mem0 is True
     assert message.mem0_memory_id == "test-memory-id"
-    assert message.processed is True
+    assert message.processed_in_mem0 is True
 
 
 # ======== PROCESS MESSAGE TESTS (SYNC API) ========
@@ -596,7 +596,10 @@ async def test_process_pending_messages(db_session: AsyncSession, mock_memory_se
             role=MessageRole.USER,
             content=f"Batch message {i}",
             is_stored_in_mem0=False,
-            processed=False
+            processed_in_mem0=False,
+            processed_in_graphiti=False,
+            processed_in_summary=False,
+            is_stored_in_graphiti=False
         )
         db_session.add(message)
     

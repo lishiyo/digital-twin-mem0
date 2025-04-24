@@ -28,18 +28,27 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True)
     meta_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    processed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    
+    # Processing status flags
+    processed_in_mem0: Mapped[bool] = mapped_column(Boolean, default=False, index=True, 
+                                                comment="Indicates if message has been processed through Mem0 chat ingestion")
+    processed_in_summary: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                                   comment="Indicates if message has been processed as part of a conversation summary")
+    processed_in_graphiti: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                                    comment="Indicates if message has been processed through Graphiti")
     
     # Mem0 integration fields
-    is_stored_in_mem0: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    mem0_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_stored_in_mem0: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                                comment="Indicates if message has been actually stored in Mem0")
+    mem0_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True,
+                                                        comment="Mem0 memory ID if stored in Mem0")
     mem0_metadata: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     embedding_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    ingested: Mapped[bool] = mapped_column(Boolean, default=False)
     importance_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
     # Graphiti integration field
-    is_stored_in_graphiti: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_stored_in_graphiti: Mapped[bool] = mapped_column(Boolean, default=False, index=True,
+                                                    comment="Indicates if message has been actually stored in Graphiti")
     
     # Relationships
     conversation = relationship("Conversation", back_populates="messages")
@@ -48,6 +57,10 @@ class ChatMessage(Base):
     
     def __repr__(self):
         return f"<ChatMessage(id='{self.id}', conversation_id='{self.conversation_id}', role='{self.role}')>"
+
+    def needs_summarization(self) -> bool:
+        """Check if message needs to be included in a summary."""
+        return not self.processed_in_summary
 
     def to_dict(self):
         """Convert model to dict."""
@@ -59,14 +72,15 @@ class ChatMessage(Base):
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "tokens": self.tokens,
-            "processed": self.processed,
+            "processed_in_mem0": self.processed_in_mem0,
+            "processed_in_summary": self.processed_in_summary,
+            "processed_in_graphiti": self.processed_in_graphiti,
             "is_stored_in_mem0": self.is_stored_in_mem0,
+            "is_stored_in_graphiti": self.is_stored_in_graphiti,
             "mem0_message_id": self.mem0_message_id,
             "embedding_id": self.embedding_id,
             "meta_data": self.meta_data,
-            "ingested": self.ingested,
-            "importance_score": self.importance_score,
-            "is_stored_in_graphiti": self.is_stored_in_graphiti
+            "importance_score": self.importance_score
         }
 
 

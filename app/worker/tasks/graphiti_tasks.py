@@ -85,8 +85,8 @@ def _process_message_graphiti_sync(message_id: str) -> Dict[str, Any]:
     # Use a synchronous DB session
     with get_db_session() as db:
         try:
-            # Get message
-            query = select(ChatMessage).where(ChatMessage.id == message_id)
+            # Get only unprocessed messages
+            query = select(ChatMessage).where(ChatMessage.id == message_id, ChatMessage.processed_in_graphiti == False)
             result = db.execute(query)
             message = result.scalars().first()
             

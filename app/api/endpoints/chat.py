@@ -16,6 +16,7 @@ from app.core.constants import DEFAULT_USER
 from app.db.models.chat_message import MessageRole
 from app.services.conversation.service import ConversationService
 from app.worker.celery_app import celery_app
+from app.worker.tasks.conversation_tasks import summarize_conversation as summarize_conversation_task
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -57,113 +58,96 @@ async def get_current_user_or_mock(
 
 
 @router.post("")
-async def chat_with_twin(
-    chat_request: ChatRequest,
-    user_id: Optional[str] = Query(None, description="User ID to use (defaults to authenticated user)"),
-    model_name: str = Query(getattr(settings, "CHAT_MODEL", "gpt-4o-mini"), description="Model to use for response generation"),
+async def chat(
+    request: ChatRequest,
     current_user: dict = Depends(get_current_user_or_mock),
     db: AsyncSession = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """
-    Chat with the digital twin.
+    Send a message to the digital twin.
     
-    This endpoint allows you to send a message to the digital twin agent
-    and receive a response. The agent will use the user's personal knowledge base
-    to inform its responses.
-    
-    This implementation now:
-    1. Creates or updates a conversation record
-    2. Stores user and assistant messages
-    3. Triggers asynchronous processing for memory ingestion
+    Returns the assistant's response.
     """
-    if not user_id:
-        user_id = current_user.get("id", DEFAULT_USER["id"])
-    
-    # Store message IDs for later use with Celery
-    user_message_id = None
-    assistant_message_id = None
-    conversation_id = None
-    
     try:
-        # Initialize conversation service
+        user_id = current_user.get("id", DEFAULT_USER["id"])
+        
+        # Create conversation service
         conversation_service = ConversationService(db)
         
         # Get or create conversation
-        conversation_id = chat_request.conversation_id
+        conversation = None
+        if request.conversation_id:
+            conversation = await conversation_service.get_conversation(
+                conversation_id=request.conversation_id,
+                user_id=user_id
+            )
         
-        # Initialize the agent
-        agent = TwinAgent(user_id=user_id, model_name=model_name)
+        if not conversation:
+            # Create new conversation
+            conversation = await conversation_service.create_conversation(
+                user_id=user_id,
+                meta_data=request.metadata
+            )
         
-        # Save user message to database
-        user_message, conversation = await conversation_service.add_message(
-            conversation_id=conversation_id or str(uuid4()),
+        logger.info(f"Using conversation {conversation.id} for chat message")
+        
+        # Store user message
+        user_message, _ = await conversation_service.add_message(
+            conversation_id=conversation.id,
             user_id=user_id,
-            content=chat_request.message,
+            content=request.message,
             role=MessageRole.USER,
-            meta_data=chat_request.metadata or {}
+            meta_data=request.metadata
         )
         
-        # Store IDs for background processing
-        user_message_id = user_message.id
-        conversation_id = conversation.id
+        # Create agent and get response
+        agent = TwinAgent(db)
+        response = await agent.chat(
+            user_message=request.message,
+            user_id=user_id,
+            conversation_id=conversation.id
+        )
         
-        # Process the message from the request body
-        assistant_response = await agent.chat(chat_request.message)
-        
-        # Save assistant response to database
+        # Store assistant response
         assistant_message, _ = await conversation_service.add_message(
             conversation_id=conversation.id,
             user_id=user_id,
-            content=assistant_response,
+            content=response,
             role=MessageRole.ASSISTANT,
-            meta_data={"model": model_name}
+            meta_data=request.metadata
         )
         
-        # Store assistant message ID for background processing
-        assistant_message_id = assistant_message.id
+        # Queue message ingestion to Mem0
+        # Note: we only ingest user messages to Mem0 for now, assistant responses are summarized later
+        mem0_task = celery_app.send_task(
+            'app.worker.tasks.conversation_tasks.process_chat_message',
+            args=[str(user_message.id)],
+            kwargs={}
+        )
         
-        # Complete the database transaction and ensure it's closed
-        await db.commit()
-        await db.close()
+        # Check if this conversation needs summarization
+        try:
+            from app.services.conversation.summarization import ConversationSummarizationService
+            summarization_service = ConversationSummarizationService(db)
+            should_summarize = await summarization_service.should_summarize_conversation(conversation.id)
+            
+            if should_summarize:
+                # Queue summarization task
+                summarize_conversation_task.delay(conversation.id)
+        except Exception as e:
+            logger.warning(f"Error checking if conversation needs summarization: {str(e)}")
         
-        # Prepare the response data
-        response_data = {
-            "user_message": chat_request.message,
-            "twin_response": assistant_response,
-            "user_id": user_id,
-            "model_used": model_name,
-            "conversation_id": conversation_id
+        return {
+            "conversation_id": conversation.id,
+            "message": response,
+            "mem0_task_id": mem0_task.id if mem0_task else None
         }
-        
-        logger.info(f"Chat messages saved to conversation {conversation_id}")
-        
-        # Return the response immediately
-        return response_data
-        
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to process message: {str(e)}"
+            detail=f"An error occurred: {str(e)}"
         )
-    finally:
-        # Schedule background tasks outside of the async context
-        # This is done in a finally block to ensure it happens even if there was an error
-        if user_message_id:
-            # Use standard task queuing without any sqlalchemy context
-            # Use the fully qualified task name
-            celery_app.send_task(
-                "app.worker.tasks.conversation_tasks.process_chat_message",
-                args=[user_message_id],
-                countdown=1
-            )
-        
-        if assistant_message_id:
-            celery_app.send_task(
-                "app.worker.tasks.conversation_tasks.process_chat_message",
-                args=[assistant_message_id],
-                countdown=2
-            )
 
 
 @router.get("/conversations")
@@ -255,6 +239,8 @@ async def get_conversation_details(
                     "content": msg.content,
                     "created_at": msg.created_at.isoformat(),
                     "is_stored_in_mem0": msg.is_stored_in_mem0,
+                    "is_stored_in_graphiti": msg.is_stored_in_graphiti,
+                    "is_processed_in_summary": msg.processed_in_summary,
                     "importance_score": msg.importance_score
                 } for msg in messages
             ]
@@ -309,7 +295,7 @@ async def get_message_mem0_status(
             "is_stored_in_mem0": message.is_stored_in_mem0,
             "mem0_memory_id": message.mem0_message_id,
             "importance_score": message.importance_score,
-            "processed": message.processed,
+            "processed": message.processed_in_mem0,
             "created_at": message.created_at.isoformat()
         }
     except HTTPException:
@@ -366,6 +352,10 @@ async def get_message(
             "timestamp": message.created_at.isoformat(),
             "metadata": message.meta_data,
             "is_stored_in_mem0": message.is_stored_in_mem0,
+            "is_stored_in_graphiti": message.is_stored_in_graphiti,
+            "processed_in_mem0": message.processed_in_mem0,
+            "processed_in_graphiti": message.processed_in_graphiti,
+            "processed_in_summary": message.processed_in_summary,
             "importance_score": message.importance_score
         }
     except HTTPException:
@@ -375,4 +365,154 @@ async def get_message(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get message: {str(e)}"
+        )
+
+
+@router.post("/conversations/{conversation_id}/summarize")
+async def summarize_conversation(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user_or_mock),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually trigger summarization of a conversation.
+    
+    Returns the generated summary and updates the conversation.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        # First verify that the user has access to this conversation
+        conversation_service = ConversationService(db)
+        conversation = await conversation_service.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id
+        )
+        
+        if not conversation:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Conversation {conversation_id} not found"
+            )
+        
+        # Queue the summarization task
+        task = summarize_conversation_task.delay(conversation_id)
+        
+        return {
+            "status": "pending",
+            "task_id": task.id,
+            "conversation_id": conversation_id,
+            "message": "Summarization queued successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error queuing summarization for conversation {conversation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to queue summarization: {str(e)}"
+        )
+
+
+@router.post("/conversations/{conversation_id}/generate-title")
+async def generate_conversation_title(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user_or_mock),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a title for a conversation.
+    
+    Returns the generated title and updates the conversation.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        # First verify that the user has access to this conversation
+        conversation_service = ConversationService(db)
+        conversation = await conversation_service.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id
+        )
+        
+        if not conversation:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Conversation {conversation_id} not found"
+            )
+        
+        # Import the summarization service
+        from app.services.conversation.summarization import ConversationSummarizationService
+        from app.services.memory import MemoryService
+        
+        # Create the summarization service
+        memory_service = MemoryService()
+        summarization_service = ConversationSummarizationService(db, memory_service)
+        
+        # Generate title
+        result = await summarization_service.generate_conversation_title(conversation_id)
+        
+        if result["status"] == "error":
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate title: {result['reason']}"
+            )
+        
+        return {
+            "status": "success",
+            "conversation_id": conversation_id,
+            "title": result["title"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating title for conversation {conversation_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate title: {str(e)}"
+        )
+
+
+@router.get("/conversations/context")
+async def get_previous_conversation_context(
+    current_user: dict = Depends(get_current_user_or_mock),
+    current_conversation_id: Optional[str] = Query(None, description="Current conversation ID (optional)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get context from previous conversations for a new conversation.
+    
+    This endpoint supports context preservation between sessions by retrieving
+    summaries from previous conversations.
+    """
+    user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    try:
+        # Import the summarization service
+        from app.services.conversation.summarization import ConversationSummarizationService
+        from app.services.memory import MemoryService
+        
+        # Create the summarization service
+        memory_service = MemoryService()
+        summarization_service = ConversationSummarizationService(db, memory_service)
+        
+        # Get context from previous conversations
+        context = await summarization_service.get_previous_conversation_context(
+            user_id=user_id,
+            current_conversation_id=current_conversation_id or ""
+        )
+        
+        return {
+            "status": "success",
+            "context": context,
+            "has_context": bool(context)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting previous conversation context for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get previous conversation context: {str(e)}"
         )

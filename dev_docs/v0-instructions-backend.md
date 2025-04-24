@@ -178,6 +178,7 @@ MUST be able to understand the user's biographical info:
 - dislikes and dealbreakers
 - interests
 - skillsets
+- attributes (background, details about them)
 
 Prompt template appends both result sets.
 Calls /vote when pattern matches "## VOTE:".

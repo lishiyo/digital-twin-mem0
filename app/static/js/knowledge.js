@@ -189,8 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const memoryId = memory.memory_id || memory.id || 'unknown';
                 
                 // Extract memory type
-                const memoryType = memory.memory_type || 'unknown';
-                
+                const memoryType = memory.metadata.source || memory.memory_type || 'unknown';
+
                 // Extract content - the actual memory content
                 // In Mem0 v2 API, the content is stored in the 'memory' field
                 let content = memory.memory || memory.content || (memory.message?.content) || '';
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Add memory ID and type as tags
                 tags.push({text: `ID: ${memoryId.substring(0, 8)}`, isInteractive: true, type: 'memory', id: memoryId});
-                tags.push({text: `${memoryType}`, isInteractive: false});
+                // tags.push({text: `${memoryType}`, isInteractive: false});
                 
                 if (memory.metadata) {
                     // Store IDs for potential modal use
@@ -326,6 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="message-details">
                                     <p><strong>From:</strong> ${messageData.role || 'Unknown'}</p>
                                     <p><strong>Timestamp:</strong> ${new Date(messageData.timestamp).toLocaleString()}</p>
+                                    <p><strong>Processed in Summary:</strong> ${messageData.processed_in_summary === true ? 'Yes' : 'No'}</p>
                                     <div class="message-content">
                                         <p>${messageData.content || 'No content available'}</p>
                                     </div>
@@ -343,17 +344,35 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Display conversation details
                             document.getElementById('modal-title').textContent = conversationData.title || 'Conversation';
                             
+                            // Add summary at the top if it exists
+                            let summaryHtml = '';
+                            if (conversationData.summary) {
+                                summaryHtml = `
+                                    <div class="conversation-summary">
+                                        <h3>Summary</h3>
+                                        <p>${conversationData.summary}</p>
+                                    </div>
+                                `;
+                            }
+                            
                             let messagesHtml = '';
                             if (conversationData.messages && conversationData.messages.length > 0) {
-                                messagesHtml = conversationData.messages.map(msg => `
-                                    <div class="conversation-message ${msg.role}">
-                                        <div class="message-header">
-                                            <span class="message-role">${msg.role}</span>
-                                            <span class="message-time">${new Date(msg.timestamp || msg.created_at).toLocaleString()}</span>
+                                messagesHtml = conversationData.messages.map(msg => {
+                                    // Add "summarized" label if the message has been processed in summary
+                                    const timestampLabel = msg.is_processed_in_summary 
+                                        ? `<span class="summarized-label">(summarized)</span> ${new Date(msg.timestamp || msg.created_at).toLocaleString()}`
+                                        : new Date(msg.timestamp || msg.created_at).toLocaleString();
+                                    
+                                    return `
+                                        <div class="conversation-message ${msg.role}">
+                                            <div class="message-header">
+                                                <span class="message-role">${msg.role}</span>
+                                                <span class="message-time">${timestampLabel}</span>
+                                            </div>
+                                            <div class="message-body">${msg.content}</div>
                                         </div>
-                                        <div class="message-body">${msg.content}</div>
-                                    </div>
-                                `).join('');
+                                    `;
+                                }).join('');
                             } else {
                                 messagesHtml = '<p>No messages in this conversation</p>';
                             }
@@ -361,6 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             document.getElementById('modal-content').innerHTML = `
                                 <div class="conversation-details">
                                     <p><strong>Created:</strong> ${new Date(conversationData.created_at).toLocaleString()}</p>
+                                    ${summaryHtml}
                                     <div class="conversation-messages">
                                         ${messagesHtml}
                                     </div>
@@ -397,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             document.getElementById('modal-content').innerHTML = `
                                 <div class="memory-details">
                                     <p><strong>ID:</strong> ${memoryData.memory_id || memoryData.id}</p>
-                                    <p><strong>Type:</strong> ${memoryData.memory_type || 'Unknown'}</p>
+                                    <p><strong>Type:</strong> ${memoryData.metadata.source || memoryData.memory_type || 'Unknown'}</p>
                                     <p><strong>Created:</strong> ${date}</p>
                                     <div class="memory-content">
                                         <h3>Content</h3>

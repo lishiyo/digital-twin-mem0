@@ -5,7 +5,7 @@ import logging
 import json
 from collections import defaultdict
 
-from app.db.models.chat_message import ChatMessage
+from app.db.models.chat_message import ChatMessage, MessageRole
 from app.db.models.conversation import Conversation
 from app.db.models.user_profile import UserProfile
 from app.services.graph import GraphitiService
@@ -64,8 +64,20 @@ class ChatGraphitiIngestion:
         
         self.extractor = entity_extractor
     
+    def should_ingest(self, message: ChatMessage) -> bool:
+        """Determine if a message should be ingested into Graphiti.
+        
+        Args:
+            message: ChatMessage to evaluate
+            
+        Returns:
+            True if the message should be ingested, False otherwise
+        """
+        # Only ingest user messages, not assistant/twin messages
+        return message.role == MessageRole.USER or message.role == MessageRole.SYSTEM
+    
     def process_message(self, message: ChatMessage) -> Dict[str, Any]:
-        """Process a chat message and extract entities and traits for Graphiti.
+        """Process a chat message and extract entities, relationships, and traits.
         
         Args:
             message: The ChatMessage to process
@@ -74,7 +86,7 @@ class ChatGraphitiIngestion:
             Dictionary with processing results
         """
         try:
-            if message.is_stored_in_graphiti:
+            if message.processed_in_graphiti:
                 logger.info(f"Message {message.id} already processed for Graphiti")
                 return {
                     "status": "skipped",
@@ -82,10 +94,24 @@ class ChatGraphitiIngestion:
                     "message_id": message.id
                 }
             
+            # Skip assistant/twin messages
+            if not self.should_ingest(message):
+                logger.info(f"Message {message.id} with role {message.role} not ingested (assistant/twin messages are excluded)")
+                # Mark as processed but not stored
+                message.processed_in_graphiti = True
+                message.is_stored_in_graphiti = False
+                self.db.commit()
+                return {
+                    "status": "skipped",
+                    "reason": "assistant_message_excluded",
+                    "message_id": message.id
+                }
+            
             # Skip empty messages
             if not message.content or not message.content.strip():
                 logger.info(f"Message {message.id} has no content, skipping Graphiti processing")
-                message.is_stored_in_graphiti = True
+                message.processed_in_graphiti = True  # Mark as processed
+                message.is_stored_in_graphiti = False  # Nothing was actually stored
                 self.db.commit()
                 return {
                     "status": "skipped",
@@ -125,7 +151,8 @@ class ChatGraphitiIngestion:
             if (not extraction_results.get("entities") and not extraction_results.get("traits")) or \
                (len(extraction_results.get("entities", [])) == 0 and len(extraction_results.get("traits", [])) == 0):
                 logger.info(f"Message {message.id} has no entities or traits, skipping Graphiti processing")
-                message.is_stored_in_graphiti = True
+                message.processed_in_graphiti = True  # Mark as processed
+                message.is_stored_in_graphiti = False  # Nothing was actually stored
                 self.db.commit()
                 return {
                     "status": "skipped",
@@ -146,7 +173,13 @@ class ChatGraphitiIngestion:
                 self._update_user_profile(user.profile, processing_result["traits"])
             
             # Mark message as processed
-            message.is_stored_in_graphiti = True
+            message.processed_in_graphiti = True  # Always mark as processed
+
+            # Only mark as stored if something was actually created
+            entities_created = len(processing_result.get("entities", [])) > 0
+            traits_created = len(processing_result.get("traits", [])) > 0
+            message.is_stored_in_graphiti = entities_created or traits_created
+            
             self.db.commit()
             
             logger.info(f"Successfully processed message {message.id} for Graphiti")
@@ -168,7 +201,7 @@ class ChatGraphitiIngestion:
             }
     
     def process_pending_messages(self, limit: int = 50) -> Dict[str, Any]:
-        """Process pending messages that haven't been ingested to Graphiti.
+        """Process pending messages that haven't been processed through Graphiti.
         
         Args:
             limit: Maximum number of messages to process
@@ -180,7 +213,7 @@ class ChatGraphitiIngestion:
             # Find unprocessed messages
             query = (
                 select(ChatMessage)
-                .where(ChatMessage.is_stored_in_graphiti == False)
+                .where(ChatMessage.processed_in_graphiti == False)
                 .limit(limit)
             )
             
@@ -234,7 +267,7 @@ class ChatGraphitiIngestion:
             query = (
                 select(ChatMessage)
                 .where(ChatMessage.conversation_id == conversation_id)
-                .where(ChatMessage.is_stored_in_graphiti == False)
+                .where(ChatMessage.processed_in_graphiti == False)
             )
             
             result = self.db.execute(query)
@@ -339,15 +372,23 @@ class ChatGraphitiIngestion:
                     logger.warning(f"Entity {entity_name} exists in Graphiti but has no valid ID. Creating a new instance.")
 
                 # Create new entity - use synchronous approach
-                entity_properties = {
-                    "name": entity_name,
+                entity_properties = {}
+                
+                # For Document entities, use "title" property instead of "name"
+                if entity_type == "Document":
+                    entity_properties["title"] = entity_name
+                else:
+                    entity_properties["name"] = entity_name
+                    
+                # Add other common properties
+                entity_properties.update({
                     "user_id": user_id,
                     "source": "chat",
                     "confidence": entity.get("confidence", 0.7),
                     "context": entity.get("context", ""),
                     "message_id": message_id,
                     "conversation_title": conversation_title
-                }
+                })
                 
                 entity_id = self.graphiti.create_entity_sync(
                     entity_type=entity_type,
@@ -652,7 +693,7 @@ class ChatGraphitiIngestion:
                             profile.interests[idx] = trait_data
                             logger.info(f"Updating existing interest: {name}")
                     else:
-                        staged_interests.info(trait_data)
+                        staged_interests.append(trait_data)
                         
                 elif trait_type == "preference" and confidence >= self.MIN_CONFIDENCE_TRAIT_PREFERENCE:
                     category = "general" # Default category

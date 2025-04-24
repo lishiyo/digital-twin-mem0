@@ -41,11 +41,24 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             Dictionary with processing results
         """
         try:
-            if message.is_stored_in_mem0:
-                logger.info(f"Message {message.id} already ingested to Mem0")
+            if message.processed_in_mem0:
+                logger.info(f"Message {message.id} already processed for Mem0")
                 return {
                     "status": "skipped",
-                    "reason": "already_ingested",
+                    "reason": "already_processed",
+                    "message_id": message.id
+                }
+            
+            # Skip assistant/twin messages
+            if not self.should_ingest(message):
+                logger.info(f"Message {message.id} with role {message.role} not ingested (assistant/twin messages are excluded)")
+                # Mark as processed but not stored
+                message.processed_in_mem0 = True
+                message.is_stored_in_mem0 = False
+                self.db.commit()
+                return {
+                    "status": "skipped",
+                    "reason": "assistant_message_excluded",
                     "message_id": message.id
                 }
             
@@ -110,8 +123,8 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             
             # Update message with Mem0 ID
             message.mem0_message_id = memory_id
-            # Mark as processed regardless of whether storage succeeded
-            message.processed = True
+            # Mark as processed always, whether it was stored or not
+            message.processed_in_mem0 = True
             # Set is_stored_in_mem0 based on whether we got a memory ID
             message.is_stored_in_mem0 = memory_id is not None
             
@@ -136,7 +149,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             }
     
     def process_pending_messages(self, limit: int = 50) -> Dict[str, Any]:
-        """Process pending messages that haven't been ingested to Mem0.
+        """Process pending messages that haven't been processed for Mem0.
         
         Args:
             limit: Maximum number of messages to process
@@ -148,8 +161,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             # Find unprocessed messages
             query = (
                 select(ChatMessage)
-                .where(ChatMessage.is_stored_in_mem0 == False)
-                .where(ChatMessage.processed == False)
+                .where(ChatMessage.processed_in_mem0 == False)
                 .limit(limit)
             )
             
@@ -203,7 +215,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             query = (
                 select(ChatMessage)
                 .where(ChatMessage.conversation_id == conversation_id)
-                .where(ChatMessage.is_stored_in_mem0 == False)
+                .where(ChatMessage.processed_in_mem0 == False)
             )
             
             result = self.db.execute(query)
@@ -253,8 +265,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
     def _maybe_generate_summary(self, conversation_id: str) -> Optional[str]:
         """Generate a summary for a conversation if needed.
         
-        This is a placeholder for LLM-based summarization that would be implemented
-        in Task 3.1.4.
+        This is now implemented using the ConversationSummarizationService.
         
         Args:
             conversation_id: The conversation ID
@@ -262,10 +273,46 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
         Returns:
             Generated summary or None
         """
-        # This will be implemented as part of Task 3.1.4
-        # For now, just log that we would generate a summary
-        logger.info(f"Would generate summary for conversation {conversation_id}")
-        return None
+        try:
+            # Import needed modules
+            import asyncio
+            from app.services.conversation.summarization import ConversationSummarizationService
+            from app.services.memory import MemoryService
+            from app.db.session import get_async_session
+            
+            # We need to run this in an async context
+            async def check_and_summarize():
+                async with get_async_session() as async_db:
+                    memory_service = MemoryService(async_db)
+                    summarization_service = ConversationSummarizationService(async_db, memory_service)
+                    
+                    # Check if we should summarize this conversation
+                    should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
+                    
+                    if should_summarize:
+                        logger.info(f"Auto-summarizing conversation {conversation_id} because it has enough new messages")
+                        
+                        # Generate summary directly
+                        result = await summarization_service.generate_summary(conversation_id)
+                        
+                        if result["status"] == "success":
+                            logger.info(f"Successfully auto-summarized conversation {conversation_id}")
+                            return result["summary"]
+                        else:
+                            logger.warning(f"Failed to auto-summarize conversation {conversation_id}: {result.get('reason', 'unknown')}")
+                    
+                    return None
+            
+            # Run in new event loop
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(check_and_summarize())
+            finally:
+                loop.close()
+                
+        except Exception as e:
+            logger.error(f"Error checking/generating summary for conversation {conversation_id}: {str(e)}")
+            return None
         
     def _calculate_importance(self, message: ChatMessage) -> float:
         """Synchronous implementation of importance calculation."""
