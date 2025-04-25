@@ -342,7 +342,8 @@ class ConversationSummarizationService:
             if current_conversation_id:
                 current_query = select(Conversation).where(
                     Conversation.id == current_conversation_id,
-                    Conversation.summary != None
+                    Conversation.summary != None,
+                    Conversation.user_id == user_id
                 )
                 current_result = await self.db.execute(current_query)
                 current_conversation = current_result.scalars().first()

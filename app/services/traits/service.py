@@ -19,17 +19,17 @@ class TraitExtractionService:
     """Service for extracting traits from various sources and updating user profiles."""
     
     # Confidence thresholds for traits
-    MIN_CONFIDENCE_TRAIT = 0.8
-    MIN_CONFIDENCE_TRAIT_SKILL = 0.85
-    MIN_CONFIDENCE_TRAIT_INTEREST = 0.8
-    MIN_CONFIDENCE_TRAIT_PREFERENCE = 0.8
-    MIN_CONFIDENCE_TRAIT_DISLIKE = 0.85
-    MIN_CONFIDENCE_TRAIT_ATTRIBUTE = 0.85
+    MIN_CONFIDENCE_TRAIT = 0.7
+    MIN_CONFIDENCE_TRAIT_SKILL = 0.7
+    MIN_CONFIDENCE_TRAIT_INTEREST = 0.7
+    MIN_CONFIDENCE_TRAIT_PREFERENCE = 0.7
+    MIN_CONFIDENCE_TRAIT_DISLIKE = 0.7
+    MIN_CONFIDENCE_TRAIT_ATTRIBUTE = 0.7
     
     # Source reliability weights
     SOURCE_WEIGHTS = {
-        "chat": 0.8,
-        "document": 0.7,
+        "chat": 0.9,
+        "document": 0.9,
         # Future sources
         "calendar": 0.75,
         "social_media": 0.6,
@@ -65,7 +65,7 @@ class TraitExtractionService:
             update_profile: Whether to update the user profile
             
         Returns:
-            Dictionary with extraction results
+            Dictionary with extraction results, traits returned as trait models
         """
         metadata = metadata or {}
         metadata["user_id"] = user_id
@@ -88,7 +88,7 @@ class TraitExtractionService:
             # Process traits, filter out low confidence traits
             processed_traits = self._process_traits(traits, source_type)
             
-            # Update user profile if requested
+            # Update user profile only if requested
             profile_updates = {}
             if update_profile and self.db and processed_traits:
                 profile_updates = await self._update_user_profile(user_id, processed_traits)
@@ -96,6 +96,7 @@ class TraitExtractionService:
             return {
                 "status": "success",
                 "traits": [t.to_dict() for t in processed_traits],
+                "trait_models": processed_traits,
                 "source_type": source_type,
                 "profile_updates": profile_updates
             }
@@ -109,7 +110,7 @@ class TraitExtractionService:
             }
     
     def _process_traits(self, traits: List[Trait], source_type: str) -> List[Trait]:
-        """Process extracted traits.
+        """Process extracted traits, filtering out low confidence traits.
         
         Args:
             traits: List of extracted traits
@@ -155,16 +156,20 @@ class TraitExtractionService:
         
         Args:
             user_id: ID of the user
-            traits: List of traits to add
+            traits: List of trait models to add
             
         Returns:
             Dictionary with update results
         """
         if not traits:
+            logger.info(f"No traits to update for user {user_id}")
             return {"updated": False, "reason": "no_traits"}
         
         try:
-            # Query user with profile
+            # Log the number of traits being processed
+            logger.info(f"Updating profile for user {user_id} with {len(traits)} traits")
+            
+            # Query user with profile efficiently - don't load unnecessary relationships
             query = (
                 select(User)
                 .where(User.id == user_id)
@@ -172,7 +177,7 @@ class TraitExtractionService:
             )
             
             # Execute the query
-            result = await self.db.execute(query)
+            result = self.db.execute(query)
             user = result.unique().scalars().first()
             
             if not user:
@@ -189,7 +194,7 @@ class TraitExtractionService:
             updates = self._apply_traits_to_profile(profile, traits)
             
             # Commit changes
-            await self.db.commit()
+            self.db.commit()
             
             return {
                 "updated": True,
@@ -200,6 +205,8 @@ class TraitExtractionService:
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error updating profile for user {user_id}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"updated": False, "reason": str(e)}
     
     def _apply_traits_to_profile(self, profile: UserProfile, traits: List[Trait]) -> Dict[str, Any]:
@@ -271,8 +278,6 @@ class TraitExtractionService:
                 
                 if not name:
                     continue
-                
-                logger.info(f"apply_traits_to_profile: {trait_type}: {name} with confidence {confidence} and source {source}")
                 
                 # Skip low confidence traits
                 if confidence < self.MIN_CONFIDENCE_TRAIT:

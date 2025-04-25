@@ -66,7 +66,7 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
             if message.importance_score is None:
                 message.importance_score = self._calculate_importance(message)
             
-            logger.info(f"Processing message {message.id}: {message.content} with importance score {message.importance_score}")
+            logger.info(f"Processing message {message.id}: {message.content} with importance score {message.importance_score} and role {message.role}")
             
             # Get conversation for context
             query = (

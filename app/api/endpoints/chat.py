@@ -81,6 +81,7 @@ async def chat(
             role=MessageRole.USER,
             meta_data=request.metadata
         )
+        user_message_id = str(user_message.id)
         
         # Create agent and get response
         agent = TwinAgent(db)
@@ -98,37 +99,49 @@ async def chat(
             role=MessageRole.ASSISTANT,
             meta_data=request.metadata
         )
+        logger.info(f"Assistant message stored with ID: {assistant_message.id}")
         
-        # Queue message ingestion to Mem0
-        # Note: we only ingest user messages to Mem0 for now, assistant responses are summarized later
-        mem0_task = celery_app.send_task(
+        # --- Run Celery tasks in separate threads --- 
+        mem0_task_future = asyncio.to_thread(
+            celery_app.send_task,
             'app.worker.tasks.conversation_tasks.process_chat_message',
-            args=[str(user_message.id)],
+            args=[user_message_id],
             kwargs={}
         )
+        logger.info(f"Queuing process_chat_message task for message {user_message_id}")
         
-        # Check if this conversation needs summarization
-        try:
-            from app.services.conversation.summarization import ConversationSummarizationService
-            summarization_service = ConversationSummarizationService(db)
-            should_summarize = await summarization_service.should_summarize_conversation(conversation.id)
-            
-            if should_summarize:
-                # Queue summarization task
-                summarize_conversation_task.delay(conversation.id)
-        except Exception as e:
-            logger.warning(f"Error checking if conversation needs summarization: {str(e)}")
+        check_summary_task_future = asyncio.to_thread(
+            celery_app.send_task,
+            'app.worker.tasks.conversation_tasks.check_and_queue_summarization',
+            args=[str(conversation.id)],
+            kwargs={}
+        )
+        logger.info(f"Queuing check_and_queue_summarization task for conversation {conversation.id}")
         
+        # Await both task queuing operations concurrently
+        mem0_task, check_summary_task = await asyncio.gather(
+            mem0_task_future,
+            check_summary_task_future
+        )
+        # --- End Celery task queuing --- 
+        
+        # Log actual task IDs after awaiting
+        logger.info(f"Successfully queued process_chat_message task {mem0_task.id}")
+        logger.info(f"Successfully queued check_and_queue_summarization task {check_summary_task.id}")
+         
         return {
             "conversation_id": conversation.id,
             "message": response,
-            "mem0_task_id": mem0_task.id if mem0_task else None
+            "mem0_task_id": mem0_task.id if mem0_task else None 
         }
+        
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {str(e)}")
+        logger.error(f"Error in chat endpoint processing: {str(e)}", exc_info=True) # Add traceback
+        # Rollback potentially needed if DB operations before error failed
+        # await db.rollback() # Consider adding rollback if appropriate
         raise HTTPException(
             status_code=500,
-            detail=f"An error occurred: {str(e)}"
+            detail=f"An error occurred during chat processing: {str(e)}"
         )
 
 

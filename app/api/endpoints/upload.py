@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.constants import DEFAULT_USER
-from app.worker import tasks
+from app.worker.tasks.file_tasks import process_file, process_directory
 from app.services.ingestion import FileService
 from app.services.ingestion.file_service import SUPPORTED_EXTENSIONS
 from app.api.deps import get_current_user_or_mock
@@ -107,7 +107,13 @@ async def upload_file(
         # Process file
         if async_processing:
             # Launch Celery task for processing
-            task = tasks.process_file.delay(rel_file_path, user_id, scope=scope, owner_id=user_id if scope == "user" else None)
+            task = process_file.delay(
+                rel_file_path, 
+                user_id, 
+                scope=scope, 
+                owner_id=user_id if scope == "user" else None,
+                original_filename=original_filename
+            )
             
             return {
                 "status": "accepted",
@@ -128,11 +134,12 @@ async def upload_file(
             # We'll use background_tasks to avoid blocking the request,
             # but the client can still wait for the result
             background_tasks.add_task(
-                tasks.process_file,
+                process_file,
                 rel_file_path,
                 user_id,
                 scope=scope,
-                owner_id=user_id if scope == "user" else None
+                owner_id=user_id if scope == "user" else None,
+                original_filename=original_filename
             )
             
             return {
@@ -297,7 +304,7 @@ async def trigger_directory_processing(
     try:
         if async_processing:
             # Launch Celery task
-            task = tasks.process_directory.delay(
+            task = process_directory.delay(
                 user_id,
                 directory,
                 scope=scope,
@@ -315,7 +322,7 @@ async def trigger_directory_processing(
             # Directly process directory
             background_tasks = BackgroundTasks()
             background_tasks.add_task(
-                tasks.process_directory,
+                process_directory,
                 user_id,
                 directory,
                 scope=scope,

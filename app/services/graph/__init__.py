@@ -1,10 +1,12 @@
 """Graphiti service for knowledge graph operations."""
 
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, Set
 from datetime import datetime, timezone, timedelta
 import json
 import uuid
 import sys
+import asyncio
+from functools import wraps
 
 from neo4j import GraphDatabase
 import openai
@@ -20,6 +22,32 @@ logger = logging.getLogger(__name__)
 # Define content scope types
 ContentScope = Literal["user", "twin", "global"]
 
+# Create a global lock for synchronizing operations
+_mem0_lock = asyncio.Lock()
+
+# Helper to convert sync operations to async (for API compatibility)
+def async_wrap(func):
+    """Wraps a synchronous function to be called asynchronously.
+    
+    Args:
+        func: The synchronous function to wrap
+        
+    Returns:
+        An async function that runs the original function in an executor
+    """
+    @wraps(func)
+    async def run(*args, **kwargs):
+        logger.debug(f"Starting async_wrap for {func.__name__} with args: {args[:1]} and kwargs: {list(kwargs.keys())}")
+        try:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+            logger.debug(f"Completed async_wrap for {func.__name__}")
+            return result
+        except Exception as e:
+            logger.error(f"Error in async_wrap for {func.__name__}: {e}")
+            raise
+    return run
+
 
 class GraphitiService:
     """Service for interacting with Graphiti knowledge graph."""
@@ -28,7 +56,7 @@ class GraphitiService:
     COMMON_OPTIONAL_FIELDS = [
         "user_id", "source", "source_file", "context", "scope", "owner_id", 
         "label", "confidence", "strength", "message_id", "conversation_title",
-        "evidence"
+        "evidence", "source_id", "context_title"
     ]
 
     def __init__(self):
@@ -1628,7 +1656,7 @@ class GraphitiService:
             return {"error": str(e), "success": False, "uuid": uuid, "logical_delete": logical_delete}
 
     async def delete(self, memory_id: str) -> Dict[str, Any]:
-        """Delete a specific memory.
+        """Delete a specific memory by its ID.
         
         Args:
             memory_id: The ID of the memory to delete
@@ -1636,252 +1664,69 @@ class GraphitiService:
         Returns:
             Success status
         """
-        if not self.client:
-            logger.warning(f"Using mock response for delete - client unavailable")
-            return {"success": True, "memory_id": memory_id}
-            
-        # Acquire lock to prevent concurrent access issues
-        async with _mem0_lock:
-            try:
-                # Convert synchronous call to async
-                delete_func = async_wrap(self.client.delete)
-                await delete_func(memory_id=memory_id)
-                logger.info(f"Deleted memory {memory_id}")
-                return {"success": True, "memory_id": memory_id}
-            except Exception as e:
-                logger.error(f"Error deleting memory {memory_id}: {e}")
-                return {"error": str(e), "success": False, "memory_id": memory_id}
+        try:
+            # Use the existing delete_node_by_uuid method instead of client.delete
+            result = await self.delete_node_by_uuid(uuid=memory_id)
+            logger.info(f"Deleted memory {memory_id}")
+            return result
+        except Exception as e:
+            logger.error(f"Error deleting memory {memory_id}: {e}")
+            return {"error": str(e), "success": False, "memory_id": memory_id}
             
     async def delete_all(self, user_id: str) -> Dict[str, Any]:
-        """Delete all memories for a user.
+        """Delete all data for a user from the knowledge graph.
+        
+        This method is an alias for clear_for_user for backward compatibility.
         
         Args:
-            user_id: The user ID to delete memories for
+            user_id: The user ID to delete data for
             
         Returns:
             Success status
         """
-        if not self.client:
-            logger.warning(f"Using mock response for delete_all - client unavailable")
-            return {"success": True, "user_id": user_id}
-            
-        # Acquire lock to prevent concurrent access issues
-        async with _mem0_lock:
-            try:
-                # Convert synchronous call to async
-                delete_all_func = async_wrap(self.client.delete_all)
-                await delete_all_func(user_id=user_id)
-                logger.info(f"Deleted all memories for user {user_id}")
-                return {"success": True, "user_id": user_id}
-            except Exception as e:
-                logger.error(f"Error deleting all memories for user {user_id}: {e}")
-                return {"error": str(e), "success": False, "user_id": user_id}
+        # Call the existing clear_for_user implementation
+        return await self.clear_for_user(user_id)
 
-    async def add_with_rich_metadata(self, 
-                             content: str, 
-                             user_id: str, 
-                             source: str = "app", 
-                             category: Optional[str] = None,
-                             tags: Optional[List[str]] = None,
-                             location: Optional[Dict[str, Any]] = None,
-                             timestamp: Optional[str] = None,
-                             custom_data: Optional[Dict[str, Any]] = None,
-                             infer: bool = False) -> Dict[str, Any]:
-        """Add a memory to Mem0 with rich metadata.
+    async def relationship_exists(
+        self,
+        source_id: str,
+        target_id: str,
+        rel_type: str,
+        scope: ContentScope = "user"
+    ) -> bool:
+        """Check if a relationship exists.
         
         Args:
-            content: The content of the memory
-            user_id: The user ID to namespace the memory
-            source: The source of the memory (e.g., 'chat', 'document', 'email')
-            category: Optional category of the memory
-            tags: Optional list of tags to associate with the memory
-            location: Optional location data (e.g., {'lat': 37.7749, 'lon': -122.4194, 'name': 'San Francisco'})
-            timestamp: Optional timestamp in ISO format
-            custom_data: Additional custom metadata fields
-            infer: Whether to use LLM inference to extract knowledge (costly in API calls)
+            source_id: Source entity ID
+            target_id: Target entity ID
+            rel_type: Relationship type
+            scope: Content scope ("user", "twin", or "global")
             
         Returns:
-            Dictionary with memory information
+            True if relationship exists, False otherwise
         """
-        # Prepare comprehensive metadata
-        metadata = {
-            "source": source,
-        }
-        
-        # Add optional metadata fields if provided
-        if category:
-            metadata["category"] = category
-        if tags:
-            metadata["tags"] = tags
-        if location:
-            metadata["location"] = location
-        if timestamp:
-            metadata["timestamp"] = timestamp
-        if custom_data:
-            # Merge custom data with built-in metadata
-            metadata.update(custom_data)
-            
-        # Call the regular add method with structured metadata
-        return await self.add(content, user_id, metadata, infer=infer)
-
-    async def clear_all(self) -> Dict[str, Any]:
-        """Clear all memories for all users.
-        
-        Returns:
-            Success status
-        """
-        if not self.client:
-            logger.warning(f"Using mock response for clear_all - client unavailable")
-            return {"success": True, "message": "Cleared all memories (mock)"}
-            
-        # Acquire lock to prevent concurrent access issues
-        async with _mem0_lock:
-            try:
-                # First attempt: try to use delete_users() if available
-                if hasattr(self.client, 'delete_users'):
-                    try:
-                        # Convert synchronous call to async
-                        delete_users_func = async_wrap(self.client.delete_users)
-                        result = await delete_users_func()
-                        logger.info(f"Successfully called delete_users()")
-                        return {
-                            "success": True,
-                            "message": "Cleared memories for all users using delete_users()",
-                            "results": result
-                        }
-                    except Exception as e:
-                        logger.warning(f"Error using delete_users(): {e}, falling back to individual user deletion")
-                
-                # Fallback approach: use a predefined list of test users
-                test_users = [
-                    "test-user", 
-                    DEFAULT_USER_ID, 
-                    "anonymous",
-                    "system"
-                ]
-                
-                results = {}
-                for user_id in test_users:
-                    try:
-                        # Convert synchronous call to async
-                        delete_all_func = async_wrap(self.client.delete_all)
-                        await delete_all_func(user_id=user_id)
-                        logger.info(f"Deleted all memories for user {user_id}")
-                        results[user_id] = {"success": True}
-                    except Exception as e:
-                        logger.error(f"Error deleting memories for user {user_id}: {e}")
-                        results[user_id] = {"success": False, "error": str(e)}
-                
-                return {
-                    "success": True,
-                    "message": f"Cleared memories for {sum(1 for r in results.values() if r.get('success', False))}/{len(results)} users",
-                    "results": results
-                }
-            except Exception as e:
-                logger.error(f"Error clearing all memories: {e}")
-                return {"error": str(e), "success": False}
-    
-    async def clear_for_user(self, user_id: str) -> Dict[str, Any]:
-        """Clear all memories for a specific user.
-        
-        Args:
-            user_id: The user ID to clear memories for
-            
-        Returns:
-            Success status
-        """
-        # This is just a wrapper around delete_all with clearer naming
-        return await self.delete_all(user_id)
-
-    async def check_connection(self) -> bool:
-        """Check if we can connect to the Mem0 service.
-        
-        Returns:
-            True if connected, False otherwise
-        """
-        logger.info("Starting Mem0 connection check")
-        if not self.client:
-            logger.warning("Cannot check connection - client unavailable")
-            return False
-            
         try:
-            # Try a simple operation to check connection
-            # First just check if the client exists and has expected methods
-            logger.info("Checking Mem0 client methods")
-            client_methods = dir(self.client)
-            expected_methods = ['get', 'add', 'search', 'update', 'delete']
+            # Create a query to check if the relationship exists
+            query = """
+            MATCH (a)-[r]->(b)
+            WHERE elementId(a) = $source_id AND elementId(b) = $target_id
+            AND type(r) = $rel_type AND r.scope = $scope
+            RETURN count(r) as rel_count
+            """
             
-            logger.info(f"Available Mem0 client methods: {client_methods[:5]}...")
-            method_check = all(method in client_methods for method in expected_methods)
-            if not method_check:
-                logger.warning(f"Mem0 client missing expected methods. Has: {client_methods}")
-                return False
-            
-            # We could also try a test query, but that might be expensive/unnecessary
-            # Just return True if we have a properly configured client
-            logger.info("Mem0 connection check successful")
-            return True
-        except Exception as e:
-            logger.error(f"Error checking Mem0 connection: {str(e)}")
-            return False
-
-    async def list(self, user_id: str, limit: int = 10, offset: int = 0, metadata_filter: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Get paginated memories for a user.
-        
-        This is similar to get_all but supports pagination with offset.
-        
-        Args:
-            user_id: The user ID to filter by
-            limit: Maximum number of results to return
-            offset: Number of items to skip for pagination
-            metadata_filter: Optional metadata filter criteria
-            
-        Returns:
-            List of memories for the user
-        """
-        logger.info(f"Listing memories for user {user_id}")
-        if not self.client:
-            logger.warning(f"Using mock response for list - client unavailable")
-            # Generate mock data respecting limit and offset
-            total_mocks = 20  # Simulated total count
-            start = min(offset, total_mocks)
-            end = min(offset + limit, total_mocks)
-            return [
+            # Execute the query asynchronously
+            result = await self.execute_cypher(
+                query, 
                 {
-                    "memory_id": f"mock-memory-id-{user_id}-{i}",
-                    "content": f"This is mock memory {i}",
-                    "metadata": {"user_id": user_id, "source": "chat" if i % 2 == 0 else "document"},
-                    "created_at": "2025-04-23T12:00:00Z"
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "rel_type": rel_type,
+                    "scope": scope
                 }
-                for i in range(start, end)
-            ]
+            )
             
-        # Define a function to execute with the lock
-        async def _list_with_lock():
-            async with _mem0_lock:
-                try:
-                    # First get all memories
-                    all_memories = await self.get_all(user_id, metadata_filter=metadata_filter)
-                    logger.info(f"Retrieved {len(all_memories)} memories for user {user_id}")
-                    # Apply pagination
-                    start_idx = min(offset, len(all_memories))
-                    end_idx = min(offset + limit, len(all_memories))
-                    paginated_memories = all_memories[start_idx:end_idx]
-                    
-                    logger.info(f"Retrieved paginated memories for user {user_id}: {len(paginated_memories)} memories (offset {offset}, limit {limit})")
-                    
-                    return paginated_memories
-                    
-                except Exception as e:
-                    logger.error(f"Error listing memories with pagination: {e}")
-                    return [{"error": str(e)}]
-        
-        # Execute with timeout
-        try:
-            return await asyncio.wait_for(_list_with_lock(), timeout=8)
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout in list for user {user_id}")
-            return [{"error": "Memory retrieval timed out"}]
+            # Check if relationship exists
+            return result and result[0]["rel_count"] > 0
         except Exception as e:
-            logger.error(f"Unexpected error in list: {e}")
-            return [{"error": str(e)}]
+            logger.error(f"Error in relationship_exists: {e}")
+            return False

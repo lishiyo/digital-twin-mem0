@@ -288,8 +288,12 @@ class TwinAgent:
                         
                         if previous_context:
                             merged_context += previous_context + "\n\n"
+                    else:
+                        logger.info(f"AGENT: Conversation has {len(state_obj.messages)} messages, skipping previous context retrieval.")
+                else:
+                    logger.info("AGENT: No conversation ID found, skipping previous context retrieval.")
             except Exception as e:
-                logger.warning(f"Error getting previous conversation context: {str(e)}")
+                logger.warning(f"AGENT: Error getting previous conversation context: {str(e)}", exc_info=True)
             
             # Add Mem0 results
             if state_obj.mem0_results:
@@ -354,11 +358,11 @@ class TwinAgent:
             #             merged_context += f"{i+1}. {fact_text} (confidence: {safe_score:.2f})\n\n"
             
             state_obj.merged_context = merged_context
-            logger.info("Successfully merged context from different sources")
+            logger.info("AGENT: Successfully merged context from different sources")
             
         except Exception as e:
-            state_obj.error = f"Context merging error: {str(e)}"
-            logger.error(state_obj.error)
+            state_obj.error = f"AGENT: Context merging error: {str(e)}"
+            logger.error(state_obj.error, exc_info=True)
         
         return state_obj.to_dict()
     

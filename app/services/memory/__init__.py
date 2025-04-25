@@ -209,7 +209,12 @@ class MemoryService:
                             limit=limit,
                             metadata=metadata_filter,
                             version="v2",
-                            output_format="v1.1"
+                            output_format="v1.1",
+                            filters={
+                                "AND": [
+                                    {"user_id": user_id}
+                                ]
+                            }
                         ),
                         timeout=3  # 3 second timeout
                     )

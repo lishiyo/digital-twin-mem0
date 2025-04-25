@@ -62,7 +62,6 @@ class Trait:
             "context": self.context,
             "strength": self.strength,
             "extracted_at": self.extracted_at.isoformat() if self.extracted_at else None,
-            "metadata": self.metadata
         }
 
 
@@ -77,6 +76,104 @@ class TraitExtractor(ABC):
     async def extract_traits(self, content: Any, metadata: Dict[str, Any]) -> List[Trait]:
         """Extract traits from content with associated metadata."""
         pass
+    
+    def _prepare_trait_metadata(self, trait_dict: Dict[str, Any], base_metadata: Dict[str, Any], source_type: str) -> Dict[str, Any]:
+        """Prepare metadata for trait based on source type.
+        
+        Args:
+            trait_dict: Raw trait dictionary from extraction
+            base_metadata: Base metadata passed to the extractor
+            source_type: Type of source ('chat' or 'document')
+            
+        Returns:
+            Complete metadata dictionary for the trait
+        """
+        # Common metadata
+        complete_metadata = {
+            "user_id": base_metadata.get("user_id"),
+            "source": source_type
+        }
+        
+        # Add source-specific metadata
+        if source_type == "chat":
+            complete_metadata.update({
+                "source_id": base_metadata.get("message_id"),
+                "context": base_metadata.get("conversation_title"),
+                "conversation_id": base_metadata.get("conversation_id"),
+                "message_metadata": {k: v for k, v in base_metadata.items() 
+                                   if k not in ["user_id", "message_id", "conversation_title", "conversation_id"]}
+            })
+        elif source_type == "document":
+            complete_metadata.update({
+                "source_id": base_metadata.get("file_path"),
+                "context": base_metadata.get("title"),
+                "file_metadata": {k: v for k, v in base_metadata.items() 
+                                if k not in ["user_id", "file_path", "title"]}
+            })
+            
+        return complete_metadata
+    
+    def _extract_traits_with_llm(self, content: str) -> List[Dict[str, Any]]:
+        """Extract traits using the LLM.
+        
+        Args:
+            content: Text content to analyze
+            
+        Returns:
+            List of trait dictionaries with trait_type, name, confidence, evidence
+        """
+        if not content or not content.strip():
+            return []
+            
+        try:
+            # Ensure model is initialized
+            self.entity_extractor._ensure_model_initialized()
+            
+            # Create prompt for trait extraction
+            prompt = f"""
+            Analyze the following text and extract important user traits. Focus on:
+            1. Skills (things the user knows how to do)
+            2. Interests (things the user likes or is curious about)
+            3. Preferences (things the user prefers over alternatives)
+            4. Dislikes (things the user specifically doesn't like)
+            5. Attributes (facts about the user like relationships, possessions, characteristics)
+            
+            For each trait, provide:
+            1. Trait type: One of these categories: "skill" (abilities/expertise), "interest" (likes/hobbies), 
+               "preference" (things preferred), "dislike" (things disliked), "attribute" (background, personality, details about the user)
+            2. Name: The full trait description (for example don't say "Name", say "name is Connie", "has a husband named Kyle", "lives in San Francisco")
+            3. Evidence: The text that supports this trait (give full sentence if possible)
+            4. Confidence: A number between 0.0 and 1.0 representing your confidence in this trait
+            5. Strength: A number between 0.0 and 1.0 representing the strength of this trait (optional)
+            
+            Only extract traits that are clearly supported by the text. Ignore generic or very common traits unless they're emphasized.
+            
+            TEXT:
+            {content[:4000]}  # Limit content length for LLM
+            
+            Return your answer as a JSON list of objects with the following properties:
+            - trait_type: The trait type from the list above
+            - name: The trait description ("name is Connie", "age is 35" etc)
+            - evidence: The text that supports this trait
+            - confidence: A confidence score between 0.0 and 1.0
+            - strength: (Optional) A strength score between 0.0 and 1.0
+            
+            If no traits are found, return an empty list.
+            """
+            
+            # Make API call to Gemini
+            response = self.entity_extractor._model.generate_content(prompt)
+            response_text = response.text
+            
+            # Try to extract JSON from response
+            traits = self.entity_extractor._extract_json_from_response(response_text)
+            
+            logger.info(f"Extracted {len(traits)} traits using LLM")
+            return traits
+            
+        except Exception as e:
+            logger.error(f"Error extracting traits with LLM: {str(e)}")
+            return []
     
     def _gemini_trait_to_trait(self, trait_dict: Dict[str, Any], metadata: Dict[str, Any]) -> Trait:
         """Convert a trait dictionary from Gemini to a Trait object."""
@@ -118,20 +215,19 @@ class ChatTraitExtractor(TraitExtractor):
             return []
         
         try:
-            # Use the existing Gemini-based trait extraction
-            raw_traits = self.entity_extractor.extract_traits(content)
+            # Use the trait extraction method defined in the base class
+            raw_traits = self._extract_traits_with_llm(content)
             
             # Convert to our Trait objects
             traits = []
             for trait_dict in raw_traits:
                 trait = self._gemini_trait_to_trait(
                     trait_dict,
-                    {
-                        "source": "chat",
-                        "source_id": metadata.get("message_id"),
-                        "context": metadata.get("conversation_title"),
-                        "user_id": metadata.get("user_id")
-                    }
+                    self._prepare_trait_metadata(
+                        trait_dict,
+                        metadata,
+                        "chat"
+                    )
                 )
                 traits.append(trait)
             
@@ -159,26 +255,24 @@ class DocumentTraitExtractor(TraitExtractor):
         Returns:
             List of extracted traits
         """
+        logger.info(f"Extracting traits from document: {content[:100]}...")
         if not content or not content.strip():
             return []
         
         try:
-            # Get extracted traits from the entity extractor
-            extraction_results = self.entity_extractor.process_document(content)
-            raw_traits = extraction_results.get("traits", [])
+            # Use the trait extraction method defined in the base class
+            raw_traits = self._extract_traits_with_llm(content)
             
             # Convert to our Trait objects
             traits = []
             for trait_dict in raw_traits:
                 trait = self._gemini_trait_to_trait(
                     trait_dict,
-                    {
-                        "source": "document",
-                        "source_id": metadata.get("file_path"),
-                        "context": metadata.get("title"),
-                        "user_id": metadata.get("user_id"),
-                        "file_metadata": {k: v for k, v in metadata.items() if k not in ["user_id", "file_path", "title"]}
-                    }
+                    self._prepare_trait_metadata(
+                        trait_dict,
+                        metadata,
+                        "document"
+                    )
                 )
                 traits.append(trait)
             

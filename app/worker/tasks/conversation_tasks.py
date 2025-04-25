@@ -7,6 +7,7 @@ from app.services.conversation.mem0_ingestion_sync import SyncChatMem0Ingestion
 from sqlalchemy import select
 from app.db.models.chat_message import ChatMessage, MessageRole
 from app.db.models.conversation import Conversation
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +22,11 @@ def process_chat_message(message_id: str) -> Dict[str, Any]:
     Returns:
         Processing results dictionary
     """
+    logger.info(f"TASK: Processing chat message {message_id}")
     try:
         # Use fully synchronous implementation
         mem0_result = _process_message_sync(message_id)
+        logger.info(f"Processing message in mem0: {message_id} with result: {mem0_result}")
         
         # Trigger Graphiti processing asynchronously
         from app.worker.tasks.graphiti_tasks import process_chat_message_graphiti
@@ -106,6 +109,56 @@ def process_conversation(conversation_id: str) -> Dict[str, Any]:
         }
 
 
+@celery_app.task(name="app.worker.tasks.conversation_tasks.check_and_queue_summarization")
+def check_and_queue_summarization(conversation_id: str) -> Dict[str, Any]:
+    """Checks if a conversation needs summarization and queues the task if needed."""
+    logger.info(f"TASK: Checking summarization need for conversation {conversation_id}")
+    try:
+        # Define the async part of the logic
+        async def _async_check():
+            from app.services.conversation.summarization import ConversationSummarizationService
+            from app.db.session import get_async_session
+            from app.services.memory import MemoryService # MemoryService might be needed by summarization
+
+            async with get_async_session() as async_db:
+                # Note: Summarization service might need MemoryService, ensure it's passed if needed
+                # Adjust instantiation if MemoryService is required by your current SummarizationService init
+                memory_service = MemoryService() # Create if needed
+                summarization_service = ConversationSummarizationService(async_db, memory_service)
+                
+                logger.info(f"TASK: Calling should_summarize_conversation for {conversation_id}")
+                should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
+                logger.info(f"TASK: should_summarize_conversation returned {should_summarize}")
+                
+                if should_summarize:
+                    logger.info(f"TASK: Queuing summarization task for conversation {conversation_id}")
+                    # Queue the actual summarization task
+                    summary_task_result = summarize_conversation.delay(conversation_id)
+                    return {
+                        "status": "queued",
+                        "conversation_id": conversation_id,
+                        "summary_task_id": summary_task_result.id
+                    }
+                else:
+                    logger.info(f"TASK: Summarization not needed for conversation {conversation_id}")
+                    return {
+                        "status": "not_needed",
+                        "conversation_id": conversation_id
+                    }
+
+        # Use asyncio.run() to execute the async function from the sync task
+        result = asyncio.run(_async_check())
+        return result
+
+    except Exception as e:
+        logger.error(f"TASK: Error checking/queuing summarization for {conversation_id}: {str(e)}", exc_info=True)
+        return {
+            "status": "error",
+            "reason": str(e),
+            "conversation_id": conversation_id
+        }
+
+
 @celery_app.task(name="app.worker.tasks.conversation_tasks.summarize_conversation")
 def summarize_conversation(conversation_id: str) -> Dict[str, Any]:
     """Generate a summary for a conversation.
@@ -138,8 +191,6 @@ def _process_message_sync(message_id: str) -> Dict[str, Any]:
             result = db.execute(query)
             message = result.scalars().first()
 
-            logger.info(f"Processing message: {message}")
-            
             if not message:
                 return {
                     "status": "error",

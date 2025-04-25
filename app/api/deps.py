@@ -6,11 +6,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 from jose.exceptions import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 import logging
 
 from app.core.config import settings
 from app.core.constants import DEFAULT_USER
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, SyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,15 @@ async def get_db() -> Generator[AsyncSession, None, None]:
     """Dependency for getting async database session."""
     async with AsyncSessionLocal() as session:
         yield session
+
+
+def sync_get_db() -> Generator[Session, None, None]:
+    """Dependency for getting synchronous database session."""
+    session = SyncSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 async def get_current_user(

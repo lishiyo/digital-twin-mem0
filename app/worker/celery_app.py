@@ -11,6 +11,8 @@ celery_app = Celery(
     include=[
         "app.worker.tasks",
         "app.worker.tasks.conversation_tasks",  # Include the specific conversation tasks module
+        "app.worker.tasks.file_tasks",  # Add the file_tasks module
+        "app.worker.tasks.graphiti_tasks",  # Also add the graphiti_tasks module for completeness
     ],
 )
 

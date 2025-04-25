@@ -112,7 +112,7 @@ class EntityExtractor:
         
         # Create prompt for entity extraction
         prompt = f"""
-        Extract all named entities from the following text. For each entity, provide:
+        Extract named entities from the following text. For each entity, provide:
         1. The entity text
         2. The entity type (PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT, NORP, FAC, LAW, LANGUAGE, ORDINAL, CARDINAL, QUANTITY)
         3. The start and end character positions in the text
@@ -300,6 +300,7 @@ class EntityExtractor:
         - target_type: The target entity type
         - relationship: The type of relationship (e.g., ASSOCIATED_WITH, WORKS_FOR, LOCATED_IN, etc.)
         - context: The text that contains both entities and describes their relationship
+        - confidence: A number between 0 and 1 representing your confidence in the relationship
         
         Only include relationships that are clearly supported by the text.
         """
@@ -409,6 +410,7 @@ class EntityExtractor:
             
             # Process relationships from the entire document
             all_relationships = self.extract_relationships(content)
+            # logger.info(f"process_document: Extracted relationships: {all_relationships}")
             
             return {
                 "entities": all_entities,
@@ -419,6 +421,7 @@ class EntityExtractor:
             # Process the whole document as a single chunk
             entities = self.extract_entities(content)
             relationships = self.extract_relationships(content)
+            # logger.info(f"process_document: Extracted relationships: {relationships}")
             
             return {
                 "entities": entities,
