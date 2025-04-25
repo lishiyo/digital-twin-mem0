@@ -1039,11 +1039,32 @@ class GraphitiService:
             if scope:
                 params["scope"] = scope
             
-            # Execute query
-            await self.execute_cypher(query, params)
+            # --- Explicitly delete relationships based on properties --- 
+            rel_conditions = ["r.user_id = $user_id"]
+            if scope:
+                rel_conditions.append("r.scope = $scope")
+            rel_conditions_str = " AND ".join(rel_conditions)
+            rel_query_user = f"""
+            MATCH ()-[r]->()
+            WHERE {rel_conditions_str}
+            DELETE r
+            """
+            await self.execute_cypher(rel_query_user, params)
             
-            # Also check for nodes where user is the owner
-            conditions = ["n.owner_id = $user_id"]
+            rel_conditions = ["r.owner_id = $user_id"]
+            if scope:
+                rel_conditions.append("r.scope = $scope")
+            rel_conditions_str = " AND ".join(rel_conditions)
+            rel_query_owner = f"""
+            MATCH ()-[r]->()
+            WHERE {rel_conditions_str}
+            DELETE r
+            """
+            await self.execute_cypher(rel_query_owner, params)
+            # ----------------------------------------------------------
+            
+            # --- Delete nodes (DETACH DELETE handles their relationships) ---
+            conditions = ["n.user_id = $user_id"]
             if scope:
                 conditions.append("n.scope = $scope")
             
@@ -1058,7 +1079,7 @@ class GraphitiService:
             await self.execute_cypher(query, params)
             
             scope_msg = f" with scope '{scope}'" if scope else ""
-            logger.info(f"Cleared graph data for user {user_id}{scope_msg}")
+            logger.info(f"Cleared graph nodes and relationships for user {user_id}{scope_msg}")
             
             return {
                 "success": True, 
