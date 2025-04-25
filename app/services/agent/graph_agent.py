@@ -14,7 +14,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 
 from app.services.memory import MemoryService
-from app.services.graph import GraphitiService
+from app.services.graph import GraphitiService, ContentScope
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ class TwinAgent:
         # Define nodes
         self.workflow.add_node("retrieve_from_mem0", self._retrieve_from_mem0)
         self.workflow.add_node("retrieve_from_graphiti", self._retrieve_from_graphiti)
+        # note that merge_context is NOT including graphiti results for now
         self.workflow.add_node("merge_context", self._merge_context)
         self.workflow.add_node("generate_response", self._generate_response)
         
@@ -210,17 +211,22 @@ class TwinAgent:
                 state_obj.error = "No user message found"
                 return state_obj.to_dict()
             
+            logger.info(f"AGENT: Searching for entities in Graphiti for message: {last_user_message}")
             # Directly await the async calls
             entity_results = await self.graphiti_service.node_search(
                 query=last_user_message,
-                limit=5
+                limit=5,
+                scope="user",
+                owner_id=state_obj.user_id
             )
             
             # Also search general graph results
             graph_results = await self.graphiti_service.search(
                 query=last_user_message,
                 user_id=state_obj.user_id,
-                limit=5
+                limit=5,
+                owner_id=state_obj.user_id
+                # explicitly not passing scope=ContentScope.GLOBAL so we get global too
             )
             
             # Log detailed entity results
@@ -230,7 +236,7 @@ class TwinAgent:
                 labels = entity.get("labels", [])
                 summary = entity.get("summary", "")
                 labels_str = ", ".join(labels) if labels else ""
-                # logger.info(f"Entity {i+1}: {name} ({labels_str}): {summary}")
+                logger.info(f"Entity {i+1}: {name} ({labels_str}): {summary}")
             
             # Log detailed graph facts
             logger.info(f"Retrieved {len(graph_results)} graph facts from Graphiti")
@@ -238,7 +244,7 @@ class TwinAgent:
                 fact_text = fact.get("fact", "")
                 score = fact.get("score", 0)
                 safe_score = 0.0 if score is None else score
-                # logger.info(f"Fact {i+1}: {fact_text} (confidence: {safe_score:.2f})")
+                logger.info(f"Fact {i+1}: {fact_text} (confidence: {safe_score:.2f})")
             
             # Combine the results
             state_obj.graphiti_results = {

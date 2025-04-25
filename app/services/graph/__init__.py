@@ -1167,18 +1167,21 @@ class GraphitiService:
             logger.error(f"Error finding entity: {e}")
             return None
 
-    async def list_nodes(self, limit: int = 10, offset: int = 0, node_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_nodes(self, limit: int = 10, offset: int = 0, node_type: Optional[str] = None, scope: ContentScope = None, owner_id: str = None) -> List[Dict[str, Any]]:
         """List nodes from the knowledge graph with pagination.
         
         Args:
             limit: Maximum number of nodes to return
             offset: Number of nodes to skip for pagination
             node_type: Optional node type (label) to filter by
+            scope: Optional scope to filter by
+            owner_id: Optional owner ID to filter by
             
         Returns:
             List of nodes
         """
         try:
+            logger.info(f"Listing nodes with scope: {scope}, owner_id: {owner_id}")
             # Construct the Cypher query
             query = """
             MATCH (n)
@@ -1191,6 +1194,16 @@ class GraphitiService:
             if node_type:
                 query += " AND $node_type IN labels(n)"
                 params["node_type"] = node_type
+                
+            # Add scope filter if provided
+            if scope:
+                query += " AND n.scope = $scope"
+                params["scope"] = scope
+            
+            # Add owner_id filter if provided
+            if owner_id:
+                query += " AND n.owner_id = $owner_id"
+                params["owner_id"] = owner_id
                 
             # Add ORDER BY, SKIP and LIMIT clauses
             query += """
@@ -1246,7 +1259,8 @@ class GraphitiService:
             return []
     
     async def list_relationships(self, limit: int = 10, offset: int = 0, 
-                                rel_type: Optional[str] = None, query: Optional[str] = None) -> List[Dict[str, Any]]:
+                                rel_type: Optional[str] = None, query: Optional[str] = None,
+                                scope: ContentScope = None, owner_id: str = None) -> List[Dict[str, Any]]:
         """List relationships from the knowledge graph with pagination.
         
         Args:
@@ -1254,10 +1268,13 @@ class GraphitiService:
             offset: Number of relationships to skip for pagination
             rel_type: Optional relationship type to filter by
             query: Optional text query to filter relationships
+            scope: Optional scope to filter relationships by ("user", "twin", "global")
+            owner_id: Optional owner ID to filter relationships by
             
         Returns:
             List of relationships
         """
+        logger.info(f"Listing relationships with scope: {scope}, owner_id: {owner_id}")
         try:
             # Construct the Cypher query
             base_query = """
@@ -1271,6 +1288,16 @@ class GraphitiService:
             if rel_type:
                 base_query += " AND type(r) = $rel_type"
                 params["rel_type"] = rel_type
+                
+            # Add scope filter if provided
+            if scope:
+                base_query += " AND r.scope = $scope"
+                params["scope"] = scope
+            
+            # Add owner_id filter if provided
+            if owner_id:
+                base_query += " AND r.owner_id = $owner_id"
+                params["owner_id"] = owner_id
                 
             # Add text search if provided
             if query:

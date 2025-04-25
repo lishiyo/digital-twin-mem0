@@ -530,7 +530,7 @@ List graph relationships with pagination and optional filtering.
 
 **Request:**
 ```
-GET /api/v1/graph/relationships?limit=10&offset=0&query=optional_search_query&rel_type=optional_relationship_type
+GET /api/v1/graph/relationships?limit=10&offset=0&query=optional_search_query&rel_type=optional_relationship_type&scope=user&owner_id=your_user_id
 ```
 
 Parameters:
@@ -538,6 +538,8 @@ Parameters:
 - `offset`: Offset for pagination (default: 0)
 - `query` (optional): Search query to filter relationships
 - `rel_type` (optional): Filter by relationship type (e.g., "KNOWS", "HAS_SKILL")
+- `scope` (optional): Filter by scope ("user", "twin", "global"). Defaults to "user".
+- `owner_id` (optional): Filter by owner ID. Defaults to current user ID if scope is "user".
 
 **Response:**
 ```json

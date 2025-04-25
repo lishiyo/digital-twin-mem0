@@ -7,7 +7,7 @@ import logging
 
 from app.api.deps import get_current_user, get_db, security
 from app.core.constants import DEFAULT_USER
-from app.services.graph import GraphitiService
+from app.services.graph import GraphitiService, ContentScope
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_or_mock
 
@@ -41,9 +41,15 @@ async def list_nodes(
             # node_search doesn't support offset, so we need to get enough results and paginate manually
             search_limit = limit + offset
             
+            # Pass owner_id and scope to node_search
+            # For search, let's assume we want the user's nodes + global nodes
+            # This means we don't filter by scope/owner directly in node_search,
+            # but rely on its internal logic (needs verification if it supports this)
+            # or filter afterward. Let's try passing user_id first.
             nodes = await graphiti_service.node_search(
                 query=query,
-                limit=search_limit,  # Request more to cover offset
+                limit=search_limit,
+                user_id=user_id  # Pass user_id to let node_search handle accessible content
             )
             
             # Apply node_type filtering manually if specified
@@ -57,10 +63,13 @@ async def list_nodes(
                 nodes = []
         else:
             # Otherwise, list all nodes (this method already supports offset)
+            # Allow fetching user-owned nodes. Consider adding global scope if needed.
             nodes = await graphiti_service.list_nodes(
                 limit=limit,
                 offset=offset,
-                node_type=node_type
+                node_type=node_type,
+                scope="user", # Keep as USER for now, could be made flexible
+                owner_id=user_id
             )
         
         return {
@@ -83,6 +92,8 @@ async def list_relationships(
     offset: int = Query(0, description="Offset for pagination"),
     query: Optional[str] = Query(None, description="Optional search query"),
     rel_type: Optional[str] = Query(None, description="Optional relationship type filter"),
+    scope: Optional[str] = Query(None, description="Optional scope filter (e.g., user, global)"),
+    owner_id: Optional[str] = Query(None, description="Optional owner ID filter"),
     current_user: dict = Depends(get_current_user_or_mock),
 ):
     """
@@ -95,6 +106,15 @@ async def list_relationships(
     
     logger.info(f'query: {query} rel_type: {rel_type} limit: {limit} offset: {offset}')
     
+    # Determine scope and owner_id for filtering
+    # If not provided in query params, default to the current user's scope
+    filter_scope = scope if scope else "user"
+    filter_owner_id = owner_id if owner_id else user_id
+    
+    # If scope is explicitly set to global, owner_id should be ignored/None
+    if filter_scope == "global":
+        filter_owner_id = None
+        
     try:
         graphiti_service = GraphitiService()
         
@@ -102,7 +122,9 @@ async def list_relationships(
             limit=limit,
             offset=offset,
             rel_type=rel_type,
-            query=query
+            query=query,
+            scope=filter_scope,
+            owner_id=filter_owner_id
         )
         
         return {

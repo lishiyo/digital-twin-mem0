@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 
 class ChatGraphitiIngestion:
     """
-        Service for extracting entities and traits from chat messages and storing them in Graphiti.
+        Service for extracting entities and traits from chat messages.
+        This uses the ExtractionPipeline to process the message:
+            - If Graphiti ingestion is enabled, extract entities, relationships, traits and store them
+            - If only UserProfile updates are enabled, extract traits and update the user profile
         This MUST be synchronous to work with Celery tasks.
     """
     
@@ -50,6 +53,7 @@ class ChatGraphitiIngestion:
     
     def process_message(self, message: ChatMessage) -> Dict[str, Any]:
         """Process a chat message and extract entities, relationships, and traits.
+        Mark the message as processed and/or stored in Graphiti.
         
         Args:
             message: ChatMessage to process
@@ -109,6 +113,9 @@ class ChatGraphitiIngestion:
             logger.info(f"Process_chat_message {message.id} with pipeline using asyncio.run")
             try:
                 pipeline_result = asyncio.run(
+                    # extract entities, relationships, traits
+                    # process into Graphiti if enabled
+                    # update user profile if enabled
                     self.extraction_pipeline.process_chat_message(
                         message_content=message.content,
                         user_id=message.user_id,

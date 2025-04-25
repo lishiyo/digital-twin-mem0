@@ -75,7 +75,9 @@ async def search_content(
             # Entity search
             entity_results = await graphiti_service.node_search(
                 query=query,
-                limit=limit
+                limit=limit,
+                scope="user",
+                owner_id=user_id
             )
             results["entities"] = entity_results
             
@@ -83,7 +85,9 @@ async def search_content(
             graph_results = await graphiti_service.search(
                 query=query,
                 user_id=user_id if user_id else None,
-                limit=limit
+                limit=limit,
+                owner_id=user_id
+                # explicitly not passing scope=ContentScope.USER so we get global too
             )
             results["graph"] = graph_results
         except Exception as e:
