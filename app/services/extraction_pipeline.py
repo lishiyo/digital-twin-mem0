@@ -9,11 +9,13 @@ from app.services.ingestion.entity_extraction_factory import get_entity_extracto
 from app.services.traits import TraitExtractionService
 from app.services.graph import GraphitiService, ContentScope
 from app.services.traits.service import TraitExtractionService, Trait
+from datetime import datetime
+from graphiti_core.nodes import EpisodeType
 
 logger = logging.getLogger(__name__)
 
 # Pipeline configuration flags
-ENABLE_GRAPHITI_INGESTION = True # Controls whether to store data in Graphiti knowledge graph
+ENABLE_GRAPHITI_INGESTION = True # Controls whether to store custom entities, relationships, and traits in Graphiti knowledge graph
 ENABLE_PROFILE_UPDATES = True     # Controls whether to update user profiles with traits
 
 # You can override these flags with environment variables
@@ -59,7 +61,7 @@ class ExtractionPipeline:
         self.trait_service = trait_service
         self.graphiti = graphiti_service or GraphitiService()
     
-    async def extract_from_content(self, content, user_id, metadata, source_type="chat", 
+    async def extract_from_content(self, content, user_id, metadata, source_type=None, 
                                   process_chunks=False, chunk_boundaries=None):
         """Extract entities, relationships, and traits from content.
         if ENABLE_GRAPHITI_INGESTION:
@@ -202,8 +204,7 @@ class ExtractionPipeline:
         return extraction_results
     
     async def create_episode(self, content, user_id, title, metadata, scope="user", owner_id=None):
-        """Create an episode in Graphiti. We create episodes for files first because each file
-        represents a distinct information unit. Chat messages don't represent complete episodes.
+        """Create a document episode in Graphiti. This automatically creates entities in Graphiti.
         
         Args:
             content: Text content
@@ -216,8 +217,9 @@ class ExtractionPipeline:
         Returns:
             Dictionary with episode creation result
         """
+        
         return await self.graphiti.add_episode(
-            content=content[:500],  # Use a summary/preview of content
+            content=content,
             user_id=user_id,
             metadata={
                 "title": title,
@@ -228,7 +230,7 @@ class ExtractionPipeline:
         )
     
     async def process_extracted_data(self, extraction_results, user_id, source_id, 
-                                    context_title=None, scope="user", owner_id=None, source="chat_message"):
+                                    context_title=None, scope="user", owner_id=None, source=None):
         """Process extracted data and store in Graphiti.
         
         Args:
@@ -238,7 +240,7 @@ class ExtractionPipeline:
             context_title: Optional context title (conversation or document title)
             scope: Content scope
             owner_id: Owner ID
-            source: Source type ("chat_message" or "document")
+            source: Source type ("chat" or "document")
             
         Returns:
             Dictionary with processing results as created entities, relationships, and traits
@@ -308,7 +310,7 @@ class ExtractionPipeline:
                 entity_properties["context"] = entity.get("context", "")
                 
                 # Add source-specific properties
-                if source_type == "chat_message":
+                if source_type == "chat":
                     # For chat source, use message_id and conversation_title
                     entity_properties["message_id"] = source_id
                     entity_properties["conversation_title"] = context_title
@@ -454,7 +456,7 @@ class ExtractionPipeline:
                 }
                 
                 # Add source-specific properties
-                if source_type == "chat_message":
+                if source_type == "chat":
                     rel_properties["message_id"] = source_id
                 else:
                     rel_properties["source_id"] = source_id
@@ -562,7 +564,7 @@ class ExtractionPipeline:
         }
     
     def process_extracted_data_sync(self, extraction_results, user_id, source_id, 
-                                   context_title=None, scope="user", owner_id=None, source="chat_message"):
+                                   context_title=None, scope="user", owner_id=None, source=None):
         """Synchronous version of process_extracted_data."""
         created_loop = False
         try:
@@ -600,24 +602,24 @@ class ExtractionPipeline:
         Returns:
             Dictionary with episode_result, processing_result, extraction_results
         """
-        # Create episode first
+        # Create episode first - this automatically creates entities in Graphiti
         episode_result = None
-        if ENABLE_GRAPHITI_INGESTION:
-            episode_result = await self.create_episode(
-                content=content,
-                user_id=user_id,
-                title=metadata.get("title", os.path.basename(file_path)),
-                metadata={
-                    "source": "file",
-                    "source_file": file_path,
-                    **metadata
-                },
-                scope=scope,
-                owner_id=owner_id
-            )
-            logger.info(f"1. Created episode {episode_result} for {file_path}")
-        else:
-            logger.info(f"1. Skipping episode creation for {file_path} because Graphiti ingestion is disabled")
+        # if ENABLE_GRAPHITI_INGESTION:
+        # episode_result = await self.create_episode(
+        #     content=content,
+        #     user_id=user_id,
+        #     title=metadata.get("title", os.path.basename(file_path)),
+        #     metadata={
+        #     "source": "file",
+        #         "source_file": file_path,
+        #         **metadata
+        #     },
+        #     scope=scope,
+        #     owner_id=owner_id
+        # )    
+            # logger.info(f"1. Created episode {episode_result} for {file_path}")
+        # else:
+            # logger.info(f"1. Skipping episode creation for {file_path} because Graphiti ingestion is disabled")
 
         # Extract entities, relationships, and traits from content, using chunks if provided
         # This updates the user profile with the extracted traits
@@ -632,9 +634,9 @@ class ExtractionPipeline:
         )
         logger.info(f"2. Extracted entities, relationships, and traits, updated profile: {extraction_results}")
         
-        # Process extracted entities, relationships, and traits into Graphiti
         processing_result = None
         if ENABLE_GRAPHITI_INGESTION:   
+            # Process extracted entities, relationships, and traits into Graphiti
             processing_result = await self.process_extracted_data(
                 extraction_results,
                 user_id,
@@ -706,7 +708,7 @@ class ExtractionPipeline:
                 metadata.get("conversation_title"),  # context_title
                 scope=scope,
                 owner_id=owner_id,
-                source="chat_message"
+                source="chat"
             )
             logger.info(f"Processed chat data into Graphiti: {len(processing_result.get('entities', []))} entities, "
                       f"{len(processing_result.get('relationships', []))} relationships, "

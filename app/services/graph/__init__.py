@@ -150,7 +150,7 @@ class GraphitiService:
         self, content: str, user_id: str, metadata: dict[str, Any] | None = None,
         scope: ContentScope = "user", owner_id: str = None
     ) -> dict[str, Any]:
-        """Add an episode to the knowledge graph.
+        """Add an episode to the knowledge graph. This is for document/chunk episodes.
 
         Args:
             content: The content of the episode
@@ -174,7 +174,7 @@ class GraphitiService:
         metadata["owner_id"] = owner_id if owner_id else user_id if scope == "user" else None
         
         # Prepare name for the episode (include metadata info in the name)
-        meta_info = "-".join(f"{k}_{v}" for k, v in metadata.items() if k != "user_id" and k != "scope" and k != "owner_id")
+        meta_info = "-".join(f"{k}_{v}" for k, v in metadata.items() if k == "title" and k == "chunk_index")
         episode_name = f"Episode-{scope}-{metadata['owner_id'] or 'global'}-{meta_info}-{datetime.now(timezone.utc).isoformat()}"
         
         try:
