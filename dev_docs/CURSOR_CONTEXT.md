@@ -2,6 +2,47 @@
 
 This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updates; the latest update is on top.
 
+## Thu Apr 24 22:50:14 PDT 2025
+
+**Current Guide Section:** 
+- Completed Extraction Pipeline refactoring (Task 4.5.1 - partially)
+- Completed Graph API scope filtering fixes (Bug Fix)
+- Continuing work on User Profile management (Task 5.2 - User Profile Endpoints)
+
+**What's Working:**
+- Unified Extraction Pipeline (`ExtractionPipeline`):
+  - Handles entity, relationship, and trait extraction from chat and documents.
+  - Integrates `TraitExtractionService` for profile updates.
+  - Centralizes extraction logic.
+- Trait Extraction Service (`TraitExtractionService`):
+  - Implements trait extraction based on `v1_trait_extraction_agent.md` (Phase 1).
+  - Updates `UserProfile` correctly.
+- Graph API Scope Filtering:
+  - `list_nodes` and `list_relationships` (both endpoint and service methods) now correctly filter by `scope` and `owner_id`.
+  - `node_search` path in `list_nodes` also considers user context.
+  - Resolved data leakage issue between users.
+- Previous functionalities (Profile UI deletion, chat ingestion basics, etc.) remain operational.
+
+**What's Broken/Incomplete:**
+- Full completion of Trait Extraction Agent Phase 2/3 (advanced scoring, new sources) is pending.
+- Need thorough testing of the new `ExtractionPipeline` across various scenarios (chunking, different content types).
+- Need to verify profile updates are consistent and correct after the pipeline refactor.
+
+**Current Blockers:**
+- None directly related to the refactor, but general testing and validation needed.
+
+**Database/Model State:**
+- No schema changes in this step.
+- Data flow for extraction and profile updates has been rerouted through `ExtractionPipeline` and `TraitExtractionService`.
+- Graph queries for listing nodes/relationships are now correctly scoped.
+
+**Pending Tasks:**
+- Continue implementing remaining User Profile endpoints (PUT /api/v1/profile - Task 5.2).
+- Thoroughly test the `ExtractionPipeline` and `TraitExtractionService`.
+- Verify UserProfile data integrity after the refactor.
+- Review `v1_architecture.md` diagram for accuracy regarding the new pipeline.
+- Update `v1_api.md` for the `list_relationships` parameter changes.
+
 ## 2025-04-24 00:03 PDT
 
 **Current Guide Section:** 

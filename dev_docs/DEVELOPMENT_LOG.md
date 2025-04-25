@@ -2,6 +2,24 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
+## Thu Apr 24 22:50:14 PDT 2025: Extraction Pipeline Refactor & Graph API Fixes
+
+We\'ve undertaken a significant refactoring of the data extraction and processing logic, along with crucial fixes to the Graph API:
+
+### Extraction Pipeline Implementation
+- Introduced `ExtractionPipeline` (`app/services/extraction_pipeline.py`) to unify the extraction of entities, relationships, and traits from various sources (chat, documents).
+- Created dedicated `TraitExtractionService` (`app/services/traits/service.py`) based on the design in `v1_trait_extraction_agent.md`, responsible for extracting traits and updating `UserProfile`.
+- Refactored document ingestion (`IngestionService`) and chat message processing (`ChatMem0Ingestion`, `ChatGraphitiIngestion`) to utilize the new `ExtractionPipeline` and `TraitExtractionService`.
+- This separates concerns more clearly, centralizes extraction logic, and ensures consistent UserProfile updates from all sources.
+
+### Graph API Scoping Fixes
+- Fixed a bug in `GraphitiService.list_nodes` and `GraphitiService.list_relationships` where `scope` and `owner_id` parameters were not correctly applied in the Cypher queries.
+- Updated the corresponding API endpoints (`GET /api/v1/graph/nodes` and `GET /api/v1/graph/relationships`) to accept and pass `scope` and `owner_id` query parameters, defaulting to the current user's scope and ID.
+- Ensured that the `node_search` path within `list_nodes` also correctly considers user context by passing `user_id`.
+- This resolves issues where users could see data outside their authorized scope.
+
+These changes improve the modularity and correctness of our data ingestion and retrieval processes, aligning with the v1 architecture goals.
+
 ## 2025-04-24: User Profile Trait Deletion and UI Improvements
 
 We've made several improvements to the user profile management and UI:

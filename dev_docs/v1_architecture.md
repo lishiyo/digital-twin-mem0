@@ -50,12 +50,13 @@ Responsible for organizing, maintaining, and retrieving information.
 **Key Components:**
 - **Memory Service**: Interface to Mem0 for storing and retrieving memories
 - **Graph Service**: Interface to Graphiti for managing knowledge graph operations
-- **Entity Extraction**: LLM-based extraction of entities and relationships from raw text
-- **Trait Extraction**: Extract user traits (preferences, skills, interests) from various sources
-- **Profile Manager**: Maintain and update UserProfile with confidence scoring and conflict resolution
+- **Extraction Pipeline**: Unified service (`app/services/extraction_pipeline.py`) coordinating entity, relationship, and trait extraction.
+- **Entity Extraction**: LLM-based extraction of entities and relationships from raw text (via `ExtractionPipeline`).
+- **Trait Extraction Service**: Dedicated service (`app/services/traits/service.py`) for extracting user traits (preferences, skills, interests) from various sources and updating UserProfile.
+- **Profile Manager**: Maintain and update UserProfile with confidence scoring and conflict resolution (partially handled by `TraitExtractionService`).
 
 **Design Patterns:**
-- **Strategy Pattern**: Pluggable strategies for memory retrieval, entity extraction, etc.
+- **Strategy Pattern**: Pluggable strategies for memory retrieval, entity/trait extraction (within `ExtractionPipeline`).
 - **Observer Pattern**: Profile updates notify subscribers about changes
 - **Command Pattern**: Encapsulate graph operations as commands with undo capability
 
@@ -140,10 +141,12 @@ This pattern makes it easier to add new data sources or swap out existing ones w
 
 1. Data enters through source-specific adapters
 2. Raw data is transformed into internal formats
-3. Entities and relationships are extracted 
-4. Memories are stored in Mem0 with metadata
-5. Knowledge graph (graphiti) is updated with new entities and relationships
-6. UserProfile is updated with extracted traits (with confidence scoring)
+3. **Extraction Pipeline** processes content:
+    - Extracts entities and relationships (for Graphiti, if enabled)
+    - Invokes **Trait Extraction Service**
+4. **Trait Extraction Service** processes extracted traits and updates **UserProfile** (if enabled)
+5. Extracted entities/relationships/traits are potentially stored in **Graphiti** (if enabled)
+6. Memories are stored in **Mem0** with metadata (handled separately, e.g., by `ChatMem0Ingestion` or document ingestion)
 
 ### Query Flow
 
@@ -176,13 +179,13 @@ This pattern makes it easier to add new data sources or swap out existing ones w
          ▼                       ▼                       ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │    Ingestion    │     │    Services     │     │Context Synthesis│
-│    (Pipelines)  │────►│ (Orchestration) │◄────│ (Data Merging)  │
+│   (Adapters)    │────▶│ (Orchestration) │◄────│ (Data Merging)  │
 └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Extraction    │     │  Repositories   │     │ Recommendation  │
-│(Entities/Traits)│────►│  (Data Access)  │◄────│    Engine       │
+│ExtractionPipeline│◄───┤Trait Extraction │     │ Recommendation  │
+│(Entities/Rels)  │     │    Service      │────►│    Engine       │
 └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
          │                       │                       │
          ▼                       ▼                       ▼
@@ -191,7 +194,7 @@ This pattern makes it easier to add new data sources or swap out existing ones w
 │                                                                 │
 │  ┌────────────────┐   ┌────────────────┐   ┌────────────────┐  │
 │  │   PostgreSQL   │   │      Mem0      │   │    Graphiti    │  │
-│  │  (Structured)  │   │    (Vector)    │   │     (Graph)    │  │
+│  │ (UserProfile)  │   │    (Vector)    │   │ (Entities/Rels)│  │
 │  └────────────────┘   └────────────────┘   └────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
          ▲                       ▲                       ▲
@@ -210,7 +213,9 @@ Based on the completed tasks in v1_tasks.md, we have:
 3. ✅ Refined Graphiti schema
 4. ✅ Implemented basic chat log ingestion
 5. ✅ Implemented conversation management and summarization
-6. ✅ Created entity extraction from conversations
+6. ✅ Created initial entity extraction
+7. ✅ Refactored extraction into `ExtractionPipeline` and `TraitExtractionService`
+8. ✅ Fixed Graph API scope filtering issues
 
 ## Remaining Implementation Priorities
 

@@ -361,9 +361,9 @@ See [v1_trait_extraction_agent.md](./v1_trait_extraction_agent.md) for implement
 - [x] Build upon the chat-specific extraction (3.1.3)
 - [x] Extend extraction to handle ingested docs, updating UserProfile
 - [x] Extend extraction to handle our other data sources (chat, calendar, social media etc), updating UserProfile
-- [x] Create unified processing workflow across sources
-- [x] Implement source-specific extractors with consistent output format
-- [x] Develop advanced prompt templates with source-specific considerations
+- [x] Create unified processing workflow across sources (Initial implementation via `ExtractionPipeline`)
+- [x] Implement source-specific extractors with consistent output format (Chat, Document implemented)
+- [x] Develop advanced prompt templates with source-specific considerations (Initial prompts in place)
 
 **4.5.2. Implement advanced confidence scoring**
 - [ ] Design multi-source confidence calculation algorithm
