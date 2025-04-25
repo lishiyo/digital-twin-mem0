@@ -129,7 +129,7 @@ class TraitExtractionService:
             adjusted_confidence = trait.confidence * source_weight
             trait.confidence = round(adjusted_confidence, 2)
             
-            logger.info(f"Trait {trait.name} has confidence {trait.confidence} after source weight adjustment")
+            # logger.info(f"Trait {trait.name} has confidence {trait.confidence} after source weight adjustment")
             # Filter by minimum confidence thresholds
             if trait.confidence < self.MIN_CONFIDENCE_TRAIT:
                 logger.info(f"Skipping trait {trait.name} with confidence {trait.confidence} (below threshold {self.MIN_CONFIDENCE_TRAIT})")
@@ -354,11 +354,11 @@ class TraitExtractionService:
                         updates["attributes_added"] += 1
             
             # Debug log: Print the staged traits
-            logger.info(f"adding staged skills: {staged_skills}")
-            logger.info(f"adding staged interests: {staged_interests}")
-            logger.info(f"adding staged preferences: {staged_preferences}")
-            logger.info(f"adding staged dislikes: {staged_dislikes}")
-            logger.info(f"adding staged attributes: {staged_attributes}")
+            # logger.info(f"adding staged skills: {staged_skills}")
+            # logger.info(f"adding staged interests: {staged_interests}")
+            # logger.info(f"adding staged preferences: {staged_preferences}")
+            # logger.info(f"adding staged dislikes: {staged_dislikes}")
+            # logger.info(f"adding staged attributes: {staged_attributes}")
             
             # TODO: should we check for dupes here? maybe ask LLM to merge traits + increase confidence?
             

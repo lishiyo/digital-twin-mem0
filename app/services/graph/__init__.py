@@ -68,7 +68,19 @@ class GraphitiService:
         self.client = Graphiti(
             settings.NEO4J_URI,
             settings.NEO4J_USER,
-            settings.NEO4J_PASSWORD,
+            settings.NEO4J_PASSWORD
+            # embedder=GeminiEmbedder(
+            #     config=GeminiEmbedderConfig(
+            #         model_name="gemini-1.5-flash",
+            #         project_id="gemini-1.5-flash-002",
+            #     )
+            # ),
+            # llm_client=GeminiClient(
+            #     config=LLMConfig(
+            #         api_key=api_key,
+            #         model="gemini-2.0-flash"
+            #     )
+            # )
         )
         
         # Also keep direct Neo4j access for custom queries
@@ -272,15 +284,15 @@ class GraphitiService:
             if user_id and not scope:
                 search_query = f"({search_query}) OR (scope:global)"
                 
-            # Execute the search with the correct parameters
+            # Execute the search with the correct parameters using the original query
             if center_node_uuid:
                 search_results = await self.client.search(
-                    query=search_query,
+                    query=search_query, # Use original user query
                     center_node_uuid=center_node_uuid
                 )
             else:
                 search_results = await self.client.search(
-                    query=search_query
+                    query=search_query # Use original user query
                 )
             
             # Process results into a consistent format
@@ -351,7 +363,34 @@ class GraphitiService:
                 formatted_results.append(formatted_result)
                 count += 1
                 
-            return formatted_results
+            # Apply filtering AFTER search results are retrieved and formatted
+            filtered_results_final = []
+            for res in formatted_results:
+                rel_scope = res.get("scope")
+                rel_owner_id = res.get("owner_id")
+                
+                # Determine if the relationship should be included based on filter criteria
+                include_rel = False
+                if scope and owner_id:
+                    if rel_scope == scope and rel_owner_id == owner_id:
+                        include_rel = True
+                elif scope:
+                    if rel_scope == scope:
+                        include_rel = True
+                elif owner_id:
+                    if rel_owner_id == owner_id:
+                         include_rel = True
+                elif user_id: # Backward compatibility / default behavior
+                    # Include if it's user-owned OR global
+                    if (rel_scope == "user" and rel_owner_id == user_id) or rel_scope == "global":
+                        include_rel = True
+                else: # No user context, include everything (e.g., maybe called internally?)
+                    include_rel = True
+                    
+                if include_rel:
+                    filtered_results_final.append(res)
+                    
+            return filtered_results_final
             
         except Exception as e:
             logger.error(f"Error searching Graphiti: {str(e)}")
@@ -463,9 +502,9 @@ class GraphitiService:
                 # user's personal content and global content
                 search_query = f"{search_query} ((scope:user AND owner_id:{user_id}) OR (scope:global))"
             
-            # Execute the node search
+            # Execute the node search using the original query, filters applied later
             search_results = await self.client._search(
-                query=search_query,
+                query=query, # Use original user query
                 config=node_search_config,
             )
             
@@ -499,29 +538,33 @@ class GraphitiService:
                     
                 formatted_results.append(node_data)
                 
-            # If search doesn't return scope and owner_id, try to update results with these properties
-            for i, node_data in enumerate(formatted_results):
-                if "scope" not in node_data or "owner_id" not in node_data:
-                    try:
-                        # Fetch the node directly with all properties
-                        query = """
-                        MATCH (n)
-                        WHERE n.uuid = $uuid
-                        RETURN n.scope as scope, n.owner_id as owner_id
-                        """
-                        
-                        result = await self.execute_cypher(query, {"uuid": node_data["uuid"]})
-                        
-                        if result and len(result) > 0:
-                            if "scope" not in node_data and result[0].get("scope") is not None:
-                                node_data["scope"] = result[0]["scope"]
-                                
-                            if "owner_id" not in node_data and result[0].get("owner_id") is not None:
-                                node_data["owner_id"] = result[0]["owner_id"]
-                    except Exception as e:
-                        logger.warning(f"Error fetching scope/owner_id for node {node_data['uuid']}: {e}")
+            # Apply filtering AFTER search results are retrieved
+            filtered_formatted_results = []
+            for node_data in formatted_results:
+                node_scope = node_data.get("scope")
+                node_owner_id = node_data.get("owner_id")
                 
-            return formatted_results
+                # Determine if the node should be included based on filter criteria
+                include_node = False
+                if scope and owner_id: # Specific scope and owner
+                    if node_scope == scope and node_owner_id == owner_id:
+                        include_node = True
+                elif scope: # Specific scope, any owner
+                    if node_scope == scope:
+                        include_node = True
+                elif owner_id: # Specific owner, any scope (less common use case)
+                     if node_owner_id == owner_id:
+                        include_node = True
+                elif user_id: # Backward compatibility: user's + global
+                    if (node_scope == "user" and node_owner_id == user_id) or node_scope == "global":
+                        include_node = True
+                else: # No filters provided, include everything (should ideally not happen if called from API with user context)
+                    include_node = True
+                    
+                if include_node:
+                    filtered_formatted_results.append(node_data)
+                
+            return filtered_formatted_results
             
         except Exception as e:
             print(f"Error performing node search in Graphiti: {str(e)}")

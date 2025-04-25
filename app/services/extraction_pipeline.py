@@ -13,7 +13,7 @@ from app.services.traits.service import TraitExtractionService, Trait
 logger = logging.getLogger(__name__)
 
 # Pipeline configuration flags
-ENABLE_GRAPHITI_INGESTION = False # Controls whether to store data in Graphiti knowledge graph
+ENABLE_GRAPHITI_INGESTION = True # Controls whether to store data in Graphiti knowledge graph
 ENABLE_PROFILE_UPDATES = True     # Controls whether to update user profiles with traits
 
 # You can override these flags with environment variables
@@ -228,7 +228,7 @@ class ExtractionPipeline:
         )
     
     async def process_extracted_data(self, extraction_results, user_id, source_id, 
-                                    context_title=None, scope="user", owner_id=None):
+                                    context_title=None, scope="user", owner_id=None, source="chat_message"):
         """Process extracted data and store in Graphiti.
         
         Args:
@@ -238,6 +238,7 @@ class ExtractionPipeline:
             context_title: Optional context title (conversation or document title)
             scope: Content scope
             owner_id: Owner ID
+            source: Source type ("chat_message" or "document")
             
         Returns:
             Dictionary with processing results as created entities, relationships, and traits
@@ -257,9 +258,8 @@ class ExtractionPipeline:
         entity_map = {}
         
         # Determine if this is a chat or document source
-        is_chat_source = source_id.startswith("msg_")
-        source_type = "chat" if is_chat_source else "document"
-        logger.info(f"process_extracted_data: Source type is {source_type}")
+        source_type = source
+        logger.info(f"process_extracted_data: Source type is {source_type} from source_id: {source_id}")
         
         # Process entities
         for entity in entities:
@@ -308,7 +308,7 @@ class ExtractionPipeline:
                 entity_properties["context"] = entity.get("context", "")
                 
                 # Add source-specific properties
-                if is_chat_source:
+                if source_type == "chat_message":
                     # For chat source, use message_id and conversation_title
                     entity_properties["message_id"] = source_id
                     entity_properties["conversation_title"] = context_title
@@ -333,79 +333,79 @@ class ExtractionPipeline:
             except Exception as e:
                 logger.error(f"process_extracted_data: Error handling entity {entity_name}: {str(e)}")
         
-        # Process traits
-        for trait in traits:
-            if trait.get("confidence", 0) < self.MIN_CONFIDENCE_TRAIT:
-                logger.info(f"process_extracted_data: Skipping trait {trait.get('name', '')} because confidence is too low")
-                continue
+        # Process traits - disabled for now
+        # for trait in traits:
+        #     if trait.get("confidence", 0) < self.MIN_CONFIDENCE_TRAIT:
+        #         logger.info(f"process_extracted_data: Skipping trait {trait.get('name', '')} because confidence is too low")
+        #         continue
                 
-            trait_type = self.TRAIT_TYPE_MAPPING.get(
-                trait.get("trait_type", "").lower(), 
-                "Unknown"
-            )
-            trait_name = trait.get("name", "").strip()
+        #     trait_type = self.TRAIT_TYPE_MAPPING.get(
+        #         trait.get("trait_type", "").lower(), 
+        #         "Unknown"
+        #     )
+        #     trait_name = trait.get("name", "").strip()
             
-            if not trait_name or trait_name in entity_map:
-                continue
+        #     if not trait_name or trait_name in entity_map:
+        #         continue
                 
-            try:
-                # Check if trait already exists
-                existing_trait = await self.graphiti.find_entity(
-                    name=trait_name,
-                    entity_type=trait_type,
-                    scope=scope,
-                    owner_id=owner_id
-                )
+        #     try:
+        #         # Check if trait already exists
+        #         existing_trait = await self.graphiti.find_entity(
+        #             name=trait_name,
+        #             entity_type=trait_type,
+        #             scope=scope,
+        #             owner_id=owner_id
+        #         )
                 
-                if existing_trait and existing_trait.get("id"):
-                    # Trait already exists and has a valid ID, just store its ID
-                    entity_map[trait_name] = existing_trait.get("id")
-                    logger.info(f"process_extracted_data: Trait {trait_name} already exists with ID {existing_trait.get('id')}")
-                    continue
-                elif existing_trait:
-                    # Trait exists but has no valid ID - log a warning and proceed to create it
-                    logger.warning(f"process_extracted_data: Trait {trait_name} exists but has no valid ID. Creating a new instance.")
+        #         if existing_trait and existing_trait.get("id"):
+        #             # Trait already exists and has a valid ID, just store its ID
+        #             entity_map[trait_name] = existing_trait.get("id")
+        #             logger.info(f"process_extracted_data: Trait {trait_name} already exists with ID {existing_trait.get('id')}")
+        #             continue
+        #         elif existing_trait:
+        #             # Trait exists but has no valid ID - log a warning and proceed to create it
+        #             logger.warning(f"process_extracted_data: Trait {trait_name} exists but has no valid ID. Creating a new instance.")
                     
-                # Create new trait
-                trait_properties = {
-                    "name": trait_name,
-                    "user_id": user_id,
-                    "source": source_type,
-                    "confidence": trait.get("confidence", 0.7),
-                    "strength": trait.get("strength", 0.7),
-                    "evidence": trait.get("evidence", "")
-                }
+        #         # Create new trait
+        #         trait_properties = {
+        #             "name": trait_name,
+        #             "user_id": user_id,
+        #             "source": source_type,
+        #             "confidence": trait.get("confidence", 0.7),
+        #             "strength": trait.get("strength", 0.7),
+        #             "evidence": trait.get("evidence", "")
+        #         }
                 
-                # Add source-specific properties
-                if is_chat_source:
-                    # For chat source, use message_id and conversation_title
-                    trait_properties["message_id"] = source_id
-                    trait_properties["conversation_title"] = context_title
-                else:
-                    # For document source, use source_id and context_title
-                    trait_properties["source_id"] = source_id
-                    trait_properties["context_title"] = context_title
+        #         # Add source-specific properties
+        #         if is_chat_source:
+        #             # For chat source, use message_id and conversation_title
+        #             trait_properties["message_id"] = source_id
+        #             trait_properties["conversation_title"] = context_title
+        #         else:
+        #             # For document source, use source_id and context_title
+        #             trait_properties["source_id"] = source_id
+        #             trait_properties["context_title"] = context_title
                 
-                trait_id = await self.graphiti.create_entity(
-                    entity_type=trait_type,
-                    properties=trait_properties,
-                    scope=scope,
-                    owner_id=owner_id
-                )
-                logger.info(f"process_extracted_data: Created trait {trait_name} as entity in Graphiti with ID {trait_id}")
+        #         trait_id = await self.graphiti.create_entity(
+        #             entity_type=trait_type,
+        #             properties=trait_properties,
+        #             scope=scope,
+        #             owner_id=owner_id
+        #         )
+        #         logger.info(f"process_extracted_data: Created trait {trait_name} as entity in Graphiti with ID {trait_id}")
                 
-                entity_map[trait_name] = trait_id
-                created_traits.append({
-                    "id": trait_id,
-                    "name": trait_name,
-                    "type": trait_type,
-                    "trait_type": trait.get("trait_type"),
-                    "confidence": trait.get("confidence", 0.7),
-                    "evidence": trait.get("evidence", ""),
-                    "strength": trait.get("strength", 0.7)
-                })
-            except Exception as e:
-                logger.error(f"process_extracted_data: Error handling trait {trait_name}: {str(e)}")
+        #         entity_map[trait_name] = trait_id
+        #         created_traits.append({
+        #             "id": trait_id,
+        #             "name": trait_name,
+        #             "type": trait_type,
+        #             "trait_type": trait.get("trait_type"),
+        #             "confidence": trait.get("confidence", 0.7),
+        #             "evidence": trait.get("evidence", ""),
+        #             "strength": trait.get("strength", 0.7)
+        #         })
+        #     except Exception as e:
+        #         logger.error(f"process_extracted_data: Error handling trait {trait_name}: {str(e)}")
         
         # Process relationships
         processed_relationships = set()
@@ -454,7 +454,7 @@ class ExtractionPipeline:
                 }
                 
                 # Add source-specific properties
-                if is_chat_source:
+                if source_type == "chat_message":
                     rel_properties["message_id"] = source_id
                 else:
                     rel_properties["source_id"] = source_id
@@ -478,81 +478,81 @@ class ExtractionPipeline:
                 logger.error(f"process_extracted_data: Error creating relationship: {str(e)}")
         
         # Create relationships between traits and user
-        for trait in created_traits:
-            trait_type = trait.get("trait_type")
-            trait_id = trait.get("id")
+        # for trait in created_traits:
+        #     trait_type = trait.get("trait_type")
+        #     trait_id = trait.get("id")
             
-            if not trait_type or not trait_id:
-                continue
+        #     if not trait_type or not trait_id:
+        #         continue
                 
-            # Different relationship types based on trait type
-            rel_mapping = {
-                "skill": "HAS_SKILL",
-                "interest": "INTERESTED_IN",
-                "preference": "PREFERS",
-                "dislike": "DISLIKES",
-                "attribute": "HAS_ATTRIBUTE"
-            }
+        #     # Different relationship types based on trait type
+        #     rel_mapping = {
+        #         "skill": "HAS_SKILL",
+        #         "interest": "INTERESTED_IN",
+        #         "preference": "PREFERS",
+        #         "dislike": "DISLIKES",
+        #         "attribute": "HAS_ATTRIBUTE"
+        #     }
             
-            rel_type = rel_mapping.get(trait_type.lower(), "ASSOCIATED_WITH")
+        #     rel_type = rel_mapping.get(trait_type.lower(), "ASSOCIATED_WITH")
             
-            try:
-                # Find user node
-                user_entity = await self.graphiti.find_entity(
-                    name=user_id,  # Use user_id as name for user entity
-                    entity_type="Person",
-                    scope=scope,
-                    owner_id=owner_id
-                )
+        #     try:
+        #         # Find user node
+        #         user_entity = await self.graphiti.find_entity(
+        #             name=user_id,  # Use user_id as name for user entity
+        #             entity_type="Person",
+        #             scope=scope,
+        #             owner_id=owner_id
+        #         )
                 
-                # Create user node if it doesn't exist
-                if not user_entity:
-                    user_entity_id = await self.graphiti.create_entity(
-                        entity_type="Person",
-                        properties={
-                            "name": user_id,
-                            "user_id": user_id,
-                            "source": "system"
-                        },
-                        scope=scope,
-                        owner_id=owner_id
-                    )
-                    logger.info(f"process_extracted_data: Created user node for {user_id} with ID {user_entity_id}")
-                else:
-                    logger.info(f"process_extracted_data: User node for {user_id} already exists with ID {user_entity.get('id')}")
-                    user_entity_id = user_entity.get("id")
+        #         # Create user node if it doesn't exist
+        #         if not user_entity:
+        #             user_entity_id = await self.graphiti.create_entity(
+        #                 entity_type="Person",
+        #                 properties={
+        #                     "name": user_id,
+        #                     "user_id": user_id,
+        #                     "source": "system"
+        #                 },
+        #                 scope=scope,
+        #                 owner_id=owner_id
+        #             )
+        #             logger.info(f"process_extracted_data: Created user node for {user_id} with ID {user_entity_id}")
+        #         else:
+        #             logger.info(f"process_extracted_data: User node for {user_id} already exists with ID {user_entity.get('id')}")
+        #             user_entity_id = user_entity.get("id")
                 
-                # Create relationship between user and trait
-                rel_properties = {
-                    "user_id": user_id,
-                    "confidence": trait.get("confidence", 0.7),
-                    "strength": trait.get("strength", 0.7),
-                }
+        #         # Create relationship between user and trait
+        #         rel_properties = {
+        #             "user_id": user_id,
+        #             "confidence": trait.get("confidence", 0.7),
+        #             "strength": trait.get("strength", 0.7),
+        #         }
                 
-                # Add source-specific properties
-                if is_chat_source:
-                    rel_properties["message_id"] = source_id
-                else:
-                    rel_properties["source_id"] = source_id
+        #         # Add source-specific properties
+        #         if is_chat_source:
+        #             rel_properties["message_id"] = source_id
+        #         else:
+        #             rel_properties["source_id"] = source_id
                 
-                rel_id = await self.graphiti.create_relationship(
-                    source_id=user_entity_id,
-                    target_id=trait_id,
-                    rel_type=rel_type,
-                    properties=rel_properties,
-                    scope=scope,
-                    owner_id=owner_id
-                )
-                logger.info(f"process_extracted_data: Created relationship between user {user_id} and trait {trait_id} with ID {rel_id}")
+        #         rel_id = await self.graphiti.create_relationship(
+        #             source_id=user_entity_id,
+        #             target_id=trait_id,
+        #             rel_type=rel_type,
+        #             properties=rel_properties,
+        #             scope=scope,
+        #             owner_id=owner_id
+        #         )
+        #         logger.info(f"process_extracted_data: Created relationship between user {user_id} and trait {trait_id} with ID {rel_id}")
                 
-                created_relationships.append({
-                    "id": rel_id,
-                    "source": user_id,
-                    "target": trait.get("name"),
-                    "type": rel_type
-                })
-            except Exception as e:
-                logger.error(f"process_extracted_data: Error creating user-trait relationship: {str(e)}")
+        #         created_relationships.append({
+        #             "id": rel_id,
+        #             "source": user_id,
+        #             "target": trait.get("name"),
+        #             "type": rel_type
+        #         })
+        #     except Exception as e:
+        #         logger.error(f"process_extracted_data: Error creating user-trait relationship: {str(e)}")
     
         # Consolidate results
         return {
@@ -562,7 +562,7 @@ class ExtractionPipeline:
         }
     
     def process_extracted_data_sync(self, extraction_results, user_id, source_id, 
-                                   context_title=None, scope="user", owner_id=None):
+                                   context_title=None, scope="user", owner_id=None, source="chat_message"):
         """Synchronous version of process_extracted_data."""
         created_loop = False
         try:
@@ -577,7 +577,7 @@ class ExtractionPipeline:
             
             # Run the async method to completion
             return loop.run_until_complete(
-                self.process_extracted_data(extraction_results, user_id, source_id, context_title, scope, owner_id)
+                self.process_extracted_data(extraction_results, user_id, source_id, context_title, scope, owner_id, source)
             )
         finally:
             # Clean up if we created a new loop
@@ -641,8 +641,9 @@ class ExtractionPipeline:
                 file_path,  # source_id
                 metadata.get("title", os.path.basename(file_path)),  # context_title
                 scope=scope,
-                owner_id=owner_id
-                )
+                owner_id=owner_id,
+                source="document"
+            )
             logger.info(f"3. Processed extracted data into Graphiti: {processing_result}")
         else:   
             logger.info(f"3. Skipping Graphiti processing for {file_path} because Graphiti ingestion is disabled")
@@ -704,7 +705,8 @@ class ExtractionPipeline:
                 message_id,  # source_id
                 metadata.get("conversation_title"),  # context_title
                 scope=scope,
-                owner_id=owner_id
+                owner_id=owner_id,
+                source="chat_message"
             )
             logger.info(f"Processed chat data into Graphiti: {len(processing_result.get('entities', []))} entities, "
                       f"{len(processing_result.get('relationships', []))} relationships, "
