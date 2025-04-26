@@ -333,7 +333,9 @@ class ExtractionPipeline:
             except Exception as e:
                 logger.error(f"process_extracted_data: Error handling entity {entity_name}: {str(e)}")
         
-        # Process traits 
+        # Process traits - EDIT: Nvm, let's not process traits into entities here, let Gemini handle the relationship
+        # trait relationships
+        '''
         for trait in traits:
             if trait.get("confidence", 0) < self.MIN_CONFIDENCE_TRAIT:
                 logger.info(f"process_extracted_data: Skipping trait {trait.get('name', '')} because confidence is too low")
@@ -406,6 +408,7 @@ class ExtractionPipeline:
                 })
             except Exception as e:
                 logger.error(f"process_extracted_data: Error handling trait {trait_name}: {str(e)}")
+        '''
         
         # Process relationships
         processed_relationships = set()

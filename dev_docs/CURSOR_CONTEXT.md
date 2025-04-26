@@ -1,6 +1,43 @@
-# Cursor Context
+## Sat Apr 26 14:27:45 PDT 2025
 
-This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updates; the latest update is on top.
+### Current Focus
+- Refining relationship extraction system for traits/attributes to ensure they connect to the correct subjects
+- Fixing Neo4j migration scripts for compatibility with our current Neo4j version
+- Evaluating relationship quality in the knowledge graph
+- Documenting the changes made to extraction processes
+
+### Recent Changes
+1. Fixed the extraction prompt for relationships to explicitly connect traits to their true subjects rather than defaulting to users
+2. Added specific relationship types for traits: HAS_ATTRIBUTE, HAS_SKILL, INTERESTED_IN, LIKES, DISLIKES
+3. Modified entity extraction code to prevent automatic trait-to-user connections
+4. Fixed Neo4j migration script by updating deprecated `NOT EXISTS()` syntax to `IS NULL OR NOT IS NOT NULL` pattern
+5. Enhanced relationship type mapping based on semantic categories
+
+### Current Status
+- Trait relationship extraction is now significantly improved with accurate subject connections
+- Neo4j scripts are functioning correctly with updated syntax
+- Knowledge graph maintains proper semantic relationships between entities and traits
+- Search relevance is improved due to better quality relationships
+
+### Insights and Learnings
+- Prompt engineering is critical for accurate relationship extraction - small changes in wording significantly impact the extraction quality
+- LLMs tend to default to connecting traits to the most prominent entity (usually the user) without explicit instructions otherwise
+- Neo4j syntax changes between versions can cause subtle migration issues
+- Contextual understanding of relationship ownership requires explicit examples in extraction prompts
+
+### Current Database/Model State
+- Entities are correctly connected to their traits and attributes
+- Temporal properties (valid_from, valid_to) are consistently applied
+- Relationship types are semantically meaningful and categorized appropriately
+- Full-text search index is functional and delivering relevant results
+- Relationship facts are accurately represented in natural language
+
+### Pending Tasks
+- Continue monitoring extraction quality over a larger set of conversations
+- Develop metrics to evaluate relationship extraction accuracy
+- Consider further refinement of relationship type classifications
+- Update documentation to reflect the improved extraction approach
+- Add validation tools to verify relationship quality
 
 ## Sat Apr 26 15:30:12 PDT 2025
 

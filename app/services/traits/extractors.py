@@ -169,7 +169,6 @@ class TraitExtractor(ABC):
             # Try to extract JSON from response
             traits = self.entity_extractor._extract_json_from_response(response_text)
             
-            logger.info(f"Extracted {len(traits)} traits using LLM")
             return traits
             
         except Exception as e:

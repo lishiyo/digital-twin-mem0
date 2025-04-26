@@ -158,7 +158,7 @@ class EntityExtractor:
         
         # Create prompt for entity extraction
         prompt = f"""
-        Extract named entities from the following text. For each entity, provide:
+        Extract entities from the following text. For each entity, provide:
         1. The entity text
         2. The entity type (PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT, NORP, FAC, LAW, LANGUAGE, ORDINAL, CARDINAL, QUANTITY)
         3. The start and end character positions in the text
@@ -173,7 +173,7 @@ class EntityExtractor:
         - confidence: A confidence score between 0 and 1
         - context: The surrounding context
 
-        IMPORTANT: ONLY include high-quality entities - ignore common words, formatting markers, anything not useful or relevant about the text's author.
+        IMPORTANT: ONLY include high-quality entities - ignore common words, formatting markers, anything not useful or relevant about the text's author. "I" should count as a person.
         If you detect text in bold (surrounded by ** characters), consider those as potential entities too.
         If you don't find any entities, return an empty JSON list.
 
@@ -191,6 +191,7 @@ class EntityExtractor:
             # Try to extract JSON from response
             entities = self._extract_json_from_response(response_text)
             
+            logger.info(f"Extracted entities from Gemini: {entities}")
             # If we couldn't extract JSON or got an empty list, try a different approach
             if not entities:
                 logger.warning("Failed to extract entities JSON from Gemini response, retrying with structured prompt")
@@ -309,11 +310,12 @@ class EntityExtractor:
             # Return empty list if all extraction methods fail
             return []
     
-    def extract_relationships(self, text: str) -> List[Dict[str, Any]]:
+    def extract_relationships(self, text: str, entities: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """Extract potential relationships between entities.
         
         Args:
             text: Text to extract relationships from
+            entities: Optional pre-extracted entities. If None, entities will be extracted from text.
             
         Returns:
             List of potential relationships
@@ -324,10 +326,12 @@ class EntityExtractor:
         # Ensure model is initialized
         self._ensure_model_initialized()
         
-        # First, extract entities
-        entities = self.extract_entities(text)
+        # Use provided entities or extract them if not provided
+        if entities is None:
+            entities = self.extract_entities(text)
         
         if len(entities) < 2:
+            logger.warning(f"Not enough entities found for relationship extraction: {entities}")
             return []  # Need at least 2 entities for relationships
         
         # Create list of valid relationship types for the prompt, including trait types
@@ -391,6 +395,8 @@ class EntityExtractor:
             
             # Try to extract JSON from response
             relationships = self._extract_json_from_response(response_text)
+            
+            logger.info(f"Extracted relationships from Gemini: {relationships}")
             
             # If extraction failed, return empty list
             if not relationships:
@@ -506,7 +512,7 @@ class EntityExtractor:
                 all_entities.extend(chunk_entities)
             
             # Process relationships from the entire document
-            all_relationships = self.extract_relationships(content)
+            all_relationships = self.extract_relationships(content, all_entities)
             # logger.info(f"process_document: Extracted relationships: {all_relationships}")
             
             return {
@@ -517,7 +523,7 @@ class EntityExtractor:
         else:
             # Process the whole document as a single chunk
             entities = self.extract_entities(content)
-            relationships = self.extract_relationships(content)
+            relationships = self.extract_relationships(content, entities)
             # logger.info(f"process_document: Extracted relationships: {relationships}")
             
             return {

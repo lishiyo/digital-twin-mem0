@@ -2,6 +2,55 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
+## Sat Apr 26 14:27:45 PDT 2025
+
+### Improved Trait Relationship Extraction Process
+
+#### Technical Changes
+- **Enhanced relationship extraction prompts:**
+  - Added explicit instructions for connecting traits to contextually appropriate entities
+  - Expanded relationship type mapping for traits: HAS_ATTRIBUTE, HAS_SKILL, INTERESTED_IN, LIKES, DISLIKES
+  - Included specific examples showing correct trait-to-entity connections
+  - Improved prompt formatting for better LLM parsing
+
+- **Fixed Neo4j migration script:**
+  - Updated deprecated `NOT EXISTS()` syntax to `IS NULL OR NOT IS NOT NULL` pattern
+  - Fixed compatibility issues with current Neo4j version
+  - Enhanced error handling in migration scripts
+  - Added validation checks before applying database changes
+
+- **Modified entity extraction code:**
+  - Revised the automatic entity relationship creation logic:
+    ```python
+    # Original approach created relationships between traits and user by default
+    # Now we preserve the original relationship context from extraction
+    # Only create user-trait relationships when explicitly identified
+    ```
+  - Added validation checks to prevent duplicate relationships
+  - Improved semantic deduplication for traits with similar meanings
+  - Enhanced temporal property handling with consistent `valid_from` and `valid_to` fields
+
+- **Improved relationship type mapping:**
+  - Categorized trait relationships more precisely based on content
+  - Added specific handlers for attribute, skill, and interest traits
+  - Created mapping functions to standardize relationship types
+  - Implemented confidence scoring for relationship assignments
+
+#### Results
+- Traits now correctly associate with their true subject entities rather than defaulting to the user
+- More accurate knowledge graph representation of entity relationships
+- Reduced redundant and misleading connections in the graph
+- Better search results when querying for entity attributes and traits
+- Cleaner database state with proper semantic connections
+- Improved extraction accuracy on test conversations
+
+#### Next Steps
+- Scale testing to larger conversation sets
+- Fine-tune relationship type mapping based on observed patterns
+- Consider implementing relationship clustering for similar traits
+- Develop metrics for measuring extraction quality
+- Update documentation to reflect new approach
+
 ## Sat Apr 26 15:30:12 PDT 2025: Fixed Neo4j Full-Text Search Index Issues
 
 We discovered and resolved a significant issue with Neo4j's full-text search capabilities:
