@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional, Any
 import asyncio
 import logging
@@ -18,6 +17,7 @@ from app.services.conversation.service import ConversationService
 from app.worker.celery_app import celery_app
 from app.worker.tasks.conversation_tasks import summarize_conversation as summarize_conversation_task
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.conversation.mem0_ingestion_sync import SyncChatMem0Ingestion
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -285,11 +285,20 @@ async def get_message_mem0_status(
                 detail=f"Message {message_id} not found or not authorized"
             )
         
+        # Calculate ttl_days using the same logic as in ingestion service
+        ttl_days = None
+        if message.importance_score is not None:
+            # We're just using this to access the ttl calculation method, so we can
+            # pass a mock session
+            ingestion_service = SyncChatMem0Ingestion(None)
+            ttl_days = ingestion_service._get_ttl_for_importance(message.importance_score)
+        
         return {
             "message_id": str(message.id),
             "is_stored_in_mem0": message.is_stored_in_mem0,
             "mem0_memory_id": message.mem0_message_id,
             "importance_score": message.importance_score,
+            "ttl_days": ttl_days,
             "processed": message.processed_in_mem0,
             "created_at": message.created_at.isoformat()
         }
@@ -320,6 +329,7 @@ async def get_message(
         from sqlalchemy import select
         from app.db.models.chat_message import ChatMessage
         from app.db.models.conversation import Conversation
+        from app.services.conversation.mem0_ingestion_sync import SyncChatMem0Ingestion
         
         # Query to get the message and verify ownership
         query = (
@@ -338,6 +348,13 @@ async def get_message(
                 detail=f"Message {message_id} not found or not authorized"
             )
         
+        # Calculate ttl_days using the same logic as in ingestion service
+        ttl_days = None
+        if message.importance_score is not None:
+            # Create instance of SyncChatMem0Ingestion to use its method
+            ingestion_service = SyncChatMem0Ingestion(None)
+            ttl_days = ingestion_service._get_ttl_for_importance(message.importance_score)
+        
         # Return message details
         return {
             "id": str(message.id),
@@ -351,7 +368,8 @@ async def get_message(
             "processed_in_mem0": message.processed_in_mem0,
             "processed_in_graphiti": message.processed_in_graphiti,
             "processed_in_summary": message.processed_in_summary,
-            "importance_score": message.importance_score
+            "importance_score": message.importance_score,
+            "ttl_days": ttl_days
         }
     except HTTPException:
         raise

@@ -320,6 +320,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             const messageData = await response.json();
                             
+                            // Format importance score and TTL days if available
+                            const importanceScore = messageData.importance_score !== undefined ? 
+                                messageData.importance_score.toFixed(4) : 'N/A';
+                            const ttlDays = messageData.ttl_days !== undefined ? 
+                                messageData.ttl_days : 'N/A';
+                            
                             // Display message details
                             document.getElementById('modal-title').textContent = 'Chat Message';
                             document.getElementById('modal-content').innerHTML = `
@@ -327,6 +333,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <p><strong>From:</strong> ${messageData.role || 'Unknown'}</p>
                                     <p><strong>Timestamp:</strong> ${new Date(messageData.timestamp).toLocaleString()}</p>
                                     <p><strong>Processed in Summary:</strong> ${messageData.processed_in_summary === true ? 'Yes' : 'No'}</p>
+                                    <p><strong>Stored in Mem0:</strong> ${messageData.is_stored_in_mem0 === true ? 'Yes' : 'No'}</p>
+                                    <p><strong>Importance Score:</strong> ${importanceScore}</p>
+                                    <p><strong>TTL (days):</strong> ${ttlDays}</p>
                                     <div class="message-content">
                                         <p>${messageData.content || 'No content available'}</p>
                                     </div>
@@ -412,6 +421,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                     .join('')
                                 : '<tr><td colspan="2">No metadata available</td></tr>';
                             
+                            // Add importance score and TTL days display
+                            const importanceScore = memoryData.metadata.importance_score !== undefined ? 
+                                memoryData.metadata.importance_score.toFixed(4) : 'N/A';
+                            
                             // Display memory details
                             document.getElementById('modal-title').textContent = 'Memory Details';
                             document.getElementById('modal-content').innerHTML = `
@@ -419,6 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <p><strong>ID:</strong> ${memoryData.memory_id || memoryData.id}</p>
                                     <p><strong>Type:</strong> ${memoryData.metadata.source || memoryData.memory_type || 'Unknown'}</p>
                                     <p><strong>Created:</strong> ${date}</p>
+                                    <p><strong>Importance Score:</strong> ${importanceScore}</p>
                                     <div class="memory-content">
                                         <h3>Content</h3>
                                         <p>${content || 'No content available'}</p>

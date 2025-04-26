@@ -2,6 +2,32 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
+## Sat Apr 26 16:04:36 PDT 2025
+
+### Fixes and Enhancements
+
+- **Fixed Celery Task Event Loop Issues:**
+  - Resolved the "attached to a different loop" error in the `check_and_queue_summarization` task by refactoring it to be fully synchronous. This avoids async/sync conflicts within the Celery worker context.
+  - Simplified the `_summarize_conversation_sync` task by using `asyncio.run()`, which automatically handles event loop creation and teardown for the async `generate_summary` call.
+
+- **Improved Graphiti Indexing:**
+  - Updated `GraphitiService.initialize_graph` to include *all* defined `RELATIONSHIP_TYPES` in the `relationship_text_index` full-text index, rather than just a subset.
+  - Moved `RELATIONSHIP_TYPES` constant to `app/services/common/constants.py` for better organization and reuse, resolving a circular import issue.
+
+- **Reinstated Graphiti Context in Agent:**
+  - Re-enabled the inclusion of Graphiti search results (`_retrieve_from_graphiti`) in the `_merge_context` step of the `TwinAgent` (`app/services/agent/graph_agent.py`). This was previously disabled due to poor retrieval quality, which has now been improved by the indexing changes.
+
+- **Temporarily Disabled UserProfile Updates:**
+  - Set `ENABLE_PROFILE_UPDATES` to `False` in `app/services/extraction_pipeline.py`.
+  - Reasoning: The improved `extract_relationships` function in the Gemini extractor now directly creates trait relationships (e.g., HAS_SKILL, INTERESTED_IN) in the graph. Updating the separate `UserProfile` model is temporarily redundant until we reconcile these two approaches.
+  - TODO: We added `like` as a trait during extraction but have not run any model schema updates or migrations to UserProfile yet, because we are not sure if we will continue using UserProfile traits.
+
+### Next Steps
+
+- Evaluate the quality of graph-based trait retrieval vs. UserProfile model.
+- Decide on a final strategy for storing and accessing user traits (Graph only, UserProfile only, or hybrid).
+- Re-enable or remove UserProfile updates based on the chosen strategy.
+
 ## Sat Apr 26 14:27:45 PDT 2025
 
 ### Improved Trait Relationship Extraction Process

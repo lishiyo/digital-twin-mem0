@@ -1,3 +1,35 @@
+## Sat Apr 26 16:04:36 PDT 2025
+
+**Current Focus:**
+- Stabilizing background tasks (Celery summarization).
+- Improving knowledge graph relevance through better indexing and relationship definition.
+- Consolidating trait storage strategy (Graph vs. UserProfile).
+
+**Recent Changes:**
+- Fixed Celery event loop conflicts in summarization tasks (`check_and_queue_summarization` made synchronous, `_summarize_conversation_sync` simplified with `asyncio.run`).
+- Updated Graphiti full-text relationship index (`relationship_text_index`) to include ALL `RELATIONSHIP_TYPES` from `constants.py`.
+- Moved `RELATIONSHIP_TYPES` constant to `common/constants.py` to resolve circular imports and improve organization.
+- Re-enabled Graphiti results (`_retrieve_from_graphiti`) in `TwinAgent`'s context merging due to improved retrieval quality.
+- Temporarily disabled UserProfile updates in `ExtractionPipeline` (`ENABLE_PROFILE_UPDATES = False`) as trait relationships are now directly created in the graph via `extract_relationships`.
+
+**Current Status:**
+- Celery summarization tasks should now run without event loop errors.
+- Graphiti relationship search index is comprehensive, covering all defined relationship types.
+- Agent context now includes potentially relevant graph relationships again.
+- Trait information is primarily being stored directly as graph relationships (e.g., User-[:HAS_SKILL]->Skill).
+- `UserProfile` model updates are paused.
+
+**Decisions & Considerations:**
+- Need to decide whether to keep `UserProfile` for traits or rely solely on graph relationships. Graph relationships offer richer context and searchability but might be slower for direct profile lookups.
+- If keeping both, need a synchronization strategy.
+- If using Graph only, need efficient queries to reconstruct a user profile view.
+
+**Pending Tasks:**
+- Test summarization tasks thoroughly.
+- Evaluate agent response quality with reinstated Graphiti context.
+- Analyze performance of graph-based trait retrieval.
+- Define and implement the final trait storage strategy.
+
 ## Sat Apr 26 14:27:45 PDT 2025
 
 ### Current Focus
