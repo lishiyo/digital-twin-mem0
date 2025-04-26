@@ -15,7 +15,7 @@ from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from app.core.config import settings
-from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING
+from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING, RELATIONSHIP_TYPES
 
 import logging
 logger = logging.getLogger(__name__)
@@ -99,10 +99,11 @@ class GraphitiService:
             ]
             # subset of RELATIONSHIP_TYPES, need the trait ones at minimum
             # make sure that all TRAIT_TYPE_TO_RELATIONSHIP_MAPPING values are included, and a few more
-            relationship_types = list(TRAIT_TYPE_TO_RELATIONSHIP_MAPPING.values())
-            relationship_types = relationship_types + [
-                "RELATED_TO", "KNOWS", "ORGANIZED", "INVOLVED", "PARTICIPATED_IN", "WORKS_FOR", "OWNS"
-            ]
+            # relationship_types = list(TRAIT_TYPE_TO_RELATIONSHIP_MAPPING.values())
+            # relationship_types = relationship_types + [
+            #     "RELATED_TO", "KNOWS", "ORGANIZED", "INVOLVED", "PARTICIPATED_IN", "WORKS_FOR", "OWNS"
+            # ]
+            relationship_types = RELATIONSHIP_TYPES
             
             # Build the index creation query
             labels_str = "|".join(index_labels)

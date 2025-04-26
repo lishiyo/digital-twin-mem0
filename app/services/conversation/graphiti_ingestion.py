@@ -143,8 +143,8 @@ class ChatGraphitiIngestion:
             processing_result = pipeline_result.get("processing", {})
             
             # Skip processing if no entities or traits were found
-            if not processing_result.get("entities", []) and not processing_result.get("traits", []):
-                logger.info(f"Skipped storing {message.id} as no entities or traits were processed in Graphiti")
+            if not processing_result.get("entities", []) and not processing_result.get("traits", []) and not processing_result.get("relationships", []):
+                logger.info(f"Skipped storing {message.id} as no entities or relationships or traits were processed in Graphiti")
                 message.processed_in_graphiti = True  # Mark as processed
                 message.is_stored_in_graphiti = False  # But we didn't store anything
                 self.db.commit()

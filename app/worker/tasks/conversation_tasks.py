@@ -113,62 +113,69 @@ def process_conversation(conversation_id: str) -> Dict[str, Any]:
 def check_and_queue_summarization(conversation_id: str) -> Dict[str, Any]:
     """Checks if a conversation needs summarization and queues the task if needed."""
     logger.info(f"TASK: Checking summarization need for conversation {conversation_id}")
-    try:
-        # Create a brand new event loop for this task
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        
+    
+    # Use a synchronous path to avoid asyncio complexity in this checking task.
+    # The actual summarization task will handle the async operations.
+    with get_db_session() as db:
         try:
-            # Define the async part of the logic
-            async def _async_check():
-                from app.services.conversation.summarization import ConversationSummarizationService
-                from app.db.session import get_async_session
-                from app.services.memory import MemoryService
-                
-                # Create a fresh session for each async operation
-                async with get_async_session() as async_db:
-                    memory_service = MemoryService()
-                    summarization_service = ConversationSummarizationService(async_db, memory_service)
-                    
-                    logger.info(f"TASK: Calling should_summarize_conversation for {conversation_id}")
-                    try:
-                        should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
-                        logger.info(f"TASK: should_summarize_conversation returned {should_summarize}")
-                        
-                        if should_summarize:
-                            logger.info(f"TASK: Queuing summarization task for conversation {conversation_id}")
-                            # Queue the actual summarization task
-                            summary_task_result = summarize_conversation.delay(conversation_id)
-                            return {
-                                "status": "queued",
-                                "conversation_id": conversation_id,
-                                "summary_task_id": summary_task_result.id
-                            }
-                        else:
-                            logger.info(f"TASK: Summarization not needed for conversation {conversation_id}")
-                            return {
-                                "status": "not_needed",
-                                "conversation_id": conversation_id
-                            }
-                    except Exception as e:
-                        logger.error(f"Error in should_summarize_conversation: {str(e)}", exc_info=True)
-                        raise
-
-            # Use the new loop to run the coroutine to completion
-            result = new_loop.run_until_complete(_async_check())
-            return result
+            # Perform a synchronous check to see if summarization is needed.
             
-        finally:
-            # Always clean up the loop to prevent resource leaks
-            new_loop.close()
-
-    except Exception as e:
-        logger.error(f"TASK: Error checking/queuing summarization for {conversation_id}: {str(e)}", exc_info=True)
-        return {
-            "status": "error",
-            "reason": str(e),
-            "conversation_id": conversation_id
-        }
+            # Get conversation (synchronous query)
+            conv_query = select(Conversation).where(Conversation.id == conversation_id)
+            conv_result = db.execute(conv_query)
+            conversation = conv_result.scalars().first()
+            
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found during sync check.")
+                return {
+                    "status": "error",
+                    "reason": "conversation_not_found",
+                    "conversation_id": conversation_id
+                }
+            
+            # Get count of unprocessed messages (synchronous query)
+            # Use count() for efficiency instead of fetching all messages
+            from sqlalchemy import func
+            messages_query = (
+                select(func.count(ChatMessage.id))
+                .where(
+                    ChatMessage.conversation_id == conversation_id,
+                    ChatMessage.processed_in_summary == False
+                )
+            )
+            unprocessed_count = db.scalar(messages_query)
+            
+            logger.info(f"Synchronously found {unprocessed_count} unprocessed messages for conversation {conversation_id}")
+            
+            # Define threshold (consider moving to constants)
+            MESSAGES_BEFORE_SUMMARY = 20 # Match value in ConversationSummarizationService
+            should_summarize = unprocessed_count >= MESSAGES_BEFORE_SUMMARY
+            
+            if should_summarize:
+                logger.info(f"TASK: Queuing summarization task for conversation {conversation_id}")
+                # Queue the actual summarization task (which handles async internally)
+                summary_task_result = summarize_conversation.delay(conversation_id)
+                return {
+                    "status": "queued",
+                    "conversation_id": conversation_id,
+                    "summary_task_id": summary_task_result.id
+                }
+            else:
+                logger.info(f"TASK: Summarization not needed for conversation {conversation_id}")
+                return {
+                    "status": "not_needed",
+                    "conversation_id": conversation_id
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in synchronous check_and_queue_summarization: {str(e)}", exc_info=True)
+            # Ensure db connection is released even on error
+            # The 'with' statement handles rollback/commit implicitly on exception/success
+            return {
+                "status": "error",
+                "reason": f"Sync check failed: {str(e)}",
+                "conversation_id": conversation_id
+            }
 
 
 @celery_app.task(name="app.worker.tasks.conversation_tasks.summarize_conversation")
@@ -264,10 +271,10 @@ def _process_conversation_sync(conversation_id: str) -> Dict[str, Any]:
 
 def _summarize_conversation_sync(conversation_id: str) -> Dict[str, Any]:
     """Synchronous implementation of summarize_conversation."""
-    # Use a synchronous DB session
+    # Use a synchronous DB session for initial verification
     with get_db_session() as db:
         try:
-            # Get conversation
+            # Get conversation synchronously first to avoid async complexity if not found
             query = select(Conversation).where(Conversation.id == conversation_id)
             result = db.execute(query)
             conversation = result.scalars().first()
@@ -279,34 +286,46 @@ def _summarize_conversation_sync(conversation_id: str) -> Dict[str, Any]:
                     "conversation_id": conversation_id
                 }
             
+            # Now that we know the conversation exists, proceed with the async part
             # Import here to avoid circular imports
             from app.services.conversation.summarization import ConversationSummarizationService
-            import asyncio
+            from app.services.memory import MemoryService
             
-            # Create a brand new event loop for this task
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            
-            try:
-                # Define the async function that will be run
-                async def run_summarization():
-                    # Get memory service
-                    from app.services.memory import MemoryService
-                    from app.db.session import get_async_session
-                    
-                    # Create a new async session for each call
-                    async with get_async_session() as async_db:
+            # Define the async function to perform the summarization
+            async def run_summarization():
+                # Import inside the async function
+                from app.db.session import get_async_session
+                
+                # Create a fresh async session within the async context
+                async with get_async_session() as async_db:
+                    try:
                         memory_service = MemoryService()
                         summarization_service = ConversationSummarizationService(async_db, memory_service)
                         return await summarization_service.generate_summary(conversation_id)
-                
-                # Use the new loop to run the coroutine to completion
-                result = new_loop.run_until_complete(run_summarization())
-                return result
-            finally:
-                # Always clean up the loop to prevent resource leaks
-                new_loop.close()
+                    except Exception as e:
+                        logger.error(f"Error during async summarization call: {str(e)}", exc_info=True)
+                        # Re-raise to be caught by the outer try/except
+                        raise
             
+            # Use asyncio.run() to execute the async function. 
+            # This creates a new event loop and closes it automatically.
+            try:
+                result = asyncio.run(run_summarization())
+                return result
+            except Exception as e:
+                # Catch errors specifically from the asyncio.run() call
+                logger.error(f"Failed to summarize conversation {conversation_id} using asyncio.run: {str(e)}", exc_info=True)
+                return {
+                    "status": "error",
+                    "reason": f"Async execution failed: {str(e)}",
+                    "conversation_id": conversation_id
+                }
+
         except Exception as e:
-            logger.error(f"Error in _summarize_conversation_sync: {str(e)}")
-            raise
+            # Catch errors from the initial synchronous part or re-raised async errors
+            logger.error(f"Error in _summarize_conversation_sync setup: {str(e)}")
+            return {
+                "status": "error",
+                "reason": str(e),
+                "conversation_id": conversation_id
+            }
