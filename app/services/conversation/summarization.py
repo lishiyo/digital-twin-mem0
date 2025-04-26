@@ -307,7 +307,8 @@ class ConversationSummarizationService:
                 )
             )
             messages_result = await self.db.execute(messages_query)
-            unprocessed_count = len(messages_result.scalars().all())
+            unprocessed_messages = messages_result.scalars().all()
+            unprocessed_count = len(unprocessed_messages)
             
             logger.info(f"Unprocessed count for conversation {conversation_id}: {unprocessed_count}")
             

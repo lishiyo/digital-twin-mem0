@@ -114,41 +114,53 @@ def check_and_queue_summarization(conversation_id: str) -> Dict[str, Any]:
     """Checks if a conversation needs summarization and queues the task if needed."""
     logger.info(f"TASK: Checking summarization need for conversation {conversation_id}")
     try:
-        # Define the async part of the logic
-        async def _async_check():
-            from app.services.conversation.summarization import ConversationSummarizationService
-            from app.db.session import get_async_session
-            from app.services.memory import MemoryService # MemoryService might be needed by summarization
-
-            async with get_async_session() as async_db:
-                # Note: Summarization service might need MemoryService, ensure it's passed if needed
-                # Adjust instantiation if MemoryService is required by your current SummarizationService init
-                memory_service = MemoryService() # Create if needed
-                summarization_service = ConversationSummarizationService(async_db, memory_service)
+        # Create a brand new event loop for this task
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        
+        try:
+            # Define the async part of the logic
+            async def _async_check():
+                from app.services.conversation.summarization import ConversationSummarizationService
+                from app.db.session import get_async_session
+                from app.services.memory import MemoryService
                 
-                logger.info(f"TASK: Calling should_summarize_conversation for {conversation_id}")
-                should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
-                logger.info(f"TASK: should_summarize_conversation returned {should_summarize}")
-                
-                if should_summarize:
-                    logger.info(f"TASK: Queuing summarization task for conversation {conversation_id}")
-                    # Queue the actual summarization task
-                    summary_task_result = summarize_conversation.delay(conversation_id)
-                    return {
-                        "status": "queued",
-                        "conversation_id": conversation_id,
-                        "summary_task_id": summary_task_result.id
-                    }
-                else:
-                    logger.info(f"TASK: Summarization not needed for conversation {conversation_id}")
-                    return {
-                        "status": "not_needed",
-                        "conversation_id": conversation_id
-                    }
+                # Create a fresh session for each async operation
+                async with get_async_session() as async_db:
+                    memory_service = MemoryService()
+                    summarization_service = ConversationSummarizationService(async_db, memory_service)
+                    
+                    logger.info(f"TASK: Calling should_summarize_conversation for {conversation_id}")
+                    try:
+                        should_summarize = await summarization_service.should_summarize_conversation(conversation_id)
+                        logger.info(f"TASK: should_summarize_conversation returned {should_summarize}")
+                        
+                        if should_summarize:
+                            logger.info(f"TASK: Queuing summarization task for conversation {conversation_id}")
+                            # Queue the actual summarization task
+                            summary_task_result = summarize_conversation.delay(conversation_id)
+                            return {
+                                "status": "queued",
+                                "conversation_id": conversation_id,
+                                "summary_task_id": summary_task_result.id
+                            }
+                        else:
+                            logger.info(f"TASK: Summarization not needed for conversation {conversation_id}")
+                            return {
+                                "status": "not_needed",
+                                "conversation_id": conversation_id
+                            }
+                    except Exception as e:
+                        logger.error(f"Error in should_summarize_conversation: {str(e)}", exc_info=True)
+                        raise
 
-        # Use asyncio.run() to execute the async function from the sync task
-        result = asyncio.run(_async_check())
-        return result
+            # Use the new loop to run the coroutine to completion
+            result = new_loop.run_until_complete(_async_check())
+            return result
+            
+        finally:
+            # Always clean up the loop to prevent resource leaks
+            new_loop.close()
 
     except Exception as e:
         logger.error(f"TASK: Error checking/queuing summarization for {conversation_id}: {str(e)}", exc_info=True)
@@ -271,23 +283,23 @@ def _summarize_conversation_sync(conversation_id: str) -> Dict[str, Any]:
             from app.services.conversation.summarization import ConversationSummarizationService
             import asyncio
             
-            # Define the async function that will be run
-            async def run_summarization():
-                # Get memory service
-                from app.services.memory import MemoryService
-                from app.db.session import get_async_session
-                
-                # Create a new async session
-                async with get_async_session() as async_db:
-                    memory_service = MemoryService()
-                    summarization_service = ConversationSummarizationService(async_db, memory_service)
-                    return await summarization_service.generate_summary(conversation_id)
-            
-            # Create a brand new event loop
+            # Create a brand new event loop for this task
             new_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(new_loop)
             
             try:
+                # Define the async function that will be run
+                async def run_summarization():
+                    # Get memory service
+                    from app.services.memory import MemoryService
+                    from app.db.session import get_async_session
+                    
+                    # Create a new async session for each call
+                    async with get_async_session() as async_db:
+                        memory_service = MemoryService()
+                        summarization_service = ConversationSummarizationService(async_db, memory_service)
+                        return await summarization_service.generate_summary(conversation_id)
+                
                 # Use the new loop to run the coroutine to completion
                 result = new_loop.run_until_complete(run_summarization())
                 return result
