@@ -305,12 +305,22 @@ class GraphitiService:
                 if count >= limit:
                     break
                 
+                # --- BEGIN ADDED LOGGING ---
+                # logger.info(f"search: Processing raw result object: {result.uuid}")
+                # --- END ADDED LOGGING ---
+
                 # Get the UUID of the relationship from the search result
                 rel_uuid = result.uuid if hasattr(result, "uuid") else None
                 
+                # --- BEGIN ADDED LOGGING ---
+                logger.info(f"search fact: {result.fact}") # Existing log
+                logger.info(f"search: Extracted rel_uuid: {rel_uuid}")
+                # --- END ADDED LOGGING ---
+
                 # If we have a UUID, fetch the full relationship properties directly from Neo4j
                 rel_properties = {}
                 if rel_uuid:
+                    # logger.info(f"search: rel_uuid: {rel_uuid}") # Existing log
                     try:
                         # Query to get all properties of the relationship with this UUID
                         cypher_query = """
@@ -320,6 +330,9 @@ class GraphitiService:
                         """
                         
                         cypher_result = await self.execute_cypher(cypher_query, {"uuid": rel_uuid})
+                        # --- BEGIN ADDED LOGGING ---
+                        logger.info(f"search: Cypher result for rel_uuid {rel_uuid}: {cypher_result}")
+                        # --- END ADDED LOGGING ---
                         if cypher_result and len(cypher_result) > 0 and cypher_result[0].get("properties"):
                             rel_properties = cypher_result[0]["properties"]
                     except Exception as e:
@@ -331,6 +344,8 @@ class GraphitiService:
                 result_score = result.score if hasattr(result, "score") else 0.7  # Default confidence
                 result_valid_to = result.invalid_at if hasattr(result, "invalid_at") else None
                 
+                # logger.info(f"search: rel_properties: {rel_properties}")
+            
                 # Override with properties from Neo4j if available
                 if "scope" in rel_properties:
                     result_scope = rel_properties["scope"]
@@ -340,16 +355,6 @@ class GraphitiService:
                     result_score = rel_properties["score"]
                 if "valid_to" in rel_properties:
                     result_valid_to = rel_properties["valid_to"]
-                
-                # Fall back to user_id for owner_id if available
-                if result_owner_id is None and user_id:
-                    result_owner_id = user_id
-                
-                # Fall back to "user" for scope if we have owner_id
-                if result_scope is None and result_owner_id:
-                    result_scope = "user"
-                elif result_scope is None:
-                    result_scope = "global"
                 
                 formatted_result = {
                     "uuid": rel_uuid,
@@ -543,6 +548,7 @@ class GraphitiService:
             for node_data in formatted_results:
                 node_scope = node_data.get("scope")
                 node_owner_id = node_data.get("owner_id")
+                logger.info(f"node_search: node_data: {node_data}")
                 
                 # Determine if the node should be included based on filter criteria
                 include_node = False
@@ -596,36 +602,58 @@ class GraphitiService:
         Returns:
             The ID of the created entity
         """
-        # Add scope and owner_id to properties
-        if "scope" not in properties:
-            properties["scope"] = scope
-            
-        if "owner_id" not in properties:
-            properties["owner_id"] = owner_id or (
-                properties.get("user_id") if scope == "user" else None
-            )
-        
-        # Validate entity schema
+        # Store scope and owner_id separately
+        final_scope = scope
+        final_owner_id = owner_id or (properties.get("user_id") if scope == "user" else None)
+
+        # Ensure scope and owner_id are NOT in the initial properties map
+        initial_properties = properties.copy()
+        if "scope" in initial_properties:
+            del initial_properties["scope"]
+        if "owner_id" in initial_properties:
+            del initial_properties["owner_id"]
+
+        # Validate entity schema (using original properties which might include scope/owner_id)
         self._validate_entity_schema(entity_type, properties)
         
-        # Create Cypher query to create entity
+        # Create Cypher query to create entity with initial properties
         query = f"""
         CREATE (e:{entity_type} $properties)
         RETURN elementId(e) as entity_id
         """
         
-        # Execute query
+        entity_id = None
         try:
-            result = await self.execute_cypher(query, {"properties": properties})
+            # Execute initial creation query
+            result = await self.execute_cypher(query, {"properties": initial_properties}, transaction_id)
+            
             if result and len(result) > 0:
-                return str(result[0]["entity_id"])
+                entity_id = str(result[0]["entity_id"])
+                logger.info(f"Created entity {entity_type} with elementId: {entity_id}")
+                
+                # Now, update the created entity to add scope and owner_id
+                update_props = {}
+                if final_scope:
+                    update_props["scope"] = final_scope
+                if final_owner_id:
+                    update_props["owner_id"] = final_owner_id
+                    
+                if update_props:
+                    logger.info(f"Updating entity {entity_id} with properties: {update_props}")
+                    update_success = await self.update_entity(entity_id, update_props, transaction_id)
+                    if not update_success:
+                        logger.warning(f"Failed to update entity {entity_id} with scope/owner_id")
             else:
-                # For testing, generate a mock ID
-                return str(uuid.uuid4())
+                # For testing or unexpected failure, generate a mock ID
+                logger.warning("Create entity query returned no result, generating mock ID for testing.")
+                entity_id = str(uuid.uuid4())
+                
+            return entity_id
+            
         except Exception as e:
-            print(f"Error creating entity: {e}")
-            # For testing, generate a mock ID
-            return str(uuid.uuid4())
+            logger.error(f"Error creating entity {entity_type}: {e}")
+            # For testing, generate a mock ID if creation failed
+            return str(uuid.uuid4()) # Keep mock ID generation for robustness in tests
     
     async def update_entity(self, entity_id: str, properties: dict[str, Any],
                            transaction_id: str | None = None) -> bool:
@@ -706,24 +734,34 @@ class GraphitiService:
             owner_id: Optional owner ID for the relationship
             
         Returns:
-            The ID of the created relationship
+            The ID of the created relationship (elementId)
         """
         if properties is None:
             properties = {}
             
-        # Add scope and owner_id to properties if provided
-        if scope:
-            properties["scope"] = scope
-            
-        if owner_id:
-            properties["owner_id"] = owner_id
-        elif "user_id" in properties and scope == "user":
-            # If scope is user and we have user_id, use it as owner_id
-            properties["owner_id"] = properties["user_id"]
-            
+        # --- MODIFICATION START: Separate scope/owner_id, ensure UUID --- 
+        # Determine final scope and owner_id
+        final_scope = scope
+        final_owner_id = owner_id
+        if not final_owner_id and "user_id" in properties and scope == "user":
+            final_owner_id = properties["user_id"]
+
+        # Prepare initial properties (exclude scope/owner_id, include uuid)
+        initial_properties = properties.copy()
+        if "scope" in initial_properties:
+            del initial_properties["scope"]
+        if "owner_id" in initial_properties:
+            del initial_properties["owner_id"]
+
+        # Add a UUID property if it doesn't exist
+        if "uuid" not in initial_properties:
+            initial_properties["uuid"] = str(uuid.uuid4())
+
         # Add temporal metadata (valid from now)
-        properties["valid_from"] = datetime.now(timezone.utc).isoformat()
+        initial_properties["valid_from"] = datetime.now(timezone.utc).isoformat()
+        # --- MODIFICATION END ---
         
+        rel_id = None
         try:
             # Use a more optimized query that avoids Cartesian products
             # by using separate MATCH clauses instead of a single MATCH with multiple patterns
@@ -734,21 +772,45 @@ class GraphitiService:
             RETURN elementId(r) as rel_id
             """
             
-            # Execute query
+            # Execute initial creation query
             result = await self.execute_cypher(
                 query, 
                 {
                     "source_id": source_id, 
                     "target_id": target_id,
-                    "properties": properties
-                }
+                    "properties": initial_properties
+                },
+                transaction_id
             )
             
-            return str(result[0]["rel_id"]) if result else str(uuid.uuid4())
+            if result and len(result) > 0:
+                rel_id = str(result[0]["rel_id"])
+                logger.info(f"Created relationship {rel_type} with elementId: {rel_id} and uuid: {initial_properties.get('uuid')}")
+
+                # --- MODIFICATION START: Update relationship with scope/owner_id ---
+                update_props = {}
+                if final_scope:
+                    update_props["scope"] = final_scope
+                if final_owner_id:
+                    update_props["owner_id"] = final_owner_id
+                    
+                if update_props:
+                    logger.info(f"Updating relationship {rel_id} with properties: {update_props}")
+                    update_success = await self.update_relationship(rel_id, update_props, transaction_id)
+                    if not update_success:
+                        logger.warning(f"Failed to update relationship {rel_id} with scope/owner_id")
+                # --- MODIFICATION END ---
+            else:
+                # For testing or unexpected failure, generate a mock ID
+                logger.warning(f"Create relationship query returned no result, generating mock ID for testing.")
+                rel_id = str(uuid.uuid4())
+                
+            return rel_id
+            
         except Exception as e:
-            print(f"Error creating relationship: {e}")
-            # For testing, return a mock ID
-            return str(uuid.uuid4())
+            logger.error(f"Error creating relationship {rel_type}: {e}")
+            # For testing, return a mock ID if creation failed
+            return str(uuid.uuid4()) # Keep mock ID generation for robustness in tests
     
     async def update_relationship(self, relationship_id: str, properties: dict[str, Any],
                                  transaction_id: str | None = None) -> bool:
@@ -1183,23 +1245,29 @@ class GraphitiService:
         Returns:
             Entity data if found, None otherwise
         """
+        # --- BEGIN ADDED LOGGING ---
+        logger.info(f"find_entity called with: name='{name}', entity_type='{entity_type}', scope='{scope}', owner_id='{owner_id}'")
+        # --- END ADDED LOGGING ---
         try:
             # Build query conditions
-            conditions = ["n.name = $name OR n.title = $name"]
+            conditions = ["(n.name = $name OR n.title = $name)"] # Grouped name/title check
             params = {"name": name}
-            
+
             if entity_type:
-                condition = " OR ".join([f"'{label}' IN labels(n)" for label in entity_type.split(',')])
-                conditions.append(f"({condition})")
-            
+                # Ensure entity_type is handled correctly if it's a comma-separated string
+                labels_list = [f"'{label.strip()}'" for label in entity_type.split(',') if label.strip()]
+                if labels_list:
+                     condition = " OR ".join([f"{label} IN labels(n)" for label in labels_list])
+                     conditions.append(f"({condition})")
+
             if scope:
                 conditions.append("n.scope = $scope")
                 params["scope"] = scope
-                
+
             if owner_id:
                 conditions.append("n.owner_id = $owner_id")
                 params["owner_id"] = owner_id
-                
+
             # Build the query
             conditions_str = " AND ".join(conditions)
             query = f"""
@@ -1218,7 +1286,7 @@ class GraphitiService:
             
             # Execute the query
             result = await self.execute_cypher(query, params)
-            
+
             if result and len(result) > 0:
                 # Format the result
                 entity = result[0]
