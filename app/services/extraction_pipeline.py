@@ -480,7 +480,12 @@ class ExtractionPipeline:
                     "id": rel_id,
                     "source": source_name,
                     "target": target_name,
-                    "type": rel_type
+                    "type": rel_type,
+                    "fact": rel_properties.get("fact"),
+                    "valid_from": rel_properties.get("valid_from"),
+                    "valid_to": rel_properties.get("valid_to"),
+                    "scope": scope,
+                    "owner_id": owner_id
                 })
             except Exception as e:
                 logger.error(f"process_extracted_data: Error creating relationship: {str(e)}")
@@ -572,7 +577,12 @@ class ExtractionPipeline:
                     "id": rel_id,
                     "source": user_id,
                     "target": trait.get("name"),
-                    "type": rel_type
+                    "type": rel_type,
+                    "fact": rel_properties.get("fact"),
+                    "valid_from": rel_properties.get("valid_from"),
+                    "valid_to": rel_properties.get("valid_to"),
+                    "scope": scope,
+                    "owner_id": owner_id
                 })
             except Exception as e:
                 logger.error(f"process_extracted_data: Error creating user-trait relationship: {str(e)}")

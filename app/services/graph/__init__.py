@@ -98,7 +98,7 @@ class GraphitiService:
             ]
             # subset of RELATIONSHIP_TYPES, need the trait ones at minimum
             relationship_types = [
-                "HAS_SKILL", "INTERESTED_IN", "PREFERS", "DISLIKES", "HAS_ATTRIBUTE",
+                "HAS_SKILL", "INTERESTED_IN", "PREFERS", "DISLIKES", "HAS_ATTRIBUTE", "LIKES",
                 "RELATED_TO", "KNOWS", "ORGANIZED", "INVOLVED", "PARTICIPATED_IN", "WORKS_FOR", "OWNS"
             ]
             
@@ -385,7 +385,6 @@ class GraphitiService:
             RETURN 
                 relationship.uuid as uuid,
                 relationship.fact as fact,
-                coalesce(relationship.valid_from, 'N/A') as valid_from,
                 coalesce(relationship.valid_to, 'N/A') as valid_to,
                 relationship.scope as scope,
                 relationship.owner_id as owner_id,
@@ -404,6 +403,7 @@ class GraphitiService:
                 formatted_result = {k: v for k, v in result.items() if v is not None or k in ['uuid', 'fact', 'scope', 'owner_id']}
                 formatted_results.append(formatted_result)
             
+            logger.info(f"Graph Search results: {formatted_results}")
             return formatted_results
             
         except Exception as e:
@@ -767,6 +767,10 @@ class GraphitiService:
                     update_props["scope"] = final_scope
                 if final_owner_id:
                     update_props["owner_id"] = final_owner_id
+                # add fact, valid_from, valid_to
+                update_props["fact"] = properties.get("fact")
+                update_props["valid_from"] = properties.get("valid_from")
+                update_props["valid_to"] = properties.get("valid_to")
                     
                 if update_props:
                     logger.info(f"Updating relationship {rel_id} with properties: {update_props}")

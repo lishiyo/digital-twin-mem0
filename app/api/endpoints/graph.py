@@ -48,8 +48,7 @@ async def list_nodes(
             # or filter afterward. Let's try passing user_id first.
             nodes = await graphiti_service.node_search(
                 query=query,
-                limit=search_limit,
-                user_id=user_id  # Pass user_id to let node_search handle accessible content
+                limit=search_limit
             )
             
             # Apply node_type filtering manually if specified

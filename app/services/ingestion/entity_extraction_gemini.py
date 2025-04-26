@@ -73,6 +73,7 @@ RELATIONSHIP_TYPES = [
     "OWNED_BY",           # Entity owned by another entity
     "SUCCEEDED",          # Entity succeeded another entity
     "SUCCEEDED_BY",       # Entity succeeded by another entity
+    # Trait relationships
     "HAS_SKILL",          # Entity has a skill
     "INTERESTED_IN",      # Entity is interested in another entity
     "PREFERS",            # Entity prefers another entity

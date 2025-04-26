@@ -211,7 +211,33 @@ async def clear_postgres_tables(user_id=None, all_users=False):
     
     return results
 
-
+async def rebuild_graphiti_indexes():
+    """Drop and recreate Graphiti full-text indexes."""
+    graphiti_service = GraphitiService()
+    
+    try:
+        logger.warning("⚠️ Dropping existing Graphiti full-text indexes...")
+        
+        # Try standard Cypher DROP INDEX commands instead of procedures
+        drop_rel_query = "DROP INDEX relationship_text_index IF EXISTS"
+        await graphiti_service.execute_cypher(drop_rel_query)
+        
+        drop_node_query = "DROP INDEX node_text_index IF EXISTS"
+        await graphiti_service.execute_cypher(drop_node_query)
+        
+        logger.info("✅ Successfully dropped full-text indexes")
+        
+        # Recreate all indexes
+        logger.info("Rebuilding all Graphiti indexes...")
+        await graphiti_service.initialize_graph()
+        
+        logger.info("✅ Successfully rebuilt all Graphiti indexes")
+        return {"success": True, "message": "Graphiti indexes rebuilt successfully"}
+    except Exception as e:
+        error_msg = f"❌ Error rebuilding Graphiti indexes: {str(e)}"
+        logger.error(error_msg)
+        return {"error": error_msg}
+    
 def confirm_action():
     """Ask for user confirmation before proceeding with destructive action."""
     response = input("⚠️ This will permanently delete data. Are you sure? (y/N): ")
@@ -271,6 +297,10 @@ async def main(args):
             logger.error("❌ Either --all or --user-id must be specified")
             return
     
+    # Rebuild Graphiti indexes if requested
+    if args.rebuild_indexes:
+        results["graphiti"] = await rebuild_graphiti_indexes()
+    
     logger.info("-" * 60)
     logger.info("Data clearing operations completed")
     logger.info("-" * 60)
@@ -285,6 +315,8 @@ if __name__ == "__main__":
     parser.add_argument("--mem0", action="store_true", help="Clear Mem0 data only")
     parser.add_argument("--graphiti", action="store_true", help="Clear Graphiti data only")
     parser.add_argument("--postgres", action="store_true", help="Clear PostgreSQL data only")
+    parser.add_argument("--rebuild-indexes", action="store_true", 
+                    help="Drop and rebuild Graphiti full-text indexes") 
     
     # Options for who to clear
     group = parser.add_mutually_exclusive_group(required=True)
