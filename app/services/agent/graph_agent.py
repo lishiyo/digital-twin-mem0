@@ -219,6 +219,7 @@ class TwinAgent:
                 scope="user",
                 owner_id=state_obj.user_id
             )
+            logger.info(f"AGENT: node_search returned: {entity_results}")
             
             # Also search general graph results
             graph_results = await self.graphiti_service.search(
@@ -234,9 +235,9 @@ class TwinAgent:
             for i, entity in enumerate(entity_results):
                 name = entity.get("name", "")
                 labels = entity.get("labels", [])
-                summary = entity.get("summary", "")
+                context = entity.get("context", "")
                 labels_str = ", ".join(labels) if labels else ""
-                logger.info(f"Entity {i+1}: {name} ({labels_str}): {summary}")
+                logger.info(f"Entity {i+1}: {name} ({labels_str}): {context}")
             
             # Log detailed graph facts
             logger.info(f"Retrieved {len(graph_results)} graph facts from Graphiti")

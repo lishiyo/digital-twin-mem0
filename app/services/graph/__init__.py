@@ -15,6 +15,7 @@ from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from app.core.config import settings
+from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING
 
 import logging
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ class GraphitiService:
             # Define labels and properties for the full-text index
             # This is a subset of all the entities in ENTITY_TYPE_MAPPING
             index_labels = [
-                "Entity", "Person", "Organization", "Document", "Location", "Event",
+                "Entity", "Person", "NamedBeing", "Organization", "Document", "Location", "Event",
                 "Skill", "Interest", "Preference", "Dislike", "Attribute", "Product"
             ]
             # subset of COMMON_OPTIONAL_FIELDS
@@ -97,8 +98,9 @@ class GraphitiService:
                 "name", "title", "summary", "content", "description", "bio", "source", "source_file", "conversation_title", "context_title", "evidence"
             ]
             # subset of RELATIONSHIP_TYPES, need the trait ones at minimum
-            relationship_types = [
-                "HAS_SKILL", "INTERESTED_IN", "PREFERS", "DISLIKES", "HAS_ATTRIBUTE", "LIKES",
+            # make sure that all TRAIT_TYPE_TO_RELATIONSHIP_MAPPING values are included, and a few more
+            relationship_types = list(TRAIT_TYPE_TO_RELATIONSHIP_MAPPING.values())
+            relationship_types = relationship_types + [
                 "RELATED_TO", "KNOWS", "ORGANIZED", "INVOLVED", "PARTICIPATED_IN", "WORKS_FOR", "OWNS"
             ]
             
@@ -934,6 +936,10 @@ class GraphitiService:
         # This would be expanded based on your specific requirements
         schemas = {
             "Person": {
+                "required": ["name"],
+                "optional": ["age", "email", "location", "bio", "profession", "relationship", "contact_info"]
+            },
+            "NamedBeing": {
                 "required": ["name"],
                 "optional": ["age", "email", "location", "bio", "profession", "relationship", "contact_info"]
             },

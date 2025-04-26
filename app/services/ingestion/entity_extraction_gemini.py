@@ -10,6 +10,8 @@ import json
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 
+from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING
+
 logger = logging.getLogger(__name__)
 
 # Default Gemini model
@@ -34,7 +36,8 @@ ENTITY_TYPE_MAPPING = {
     "LANGUAGE": "Language",
     "ORDINAL": "Ordinal",
     "CARDINAL": "Cardinal",
-    "QUANTITY": "Quantity"
+    "QUANTITY": "Quantity",
+    "NAMED_BEING": "NamedBeing" # e.g. animals, plants, non-human entities
 }
 
 # Blacklist of items that should not be treated as entities
@@ -81,16 +84,6 @@ RELATIONSHIP_TYPES = [
     "LIKES",              # Entity likes another entity
     "HAS_ATTRIBUTE",      # Entity has an attribute
 ]
-
-# Mapping from trait types to relationship types
-TRAIT_TYPE_TO_RELATIONSHIP_MAPPING = {
-    "skill": "HAS_SKILL",
-    "interest": "INTERESTED_IN",
-    "preference": "PREFERS",
-    "like": "LIKES",
-    "dislike": "DISLIKES",
-    "attribute": "HAS_ATTRIBUTE"
-}
 
 # Important entity types that we want to prioritize and preserve
 IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time"]
@@ -160,7 +153,7 @@ class EntityExtractor:
         prompt = f"""
         Extract entities from the following text. For each entity, provide:
         1. The entity text
-        2. The entity type (PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT, NORP, FAC, LAW, LANGUAGE, ORDINAL, CARDINAL, QUANTITY)
+        2. The entity type (PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT, NORP, FAC, LAW, LANGUAGE, ORDINAL, CARDINAL, QUANTITY, NAMED_BEING (this is not a person but has a name, like animals))
         3. The start and end character positions in the text
         4. A confidence score between 0 and 1
         5. The surrounding context (a few words before and after)

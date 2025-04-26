@@ -84,7 +84,7 @@ class TraitExtractionService:
             # Extract traits
             extractor = self._extractors[source_type]
             traits = await extractor.extract_traits(content, metadata)
-            logger.info(f"Extracted {len(traits)} traits from {source_type}")
+            logger.info(f"TraitExtractionService: Extracted {len(traits)} traits from {source_type}")
             
             # Process traits, filter out low confidence traits
             processed_traits = self._process_traits(traits, source_type)
