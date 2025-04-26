@@ -2,6 +2,40 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
+## Sat Apr 26 15:30:12 PDT 2025: Fixed Neo4j Full-Text Search Index Issues
+
+We discovered and resolved a significant issue with Neo4j's full-text search capabilities:
+
+### Neo4j Index Creation Problem
+- Identified that Neo4j full-text indexes only index relationship types that existed at the time of index creation
+- Adding new relationship types (like HAS_ATTRIBUTE) does not automatically update existing indexes
+- This caused relationship facts containing terms like "Aggy" to exist in the database but not appear in search results
+- Specifically, the TwinAgent's chat interface and direct `GraphitiService.search()` calls couldn't find certain relationship types
+
+### Solution Implemented
+- Added `rebuild_graphiti_indexes` function to `app/scripts/clear_data.py` to:
+  - Drop existing `relationship_text_index` and `node_text_index` using standard Cypher `DROP INDEX` commands
+  - Recreate all indexes through the `GraphitiService.initialize_graph()` method
+  - Add proper error handling and logging
+- Added a new `--rebuild-indexes` command-line option to make this operation easy to execute
+- Fixed a compatibility issue with Neo4j's syntax for checking property existence in `add_valid_to_property.py`:
+  - Replaced deprecated `NOT EXISTS(r.valid_to)` with the modern `r.valid_to IS NULL` syntax
+
+### Search Mechanism Insights
+- Identified distinction between different search patterns in our codebase:
+  - `GraphitiService.search()`: Uses Neo4j's fuzzy full-text search on relationship `fact` property
+  - `list_relationships` endpoint: Uses regular Cypher pattern matching without full-text search
+- Full-text search is more powerful for natural language queries but depends on proper tokenization
+- Relationship facts with embedded terms (like "Aggy" inside a sentence) require well-configured full-text indexes
+
+### Best Practices Going Forward
+- Index rebuilding is required anytime new relationship types are added to the schema
+- Consider including a periodic index health check in maintenance scripts
+- When developing new relationship types, verify they're properly indexed by testing search functionality
+- Add proper handling of index errors in production code
+
+These fixes ensure a more consistent search experience across all relationship types and provide important context for Neo4j index management.
+
 ## Sat Apr 26 12:10:52 PDT 2025: Enhanced Relationship Facts and Search
 
 We've made significant improvements to how relationships are represented and searched in our knowledge graph:
@@ -364,7 +398,7 @@ Next steps:
 
 **Errors & Fixes:**
 - **Port 5432 Conflict:** Changed `docker-compose.yml` to map host port 5433 to container port 5432 for PostgreSQL.
-- **`ModuleNotFoundError: No module named 'pydantic_settings'`:** Ran `pip install -r requirements.txt`.
+- **`ModuleNotFoundError: No module named 'pydantic_settings'**: Ran `pip install -r requirements.txt`.
 - **Port 8000 Conflict:** Ran Uvicorn on port 8001.
 - **Pydantic `CORS_ORIGINS` Parsing Error:** Corrected `.env` format and added validator in `config.py`.
 - **Pydantic `POSTGRES_PORT` Type Error:** Changed `POSTGRES_PORT` type to `int` in `config.py`.

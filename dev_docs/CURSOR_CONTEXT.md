@@ -2,6 +2,41 @@
 
 This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updates; the latest update is on top.
 
+## Sat Apr 26 15:30:12 PDT 2025
+
+**Current Guide Section:** 
+- Debugging Neo4j full-text search issues (Task 4.6 - Relationship Search Improvements)
+- Comparing behavior between regular search and full-text search
+
+**What's Working:**
+- Fixed critical issue with full-text search indexing by dropping and recreating indexes
+- Successfully implemented relationship search that finds facts containing "Aggy" and other embedded terms
+- Added `rebuild_graphiti_indexes` function to `clear_data.py` for easy index maintenance
+
+**What's Broken/Fixed:**
+- Discovered Neo4j full-text indexes only index relationship types that existed at time of index creation
+- Fixed by dropping and recreating indexes rather than updating existing ones
+- Simplified `IS NULL` check in migration scripts to follow Neo4j's newer syntax conventions
+- Identified distinction between `GraphitiService.search()` (using full-text search) and `list_relationships` endpoint (using regular pattern matching)
+
+**Current Insights:**
+- Neo4j full-text indexes must be completely recreated when adding new relationship types
+- Relationship properties containing longer factual text may require different search approaches than simple entity names
+- The search mechanism used varies by endpoint:
+  - TwinAgent chat and direct `search()` calls use fuzzy full-text search on the `fact` property
+  - The `list_relationships` endpoint uses direct pattern matching
+- Tokenization in full-text search affects how terms embedded in longer texts are found
+
+**Database/Model State:**
+- Full-text indexes now include all relationship types including HAS_ATTRIBUTE
+- `valid_to` property exists on all relationships for temporal validity
+- Search queries properly handle null values for temporal properties
+
+**Pending Tasks:**
+- Consider monitoring index health as part of regular maintenance
+- Add documentation about when indexes need to be recreated
+- Review performance of full-text search vs. direct pattern matching for different query types
+
 ## Sat Apr 26 12:10:52 PDT 2025
 
 **Current Guide Section:** 
