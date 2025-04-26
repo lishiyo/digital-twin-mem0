@@ -2,6 +2,43 @@
 
 This document, like DEVELOPMENT_LOG.md, should go in most recent to oldest updates; the latest update is on top.
 
+## Sat Apr 26 12:10:52 PDT 2025
+
+**Current Guide Section:** 
+- Implementing Custom Graphiti Search (Task 4.6 - Relationship Search Improvements)
+- Improving fact representation in relationships to enhance search relevance
+
+**What's Working:**
+- Significantly improved relationship search by:
+  - Adding `fact` properties to relationships that describe the relationship in natural language
+  - Using Gemini-generated fact descriptions for more meaningful context
+  - Setting proper `valid_from` and `valid_to` temporal properties
+  - Implementing semantic deduplication to prevent redundant facts
+- Enhanced debugging for Graphiti ingestion:
+  - Added utility functions to list facts/relationships by user
+  - Created direct query tools to analyze full-text index performance
+  - Implemented tracing for relationship creation during extraction
+  - Added verification for entity/relationship properties
+
+**What's Broken/Incomplete:**
+- Some duplicate entities and relationships may still occur when running tests multiple times
+- Search relevance still needs tuning, particularly for query terms not directly matching facts
+- Need to consistently use custom entity/relation/trait extraction instead of Graphiti's add_episode
+
+**Current Blockers:**
+- None
+
+**Database/Model State:**
+- Relationships now include human-readable `fact` properties in addition to typed relationship links
+- Full-text search indexes properly configured for relationship properties
+- Added `valid_to` property to all relationships for temporal validity
+
+**Pending Tasks:**
+- Continue tuning search relevance for different query types
+- Complete integration tests for the full extraction pipeline
+- Ensure consistent use of custom extraction instead of add_episode in test scripts
+- Update integration tests to verify fact property creation and search
+
 ## Thu Apr 24 22:50:14 PDT 2025
 
 **Current Guide Section:** 
