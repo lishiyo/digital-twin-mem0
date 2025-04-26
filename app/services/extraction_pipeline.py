@@ -490,6 +490,9 @@ class ExtractionPipeline:
             except Exception as e:
                 logger.error(f"process_extracted_data: Error creating relationship: {str(e)}")
         
+        # Comment out automatic user-trait relationship creation
+        # Now traits will be properly associated with their correct entities via the relationship extraction
+        '''
         # Create relationships between traits and user
         for trait in created_traits:
             trait_type = trait.get("trait_type")
@@ -586,6 +589,7 @@ class ExtractionPipeline:
                 })
             except Exception as e:
                 logger.error(f"process_extracted_data: Error creating user-trait relationship: {str(e)}")
+        '''
     
         # Consolidate results
         return {

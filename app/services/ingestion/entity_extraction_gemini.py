@@ -330,8 +330,10 @@ class EntityExtractor:
         if len(entities) < 2:
             return []  # Need at least 2 entities for relationships
         
-        # Create list of valid relationship types for the prompt
-        rel_types_str = ", ".join([f'"{rel_type}"' for rel_type in RELATIONSHIP_TYPES])
+        # Create list of valid relationship types for the prompt, including trait types
+        # Added trait relationship types
+        rel_types = RELATIONSHIP_TYPES
+        rel_types_str = ", ".join([f'"{rel_type}"' for rel_type in rel_types])
         
         # Create prompt for relationship extraction
         entity_mentions = ", ".join([f"{e['text']} ({e['entity_type']})" for e in entities])
@@ -366,7 +368,18 @@ class EntityExtractor:
         - Person to Product: ASSOCIATED_WITH
         - Organization to Product: PRODUCED
         - Product to Organization: PRODUCED_BY
-        - For any pair without a relevant specific type, use "MISSING"
+        
+        Guidelines for trait/attribute relationships:
+        - Person to Attribute: HAS_ATTRIBUTE (e.g., "John is 35 years old", "Mary has brown hair")
+        - Person to Number/Cardinal: HAS_ATTRIBUTE (e.g., "Kyle is 28")
+        - Person to Interest: INTERESTED_IN (e.g., "Jane likes hiking")
+        - Person to Skill: HAS_SKILL (e.g., "Bob knows Python")
+        - Person to Preference: LIKES (e.g., "Mary loves Italian food")
+        - Person to Dislike: DISLIKES (e.g., "Tom hates cold weather")
+        
+        For any pair without a relevant specific type, use "MISSING"
+        
+        IMPORTANT: Identify who traits and attributes belong to based on the text. If the text says "Kyle is 28", create a relationship from Kyle to 28, not from the assumed message sender.
         
         Only include relationships that are clearly supported by the text.
         """
@@ -394,7 +407,7 @@ class EntityExtractor:
                 
                 if source_type and target_type:
                     # Ensure relationship type is from our defined set
-                    if rel.get("relationship") not in RELATIONSHIP_TYPES:
+                    if rel.get("relationship") not in rel_types:
                         # Is the type just "MISSING"? Let's log it to see if we need to add more types
                         if rel.get("relationship") == "MISSING":
                             logger.warning(f"Missing relationship type for {source_type} and {target_type}")
@@ -545,6 +558,18 @@ class EntityExtractor:
             ("Person", "Product"): "ASSOCIATED_WITH",
             ("Organization", "Product"): "PRODUCED",
             ("Product", "Organization"): "PRODUCED_BY",
+            # Added trait/attribute relationship mappings
+            ("Person", "Cardinal"): "HAS_ATTRIBUTE",  # For age and numeric attributes
+            ("Person", "Attribute"): "HAS_ATTRIBUTE",
+            ("Person", "Interest"): "INTERESTED_IN",
+            ("Person", "Skill"): "HAS_SKILL",
+            ("Person", "Preference"): "LIKES",
+            ("Person", "Dislike"): "DISLIKES",
+            # Common entity types that should be treated as attributes
+            ("Person", "Number"): "HAS_ATTRIBUTE",
+            ("Person", "Quantity"): "HAS_ATTRIBUTE",
+            ("Person", "Age"): "HAS_ATTRIBUTE",
+            ("Person", "Date"): "HAS_ATTRIBUTE",  # For birthdays, etc.
         }
         
         # Get relationship type from map, or use default
