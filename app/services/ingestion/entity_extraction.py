@@ -5,10 +5,15 @@ import os
 from typing import Dict, List, Optional, Set, Tuple, Any
 from collections import defaultdict
 import re
+import json
 
 import spacy
 from spacy.tokens import Doc
 from spacy.language import Language
+from spacy.matcher import PhraseMatcher
+from spacy.util import filter_spans
+
+from app.services.ingestion.entity_extraction_gemini import RELATIONSHIP_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -501,6 +506,11 @@ class EntityExtractor:
                         "sentence_id": sentence_id
                     })
         
+        # Ensure all relationships use valid relationship types from our centralized list
+        for rel in relationships:
+            if rel["relationship"] not in RELATIONSHIP_TYPES:
+                rel["relationship"] = "MENTIONED_WITH"
+    
         return relationships
     
     def extract_keywords(self, text: str, top_n: int = 10) -> List[Dict[str, Any]]:

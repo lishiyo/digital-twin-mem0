@@ -24,6 +24,7 @@ class TraitExtractionService:
     MIN_CONFIDENCE_TRAIT_INTEREST = 0.7
     MIN_CONFIDENCE_TRAIT_PREFERENCE = 0.7
     MIN_CONFIDENCE_TRAIT_DISLIKE = 0.7
+    MIN_CONFIDENCE_TRAIT_LIKE = 0.7
     MIN_CONFIDENCE_TRAIT_ATTRIBUTE = 0.7
     
     # Source reliability weights
@@ -142,6 +143,8 @@ class TraitExtractionService:
                 continue
             elif trait.trait_type == "preference" and trait.confidence < self.MIN_CONFIDENCE_TRAIT_PREFERENCE:
                 continue
+            elif trait.trait_type == "like" and trait.confidence < self.MIN_CONFIDENCE_TRAIT_LIKE:
+                continue
             elif trait.trait_type == "dislike" and trait.confidence < self.MIN_CONFIDENCE_TRAIT_DISLIKE:
                 continue
             elif trait.trait_type == "attribute" and trait.confidence < self.MIN_CONFIDENCE_TRAIT_ATTRIBUTE:
@@ -228,6 +231,8 @@ class TraitExtractionService:
             "preferences_updated": 0,
             "dislikes_added": 0,
             "dislikes_updated": 0,
+            "likes_added": 0,
+            "likes_updated": 0,
             "attributes_added": 0,
             "attributes_updated": 0
         }
@@ -239,6 +244,7 @@ class TraitExtractionService:
             preferences = profile.preferences if isinstance(profile.preferences, dict) else json.loads(profile.preferences or '{}')
             dislikes = profile.dislikes if isinstance(profile.dislikes, list) else json.loads(profile.dislikes or '[]')
             attributes = profile.attributes if isinstance(profile.attributes, list) else json.loads(profile.attributes or '[]')
+            likes = profile.likes if isinstance(profile.likes, list) else json.loads(profile.likes or '[]')
             
             # Ensure profile fields are mutable lists/dicts for updates
             profile.skills = list(skills)
@@ -246,7 +252,7 @@ class TraitExtractionService:
             profile.preferences = dict(preferences)
             profile.dislikes = list(dislikes)
             profile.attributes = list(attributes)
-
+            profile.likes = list(likes)
             # Create maps of existing traits for deduplication and confidence checks
             # Store index along with data for easier update/removal
             skill_map = {s.get("name", "").lower(): (idx, s) for idx, s in enumerate(profile.skills) if isinstance(s, dict) and s.get("name")}
@@ -258,6 +264,7 @@ class TraitExtractionService:
                         if isinstance(details, dict):
                            preference_map[name.lower()] = (category, name, details) # Store category, original name, details
             dislike_map = {d.get("name", "").lower(): (idx, d) for idx, d in enumerate(profile.dislikes) if isinstance(d, dict) and d.get("name")}
+            like_map = {l.get("name", "").lower(): (idx, l) for idx, l in enumerate(profile.likes) if isinstance(l, dict) and l.get("name")}
             attribute_map = {a.get("name", "").lower(): (idx, a) for idx, a in enumerate(profile.attributes) if isinstance(a, dict) and a.get("name")}
             
             # Track staged additions (items not found in existing maps)
@@ -266,7 +273,8 @@ class TraitExtractionService:
             staged_preferences = defaultdict(dict) # category -> {name: details}
             staged_dislikes = []
             staged_attributes = []
-
+            staged_likes = []
+            
             # --- Step 1: Process incoming traits ---
             for trait in traits:
                 trait_type = trait.trait_type.lower()
@@ -343,6 +351,16 @@ class TraitExtractionService:
                         staged_dislikes.append(trait_data)
                         updates["dislikes_added"] += 1
                         
+                elif trait_type == "like":
+                    if name_lower in like_map:
+                        idx, existing_like = like_map[name_lower]
+                        if confidence >= existing_like.get("confidence", 0):
+                            profile.likes[idx] = trait_data
+                            updates["likes_updated"] += 1
+                    else:
+                        staged_likes.append(trait_data)
+                        updates["likes_added"] += 1
+                        
                 elif trait_type == "attribute":
                     if name_lower in attribute_map:
                         idx, existing_attribute = attribute_map[name_lower]
@@ -374,7 +392,10 @@ class TraitExtractionService:
                 
             if staged_attributes:
                 profile.attributes.extend(staged_attributes)
-            
+
+            if staged_likes:
+                profile.likes.extend(staged_likes)
+                
             # Merge staged preferences into the profile preferences dictionary
             if staged_preferences:
                 for category, new_prefs in staged_preferences.items():
@@ -386,19 +407,20 @@ class TraitExtractionService:
             # Rebuild maps based on the potentially updated lists
             interest_map_final = {i.get("name", "").lower(): (idx, i) for idx, i in enumerate(profile.interests) if isinstance(i, dict) and i.get("name")}
             dislike_map_final = {d.get("name", "").lower(): (idx, d) for idx, d in enumerate(profile.dislikes) if isinstance(d, dict) and d.get("name")}
-            
-            conflicting_names = set(interest_map_final.keys()) & set(dislike_map_final.keys())
+            like_map_final = {l.get("name", "").lower(): (idx, l) for idx, l in enumerate(profile.likes) if isinstance(l, dict) and l.get("name")}
+            conflicting_names = set(interest_map_final.keys()) & set(dislike_map_final.keys()) & set(like_map_final.keys())
             
             # Keep track of indices to remove to avoid modifying list while iterating
             indices_to_remove_from_interests = set()
             indices_to_remove_from_dislikes = set()
-
+            indices_to_remove_from_likes = set()
             if conflicting_names:
                 logger.warning(f"Found conflicts between interests and dislikes for: {conflicting_names}")
                 
                 for name_lower in conflicting_names:
                     interest_idx, interest_item = interest_map_final[name_lower]
                     dislike_idx, dislike_item = dislike_map_final[name_lower]
+                    like_idx, like_item = like_map_final[name_lower]
                     
                     # Keep the one with higher or equal confidence
                     if interest_item.get("confidence", 0) >= dislike_item.get("confidence", 0):

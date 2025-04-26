@@ -133,14 +133,15 @@ class TraitExtractor(ABC):
             prompt = f"""
             Analyze the following text and extract important user traits. Focus on:
             1. Skills (things the user knows how to do)
-            2. Interests (things the user likes or is curious about)
+            2. Interests (things the user enjoys or is curious about)
             3. Preferences (things the user prefers over alternatives)
-            4. Dislikes (things the user specifically doesn't like)
-            5. Attributes (facts about the user like relationships, possessions, characteristics)
+            4. Likes (things/people/places etc the user specifically likes or loves)
+            5. Dislikes (things/people/places etc the user specifically doesn't like)
+            6. Attributes (facts about the user like relationships, possessions, characteristics)
             
             For each trait, provide:
             1. Trait type: One of these categories: "skill" (abilities/expertise), "interest" (likes/hobbies), 
-               "preference" (things preferred), "dislike" (things disliked), "attribute" (background, personality, details about the user)
+               "preference" (things preferred), "dislike" (things disliked), "attribute" (background, personality, details about the user), "like" (things the user specifically likes or loves)
             2. Name: The full trait description (for example don't say "Name", say "name is Connie", "has a husband named Kyle", "lives in San Francisco")
             3. Evidence: The text that supports this trait (give full sentence if possible)
             4. Confidence: A number between 0.0 and 1.0 representing your confidence in this trait
@@ -156,7 +157,7 @@ class TraitExtractor(ABC):
             - name: The trait description ("name is Connie", "age is 35" etc)
             - evidence: The text that supports this trait
             - confidence: A confidence score between 0.0 and 1.0
-            - strength: (Optional) A strength score between 0.0 and 1.0
+            - strength: (Optional) A strength score between 0.0 and 1.0 (for example "really like" or "love" is higher strength than "like")
             
             If no traits are found, return an empty list.
             """

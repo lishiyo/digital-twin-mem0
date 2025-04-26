@@ -46,6 +46,51 @@ ENTITY_BLACKLIST = [
     "`", "```",                                   # Code blocks
 ]
 
+# Valid relationship types for entity connections
+RELATIONSHIP_TYPES = [
+    "ASSOCIATED_WITH",    # Generic association between entities
+    "HAS_MEMBER",         # Organization has a person as member
+    "RELATED_TO",         # Generic relation between people
+    "LOCATED_IN",         # Entity is located in a place
+    "BASED_IN",           # Organization is based in a location
+    "CREATED",            # Person created a document/product
+    "CREATED_BY",         # Document/product created by person
+    "PARTICIPATED_IN",    # Person participated in an event
+    "INVOLVED",           # Entity was involved in something
+    "ORGANIZED",          # Organization organized an event
+    "ORGANIZED_BY",       # Event organized by an organization  
+    "OCCURRED_ON",        # Event occurred on a date
+    "PUBLISHED_ON",       # Document published on a date
+    "PUBLISHED",          # Organization published a document
+    "PUBLISHED_BY",       # Document published by organization
+    "PRODUCED",           # Organization produced a product
+    "PRODUCED_BY",        # Product produced by organization
+    "MENTIONED_WITH",     # Default for co-occurrence
+    "WORKS_FOR",          # Person works for organization
+    "FOUNDED",            # Person founded organization
+    "FOUNDED_BY",         # Organization founded by person
+    "OWNS",               # Entity owns another entity
+    "OWNED_BY",           # Entity owned by another entity
+    "SUCCEEDED",          # Entity succeeded another entity
+    "SUCCEEDED_BY",       # Entity succeeded by another entity
+    "HAS_SKILL",          # Entity has a skill
+    "INTERESTED_IN",      # Entity is interested in another entity
+    "PREFERS",            # Entity prefers another entity
+    "DISLIKES",           # Entity dislikes another entity
+    "LIKES",              # Entity likes another entity
+    "HAS_ATTRIBUTE",      # Entity has an attribute
+]
+
+# Mapping from trait types to relationship types
+TRAIT_TYPE_TO_RELATIONSHIP_MAPPING = {
+    "skill": "HAS_SKILL",
+    "interest": "INTERESTED_IN",
+    "preference": "PREFERS",
+    "like": "LIKES",
+    "dislike": "DISLIKES",
+    "attribute": "HAS_ATTRIBUTE"
+}
+
 # Important entity types that we want to prioritize and preserve
 IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time"]
 
@@ -284,6 +329,9 @@ class EntityExtractor:
         if len(entities) < 2:
             return []  # Need at least 2 entities for relationships
         
+        # Create list of valid relationship types for the prompt
+        rel_types_str = ", ".join([f'"{rel_type}"' for rel_type in RELATIONSHIP_TYPES])
+        
         # Create prompt for relationship extraction
         entity_mentions = ", ".join([f"{e['text']} ({e['entity_type']})" for e in entities])
         
@@ -298,9 +346,26 @@ class EntityExtractor:
         - source_type: The source entity type
         - target: The target entity text
         - target_type: The target entity type
-        - relationship: The type of relationship (e.g., ASSOCIATED_WITH, WORKS_FOR, LOCATED_IN, etc.)
+        - relationship: The type of relationship - MUST be one of: {rel_types_str}
         - context: The text that contains both entities and describes their relationship
         - confidence: A number between 0 and 1 representing your confidence in the relationship
+        - fact: A natural language description of the relationship (e.g., "John works at Microsoft", "Google is based in Mountain View")
+        
+        Guidelines for selecting relationship types:
+        - Person to Organization: ASSOCIATED_WITH, WORKS_FOR, FOUNDED
+        - Organization to Person: HAS_MEMBER
+        - Person to Person: RELATED_TO
+        - Person to Location: LOCATED_IN
+        - Organization to Location: BASED_IN
+        - Person to Document: CREATED
+        - Document to Person: CREATED_BY
+        - Person to Event: PARTICIPATED_IN
+        - Organization to Event: ORGANIZED
+        - Event to Location: LOCATED_IN
+        - Person to Product: ASSOCIATED_WITH
+        - Organization to Product: PRODUCED
+        - Product to Organization: PRODUCED_BY
+        - For any pair without a relevant specific type, use "MISSING"
         
         Only include relationships that are clearly supported by the text.
         """
@@ -317,9 +382,27 @@ class EntityExtractor:
             if not relationships:
                 return []
             
-            # Add sentence_id field to match original API
+            # Post-process relationships to ensure proper typing and defaults
             for rel in relationships:
+                # Add sentence_id field to match original API
                 rel.setdefault("sentence_id", 0)
+                
+                # Validate and possibly correct relationship type
+                source_type = rel.get("source_type")
+                target_type = rel.get("target_type")
+                
+                if source_type and target_type:
+                    # Ensure relationship type is from our defined set
+                    if rel.get("relationship") not in RELATIONSHIP_TYPES:
+                        # Is the type just "MISSING"? Let's log it to see if we need to add more types
+                        if rel.get("relationship") == "MISSING":
+                            logger.warning(f"Missing relationship type for {source_type} and {target_type}")
+                        
+                        # Use our mapping function to determine the proper relationship, this will fallback to MENTIONED_WITH if no other type is found
+                        rel["relationship"] = self._determine_relationship_type(source_type, target_type)
+                else:
+                    # If type information is missing, use default
+                    rel["relationship"] = "MENTIONED_WITH"
             
             return relationships
         

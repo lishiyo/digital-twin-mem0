@@ -87,17 +87,25 @@ class GraphitiService:
         # --- ADDED: Create custom full-text index for node search --- 
         try:
             # Define labels and properties for the full-text index
+            # This is a subset of all the entities in ENTITY_TYPE_MAPPING
             index_labels = [
                 "Entity", "Person", "Organization", "Document", "Location", "Event",
-                "Skill", "Interest", "Preference", "Dislike", "Attribute"
+                "Skill", "Interest", "Preference", "Dislike", "Attribute", "Product"
             ]
+            # subset of COMMON_OPTIONAL_FIELDS
             index_properties = [
-                "name", "title", "summary", "content", "description", "bio"
+                "name", "title", "summary", "content", "description", "bio", "source", "source_file", "conversation_title", "context_title", "evidence"
+            ]
+            # subset of RELATIONSHIP_TYPES, need the trait ones at minimum
+            relationship_types = [
+                "HAS_SKILL", "INTERESTED_IN", "PREFERS", "DISLIKES", "HAS_ATTRIBUTE",
+                "RELATED_TO", "KNOWS", "ORGANIZED", "INVOLVED", "PARTICIPATED_IN", "WORKS_FOR", "OWNS"
             ]
             
             # Build the index creation query
             labels_str = "|".join(index_labels)
             properties_str = ", ".join([f"n.{prop}" for prop in index_properties])
+            rel_types_str = "|".join(relationship_types)
             
             index_query = f"""
             CREATE FULLTEXT INDEX node_text_index IF NOT EXISTS 
@@ -109,8 +117,60 @@ class GraphitiService:
             await self.execute_cypher(index_query)
             logger.info("Successfully created or verified 'node_text_index'.")
             
+            # Add relationship full-text index for relationship facts and names
+            # Must specify relationship types as shown in Neo4j docs
+            rel_query = f"""
+            CREATE FULLTEXT INDEX relationship_text_index IF NOT EXISTS 
+            FOR ()-[r:{rel_types_str}]->() 
+            ON EACH [r.fact, r.name, r.context]
+            """
+            
+            logger.info("Attempting to create custom full-text index 'relationship_text_index'...")
+            await self.execute_cypher(rel_query)
+            logger.info("Successfully created or verified 'relationship_text_index'.")
+            
+            # Create B-tree indexes for efficient filtering by scope and owner_id (the author)
+            # Unfortunately we can't cover all labels with a single index, so we need to create one for each label
+            # This will allow us to query a user's skills, interests, preferences, dislikes, etc. as well as global ones
+            logger.info("Creating B-tree indexes for scope and owner_id...")
+            
+            for label in index_labels:
+                # only index interest, preferences, dislike, skill for now
+                if label not in ["Interest", "Preference", "Dislike", "Skill"]:
+                    continue
+                
+                logger.info(f"Creating B-tree indexes for {label}...")
+                
+                # find all interests, preferences, dislikes, skills for global/user and owner id
+                index_query = f"""
+                CREATE INDEX node_{label}_scope_index IF NOT EXISTS 
+                FOR (n:{label}) 
+                ON (n.scope, n.owner_id)
+                """
+                await self.execute_cypher(index_query)
+                
+            # Relationship indexes - this will let us query a user's mentions, likes, preferences etc
+            for rel_type in relationship_types:
+                # find all relationships where scope is global
+                rel_scope_query = f"""
+                CREATE INDEX rel_{rel_type}_scope_index IF NOT EXISTS
+                FOR ()-[r:{rel_type}]-()
+                ON (r.scope)
+                """
+                await self.execute_cypher(rel_scope_query)
+
+                # find all relationships for this owner_id
+                rel_owner_id_query = f"""
+                CREATE INDEX rel_{rel_type}_owner_id_index IF NOT EXISTS
+                FOR ()-[r:{rel_type}]-()
+                ON (r.owner_id)
+                """
+                await self.execute_cypher(rel_owner_id_query)
+            
+            logger.info("Successfully created B-tree indexes for filtering queries.")
+            
         except Exception as e:
-            logger.error(f"Failed to create custom full-text index 'node_text_index': {e}")
+            logger.error(f"Failed to create custom full-text indices: {e}")
             # Don't re-raise, initialization should proceed if possible
         # --- END ADDED --- 
         
@@ -266,6 +326,7 @@ class GraphitiService:
                 "scope": scope,
                 "owner_id": owner_id
             }
+            
 
     async def search(self, query: str, user_id: str = None, limit: int = 5, 
                     center_node_uuid: str = None, scope: ContentScope = None,
@@ -274,147 +335,76 @@ class GraphitiService:
 
         Args:
             query: The search query
-            user_id: Optional user ID to filter results by
+            user_id: Optional user ID to filter results by, this is the requesting user (usually same as owner_id)
             limit: Maximum number of results to return
             center_node_uuid: Optional UUID of node to use as center for reranking
             scope: Optional scope to filter by ("user", "twin", or "global")
-            owner_id: Optional owner ID to filter by (user or twin ID)
+            owner_id: Optional owner ID to filter by (user or twin ID, this is the author of the content)
 
         Returns:
             List of search results
         """
         try:
-            # Start with the basic query
-            search_query = query
+            # Use Neo4j full-text search index for relationships
+            search_query = f"CALL db.index.fulltext.queryRelationships('relationship_text_index', $search_term) YIELD relationship, score"
             
-            # Add filters if provided
-            if user_id:
-                search_query = f"{search_query} user_id:{user_id}"
+            # Build WHERE clause conditions
+            where_clauses = []
+            params = {"search_term": query, "limit": limit}
             
-            if scope:
-                search_query = f"{search_query} scope:{scope}"
-            
-            if owner_id:
-                search_query = f"{search_query} owner_id:{owner_id}"
-                
-            # If searching for a specific user's content without a scope specified,
-            # include both user-scoped content owned by the user and global content
-            if user_id and not scope:
-                search_query = f"({search_query}) OR (scope:global)"
-                
-            # Execute the search with the correct parameters using the original query
-            if center_node_uuid:
-                search_results = await self.client.search(
-                    query=search_query, # Use original user query
-                    center_node_uuid=center_node_uuid
-                )
+            # Handle filtering for user's content + global
+            if owner_id and not scope:
+                # Special case: user wants their own content + global content
+                where_clauses.append("((relationship.scope = 'user' AND relationship.owner_id = $owner_id) OR relationship.scope = 'global')")
+                params["owner_id"] = owner_id
+                logger.info(f"Searching for content from {owner_id} in user's scope")
             else:
-                search_results = await self.client.search(
-                    query=search_query # Use original user query
-                )
+                logger.info(f"Searching for content from {owner_id} in scope {scope}")
+                # Standard filtering
+                if scope:
+                    where_clauses.append("relationship.scope = $scope")
+                    params["scope"] = scope
+                
+                if owner_id:
+                    where_clauses.append("relationship.owner_id = $owner_id")
+                    params["owner_id"] = owner_id
+                
+                if user_id and not owner_id:
+                    where_clauses.append("relationship.user_id = $user_id")
+                    params["user_id"] = user_id
             
-            # Process results into a consistent format
+            # Combine WHERE clauses
+            where_str = ""
+            if where_clauses:
+                where_str = " WHERE " + " AND ".join(where_clauses)
+            
+            # Construct the final query
+            final_query = f"""
+            {search_query}
+            {where_str}
+            RETURN 
+                relationship.uuid as uuid,
+                relationship.fact as fact,
+                coalesce(relationship.valid_from, 'N/A') as valid_from,
+                coalesce(relationship.valid_to, 'N/A') as valid_to,
+                relationship.scope as scope,
+                relationship.owner_id as owner_id,
+                score as search_score
+            ORDER BY search_score DESC
+            LIMIT $limit
+            """
+            
+            # logger.info(f"Executing custom relationship search query: {final_query} with params: {params}")
+            search_results = await self.execute_cypher(final_query, params)
+            
+            # Format results
             formatted_results = []
-            
-            # Limit results if needed
-            count = 0
             for result in search_results:
-                # Apply limit in our code since API doesn't support it
-                if count >= limit:
-                    break
-                
-                # Get the UUID of the relationship from the search result
-                rel_uuid = result.uuid if hasattr(result, "uuid") else None
-                
-                # --- BEGIN ADDED LOGGING ---
-                logger.info(f"search fact: {result.fact}") # Existing log
-                logger.info(f"search: Extracted rel_uuid: {rel_uuid}")
-                # --- END ADDED LOGGING ---
-
-                # If we have a UUID, fetch the full relationship properties directly from Neo4j
-                rel_properties = {}
-                if rel_uuid:
-                    # logger.info(f"search: rel_uuid: {rel_uuid}") # Existing log
-                    try:
-                        # Query to get all properties of the relationship with this UUID
-                        cypher_query = """
-                        MATCH ()-[r]->()
-                        WHERE r.uuid = $uuid
-                        RETURN properties(r) as properties
-                        """
-                        
-                        cypher_result = await self.execute_cypher(cypher_query, {"uuid": rel_uuid})
-                        # --- BEGIN ADDED LOGGING ---
-                        # remove the fact_embedding property from the cypher result just for logging
-                        if cypher_result and len(cypher_result) > 0 and cypher_result[0].get("properties"):
-                            cypher_result_logged = {k: v for k, v in cypher_result[0]["properties"].items() if k != "fact_embedding"}
-                            logger.info(f"search: Cypher result properties for rel_uuid {rel_uuid}: {cypher_result_logged}")
-                        else:
-                            logger.info(f"search: Cypher query for rel_uuid {rel_uuid} returned no properties: {cypher_result}")
-                        # --- END ADDED LOGGING ---
-                        if cypher_result and len(cypher_result) > 0 and cypher_result[0].get("properties"):
-                            rel_properties = cypher_result[0]["properties"]
-                    except Exception as e:
-                        logger.warning(f"Error fetching relationship properties for UUID {rel_uuid}: {e}")
-                
-                # Get default values from result object attributes
-                result_scope = result.scope if hasattr(result, "scope") else None
-                result_owner_id = result.owner_id if hasattr(result, "owner_id") else None
-                result_score = result.score if hasattr(result, "score") else 0.7  # Default confidence
-                result_valid_to = result.invalid_at if hasattr(result, "invalid_at") else None
-                
-                # logger.info(f"search: rel_properties: {rel_properties}")
-            
-                # Override with properties from Neo4j if available
-                if "scope" in rel_properties:
-                    result_scope = rel_properties["scope"]
-                if "owner_id" in rel_properties:
-                    result_owner_id = rel_properties["owner_id"]
-                if "score" in rel_properties:
-                    result_score = rel_properties["score"]
-                if "valid_to" in rel_properties:
-                    result_valid_to = rel_properties["valid_to"]
-                
-                formatted_result = {
-                    "uuid": rel_uuid,
-                    "fact": result.fact if hasattr(result, "fact") else None,
-                    "score": result_score,
-                    "valid_from": result.valid_at if hasattr(result, "valid_at") else None,
-                    "valid_to": result_valid_to,
-                    "scope": result_scope,
-                    "owner_id": result_owner_id,
-                }
+                # Clean None values but include essential fields
+                formatted_result = {k: v for k, v in result.items() if v is not None or k in ['uuid', 'fact', 'scope', 'owner_id']}
                 formatted_results.append(formatted_result)
-                count += 1
-                
-            # Apply filtering AFTER search results are retrieved and formatted
-            filtered_results_final = []
-            for res in formatted_results:
-                rel_scope = res.get("scope")
-                rel_owner_id = res.get("owner_id")
-                
-                # Determine if the relationship should be included based on filter criteria
-                include_rel = False
-                if scope and owner_id:
-                    if rel_scope == scope and rel_owner_id == owner_id:
-                        include_rel = True
-                elif scope:
-                    if rel_scope == scope:
-                        include_rel = True
-                elif owner_id:
-                    if rel_owner_id == owner_id:
-                         include_rel = True
-                elif user_id: # Backward compatibility / default behavior
-                    # Include if it's user-owned OR global
-                    if (rel_scope == "user" and rel_owner_id == user_id) or rel_scope == "global":
-                        include_rel = True
-                else: # No user context, include everything (e.g., maybe called internally?)
-                    include_rel = True
-                    
-                if include_rel:
-                    filtered_results_final.append(res)
-                    
-            return filtered_results_final
+            
+            return formatted_results
             
         except Exception as e:
             logger.error(f"Error searching Graphiti: {str(e)}")
@@ -423,8 +413,7 @@ class GraphitiService:
                 {
                     "uuid": str(uuid.uuid4()),
                     "fact": f"Mock result for query: {query}",
-                    "score": 0.95,
-                    "metadata": {"user_id": user_id},
+                    "search_score": 0.95,
                     "scope": scope or "user",
                     "owner_id": owner_id or user_id
                 }
@@ -494,7 +483,7 @@ class GraphitiService:
             
     async def node_search(self, query: str, limit: int = 5, 
                          scope: ContentScope = None, owner_id: str = None) -> list[dict[str, Any]]:
-        """Search for nodes in the knowledge graph.
+        """Search for nodes (entities) in the knowledge graph.
         
         Args:
             query: The search query
@@ -544,7 +533,7 @@ class GraphitiService:
             LIMIT $limit
             """
             
-            logger.info(f"Executing custom node search query: {final_query} with params: {params}")
+            # logger.info(f"Executing custom node search query: {final_query} with params: {params}")
             search_results = await self.execute_cypher(final_query, params)
             
             # Format results (minimal formatting needed as query returns desired fields)
@@ -728,7 +717,7 @@ class GraphitiService:
         final_scope = scope
         final_owner_id = owner_id
         if not final_owner_id and "user_id" in properties and scope == "user":
-            final_owner_id = properties["user_id"]
+            final_owner_id = properties["user_id"] # TODO: we don't really need user_id, we have owner_id
 
         # Prepare initial properties (exclude scope/owner_id, include uuid)
         initial_properties = properties.copy()
@@ -741,8 +730,9 @@ class GraphitiService:
         if "uuid" not in initial_properties:
             initial_properties["uuid"] = str(uuid.uuid4())
 
-        # Add temporal metadata (valid from now)
+        # Add temporal metadata
         initial_properties["valid_from"] = datetime.now(timezone.utc).isoformat()
+        initial_properties["valid_to"] = None  # Set to null initially, will be updated when deleted/invalidated
         # --- MODIFICATION END ---
         
         rel_id = None
@@ -1019,6 +1009,10 @@ class GraphitiService:
             "Preference": {
                 "required": ["name"],
                 "optional": ["description", "category", "context_applies"]
+            },
+            "Like": {
+                "required": ["name"],
+                "optional": ["description", "reason", "category"]
             },
             "Dislike": {
                 "required": ["name"],
@@ -1835,7 +1829,8 @@ class GraphitiService:
         source_id: str,
         target_id: str,
         rel_type: str,
-        scope: ContentScope = "user"
+        scope: ContentScope = "user",
+        fact: str = None
     ) -> bool:
         """Check if a relationship exists.
         
@@ -1844,32 +1839,106 @@ class GraphitiService:
             target_id: Target entity ID
             rel_type: Relationship type
             scope: Content scope ("user", "twin", or "global")
+            fact: Optional fact text to check for similar relationships
             
         Returns:
             True if relationship exists, False otherwise
         """
         try:
-            # Create a query to check if the relationship exists
-            query = """
-            MATCH (a)-[r]->(b)
-            WHERE elementId(a) = $source_id AND elementId(b) = $target_id
-            AND type(r) = $rel_type AND r.scope = $scope
-            RETURN count(r) as rel_count
-            """
-            
-            # Execute the query asynchronously
-            result = await self.execute_cypher(
-                query, 
-                {
-                    "source_id": source_id,
-                    "target_id": target_id,
-                    "rel_type": rel_type,
-                    "scope": scope
-                }
-            )
-            
-            # Check if relationship exists
-            return result and result[0]["rel_count"] > 0
+            # Basic query to check if direct relationship exists
+            if not fact:
+                query = """
+                MATCH (a)-[r]->(b)
+                WHERE elementId(a) = $source_id AND elementId(b) = $target_id
+                AND type(r) = $rel_type AND r.scope = $scope
+                RETURN count(r) as rel_count
+                """
+                
+                # Execute the query asynchronously
+                result = await self.execute_cypher(
+                    query, 
+                    {
+                        "source_id": source_id,
+                        "target_id": target_id,
+                        "rel_type": rel_type,
+                        "scope": scope
+                    }
+                )
+                
+                # Check if relationship exists
+                return result and result[0]["rel_count"] > 0
+            else:
+                # Enhanced query that also checks for similar fact content
+                # This helps avoid duplicate relationships that express the same idea
+                query = """
+                MATCH (a)-[r]->(b)
+                WHERE elementId(a) = $source_id AND elementId(b) = $target_id
+                AND type(r) = $rel_type AND r.scope = $scope
+                RETURN r.fact as fact, count(r) as rel_count
+                """
+                
+                # Execute the query asynchronously
+                result = await self.execute_cypher(
+                    query, 
+                    {
+                        "source_id": source_id,
+                        "target_id": target_id,
+                        "rel_type": rel_type,
+                        "scope": scope
+                    }
+                )
+                
+                # If no results, no relationship exists
+                if not result or result[0]["rel_count"] == 0:
+                    return False
+                    
+                # Check if any existing fact is similar to our new fact
+                for row in result:
+                    existing_fact = row.get("fact")
+                    if existing_fact and self._are_facts_similar(existing_fact, fact):
+                        logger.info(f"Found similar existing fact: '{existing_fact}' vs new fact: '{fact}'")
+                        return True
+                        
+                # No similar facts found
+                return False
+                
         except Exception as e:
             logger.error(f"Error in relationship_exists: {e}")
             return False
+            
+    def _are_facts_similar(self, fact1: str, fact2: str) -> bool:
+        """Check if two facts are semantically similar.
+        
+        This is a simple implementation that checks for shared words.
+        A more sophisticated implementation could use embeddings or NLP.
+        
+        Args:
+            fact1: First fact
+            fact2: Second fact
+            
+        Returns:
+            True if facts are considered similar
+        """
+        if not fact1 or not fact2:
+            return False
+            
+        # Convert to lowercase and tokenize
+        words1 = set(fact1.lower().split())
+        words2 = set(fact2.lower().split())
+        
+        # Remove common stopwords
+        stopwords = {"a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "is", "are", "am"}
+        words1 = words1 - stopwords
+        words2 = words2 - stopwords
+        
+        # Calculate Jaccard similarity (intersection over union)
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        if union == 0:
+            return False
+            
+        similarity = intersection / union
+        
+        # Consider facts similar if they share more than 40% of non-stopwords
+        return similarity > 0.4
