@@ -10,6 +10,7 @@ from pathlib import Path
 from app.api.router import api_router
 from app.core.config import settings
 from app.scripts.create_test_user import create_test_user
+from app.services.graph import GraphitiService
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,22 @@ async def startup_db_client():
     """Run startup tasks - create test user for development."""
     try:
         await create_test_user()
+
+        graph_service = GraphitiService()
+        try:
+            logger.info("Initializing Graph Database...")
+            await graph_service.initialize_graph()
+            logger.info("Graph Database initialization complete.")
+        except Exception as e:
+            logger.error(f"Error during graph database initialization: {e}")
+            # Depending on severity, you might want to exit or handle differently
+        finally:
+            # Ensure the driver connection is closed if the service instance is temporary
+            await graph_service.close() # Close connections if service instance is local scope
+    
         logger.info("Startup tasks completed")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
-
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:

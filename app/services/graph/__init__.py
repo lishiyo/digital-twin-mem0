@@ -69,18 +69,6 @@ class GraphitiService:
             settings.NEO4J_URI,
             settings.NEO4J_USER,
             settings.NEO4J_PASSWORD
-            # embedder=GeminiEmbedder(
-            #     config=GeminiEmbedderConfig(
-            #         model_name="gemini-1.5-flash",
-            #         project_id="gemini-1.5-flash-002",
-            #     )
-            # ),
-            # llm_client=GeminiClient(
-            #     config=LLMConfig(
-            #         api_key=api_key,
-            #         model="gemini-2.0-flash"
-            #     )
-            # )
         )
         
         # Also keep direct Neo4j access for custom queries
@@ -95,6 +83,36 @@ class GraphitiService:
         This only needs to be called once when setting up the database.
         """
         await self.client.build_indices_and_constraints()
+
+        # --- ADDED: Create custom full-text index for node search --- 
+        try:
+            # Define labels and properties for the full-text index
+            index_labels = [
+                "Entity", "Person", "Organization", "Document", "Location", "Event",
+                "Skill", "Interest", "Preference", "Dislike", "Attribute"
+            ]
+            index_properties = [
+                "name", "title", "summary", "content", "description", "bio"
+            ]
+            
+            # Build the index creation query
+            labels_str = "|".join(index_labels)
+            properties_str = ", ".join([f"n.{prop}" for prop in index_properties])
+            
+            index_query = f"""
+            CREATE FULLTEXT INDEX node_text_index IF NOT EXISTS 
+            FOR (n:{labels_str}) 
+            ON EACH [{properties_str}]
+            """
+            
+            logger.info("Attempting to create custom full-text index 'node_text_index'...")
+            await self.execute_cypher(index_query)
+            logger.info("Successfully created or verified 'node_text_index'.")
+            
+        except Exception as e:
+            logger.error(f"Failed to create custom full-text index 'node_text_index': {e}")
+            # Don't re-raise, initialization should proceed if possible
+        # --- END ADDED --- 
         
     async def close(self):
         """Close the connections to Neo4j."""
@@ -305,10 +323,6 @@ class GraphitiService:
                 if count >= limit:
                     break
                 
-                # --- BEGIN ADDED LOGGING ---
-                # logger.info(f"search: Processing raw result object: {result.uuid}")
-                # --- END ADDED LOGGING ---
-
                 # Get the UUID of the relationship from the search result
                 rel_uuid = result.uuid if hasattr(result, "uuid") else None
                 
@@ -331,7 +345,12 @@ class GraphitiService:
                         
                         cypher_result = await self.execute_cypher(cypher_query, {"uuid": rel_uuid})
                         # --- BEGIN ADDED LOGGING ---
-                        logger.info(f"search: Cypher result for rel_uuid {rel_uuid}: {cypher_result}")
+                        # remove the fact_embedding property from the cypher result just for logging
+                        if cypher_result and len(cypher_result) > 0 and cypher_result[0].get("properties"):
+                            cypher_result_logged = {k: v for k, v in cypher_result[0]["properties"].items() if k != "fact_embedding"}
+                            logger.info(f"search: Cypher result properties for rel_uuid {rel_uuid}: {cypher_result_logged}")
+                        else:
+                            logger.info(f"search: Cypher query for rel_uuid {rel_uuid} returned no properties: {cypher_result}")
                         # --- END ADDED LOGGING ---
                         if cypher_result and len(cypher_result) > 0 and cypher_result[0].get("properties"):
                             rel_properties = cypher_result[0]["properties"]
@@ -474,8 +493,7 @@ class GraphitiService:
             ]
             
     async def node_search(self, query: str, limit: int = 5, 
-                         scope: ContentScope = None, owner_id: str = None,
-                         user_id: str = None) -> list[dict[str, Any]]:
+                         scope: ContentScope = None, owner_id: str = None) -> list[dict[str, Any]]:
         """Search for nodes in the knowledge graph.
         
         Args:
@@ -483,97 +501,63 @@ class GraphitiService:
             limit: Maximum number of results to return
             scope: Optional scope to filter by ("user", "twin", or "global")
             owner_id: Optional owner ID to filter by
-            user_id: Optional user ID to filter by (for backward compatibility)
             
         Returns:
             List of node search results
         """
         try:
-            # Use a predefined search configuration recipe
-            node_search_config = NODE_HYBRID_SEARCH_RRF.model_copy(deep=True)
-            node_search_config.limit = limit
+            # Use Neo4j full-text search index
+            search_query = f"CALL db.index.fulltext.queryNodes('node_text_index', $search_term) YIELD node, score"
             
-            # Build a more complex query with scope and owner filters if provided
-            search_query = query
+            # Build WHERE clause for filtering
+            where_clauses = []
+            params = {"search_term": query, "limit": limit}
             
             if scope:
-                search_query = f"{search_query} scope:{scope}"
-                
+                where_clauses.append("node.scope = $scope")
+                params["scope"] = scope
+            
             if owner_id:
-                search_query = f"{search_query} owner_id:{owner_id}"
-                
-            if user_id and not owner_id and not scope:
-                # For backward compatibility - if only user_id is provided, search for
-                # user's personal content and global content
-                search_query = f"{search_query} ((scope:user AND owner_id:{user_id}) OR (scope:global))"
+                where_clauses.append("node.owner_id = $owner_id")
+                params["owner_id"] = owner_id
             
-            # Execute the node search using the original query, filters applied later
-            search_results = await self.client._search(
-                query=query, # Use original user query
-                config=node_search_config,
-            )
+            # Combine WHERE clauses
+            where_str = ""
+            if where_clauses:
+                where_str = " WHERE " + " AND ".join(where_clauses)
             
-            # Format results
+            # Construct the final query
+            final_query = f"""
+            {search_query}
+            {where_str}
+            RETURN 
+                node.uuid as uuid,
+                node.name as name,
+                node.summary as summary,
+                labels(node) as labels,
+                node.created_at as created_at,
+                node.scope as scope,
+                node.owner_id as owner_id,
+                properties(node) as properties,
+                score
+            ORDER BY score DESC
+            LIMIT $limit
+            """
+            
+            logger.info(f"Executing custom node search query: {final_query} with params: {params}")
+            search_results = await self.execute_cypher(final_query, params)
+            
+            # Format results (minimal formatting needed as query returns desired fields)
             formatted_results = []
-            for node in search_results.nodes:
-                # Create a base node data dictionary
-                node_data = {
-                    "uuid": node.uuid,
-                    "name": node.name,
-                    "summary": node.summary,
-                    "labels": node.labels,
-                    "created_at": node.created_at,
-                }
-                
-                # Add scope and owner_id from node attributes if available
-                # or add them from node object if they're properties
-                if hasattr(node, "scope"):
-                    node_data["scope"] = node.scope
-                elif hasattr(node, "attributes") and "scope" in node.attributes:
-                    node_data["scope"] = node.attributes["scope"]
-                    
-                if hasattr(node, "owner_id"):
-                    node_data["owner_id"] = node.owner_id
-                elif hasattr(node, "attributes") and "owner_id" in node.attributes:
-                    node_data["owner_id"] = node.attributes["owner_id"]
-                
-                # Add other attributes if they exist
-                if hasattr(node, "attributes") and node.attributes:
-                    node_data["attributes"] = node.attributes
-                    
+            for result in search_results:
+                # Clean None values from the main level, keep properties dict intact
+                node_data = {k: v for k, v in result.items() if v is not None or k == 'properties'}
                 formatted_results.append(node_data)
                 
-            # Apply filtering AFTER search results are retrieved
-            filtered_formatted_results = []
-            for node_data in formatted_results:
-                node_scope = node_data.get("scope")
-                node_owner_id = node_data.get("owner_id")
-                logger.info(f"node_search: node_data: {node_data}")
-                
-                # Determine if the node should be included based on filter criteria
-                include_node = False
-                if scope and owner_id: # Specific scope and owner
-                    if node_scope == scope and node_owner_id == owner_id:
-                        include_node = True
-                elif scope: # Specific scope, any owner
-                    if node_scope == scope:
-                        include_node = True
-                elif owner_id: # Specific owner, any scope (less common use case)
-                     if node_owner_id == owner_id:
-                        include_node = True
-                elif user_id: # Backward compatibility: user's + global
-                    if (node_scope == "user" and node_owner_id == user_id) or node_scope == "global":
-                        include_node = True
-                else: # No filters provided, include everything (should ideally not happen if called from API with user context)
-                    include_node = True
-                    
-                if include_node:
-                    filtered_formatted_results.append(node_data)
-                
-            return filtered_formatted_results
+            return formatted_results
             
         except Exception as e:
-            print(f"Error performing node search in Graphiti: {str(e)}")
+            logger.error(f"Error performing custom node search: {str(e)}")
             # For testing purposes, return mock results
             return [
                 {
