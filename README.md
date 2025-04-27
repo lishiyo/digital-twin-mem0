@@ -40,7 +40,7 @@ See design docs in the `dev_docs` folder:
    cd digital-twin-dao
    ```
 
-2. Copy the example environment file
+2. Copy the example environment file and fill it out
    ```
    cp .env.example .env
    ```
@@ -280,30 +280,31 @@ High-level overview:
 1. **Upload**: you can upload a file through api endpoint, or add messages through the frontend UI by chatting with your twin.
 2. **Ingestion**: We then *ingest* the file or chat message through [`extraction_pipeline.py`](./app/services/extraction_pipeline.py), which for each text chunk and chat message:
    - Store them in mem0, with a ttl based on manual importance_scores (see `SyncChatMem0Ingestion.py`) - mem0 does embeddings itself, and handles conflicts and updates
-   - Use Gemini to extract entities (including traits like a skill, interest, preference etc), extract relationships beween those entities (see [constants.py](./app/services/common/constants.py))
-   - Store those extracted entities, traits, and relationships into Graphiti as a knowledge graph
+   - Use [`Gemini's Entity Extractor`](./app/services/ingestion/entity_extraction_gemini.py) to extract entities (including traits like a skill, interest, preference etc), and relationships beween those entities (see [`constants.py`](./app/services/common/constants.py))
+   - Store those extracted entities, traits, and relationships into Graphiti as a knowledge graph, see `process_extracted_data`
+   - Note that assistant (the twin) messages are excluded, we only ingest your own messages and summaries
 3. **Retrieval**: When you chat with your twin, it hits the `/chat` endpoint which uses a RAG approach (see [`graph_agent.py`](./app/services/agent/graph_agent.py)):
-   - `_retrieve_from_mem0` - retrieve memories from mem0
-   - `_retrieve_from_graphiti` - retrieve top 5 related entities and top 5 graph search facts from Graphiti
+   - `_retrieve_from_mem0` - retrieve top 5 related memories from mem0
+   - `_retrieve_from_graphiti` - retrieve top 5 related graph search facts from Graphiti
    - `_merge_context` - calls into OpenAI with the merged prompt
 4. **Summarize**: 
    - For chats only, we also store them as `Conversation` models in postgres, which hold many chat messages. Every 20 messages, we queue a summarization task, which updates the Conversation model with the latest summary, and stores that summarized chunk of 20 messages into mem0 for long-term safekeeping.
-   - During chat/retrieval, we fetch the latest summary from the current conversation and the two others from before that in other conversations, as further context.
+   - During chat/retrieval, we fetch the latest summary from the current conversation and the two others from before that in other conversations, as further context to `_merge_context`.
 
 **Defunct components**:
 1. We also have a [UserProfile](./app/db/models/user_profile.py) model that has attributes, skills, preferences, traits etc. This has been deprecated to using Graphiti relations instead, since those are more semantically queryable unlike postgres. Many of these are embedded in memories as well.
-2. We have a related [TraitExtractionService](./app/services/traits/service.py) that we used when we were separately extracting out traits and setting them on the UserProfile instead of Graphiti. This is now defunct, as Gemini's [`EntityExtractor`](./app/services/ingestion/entity_extraction_gemini.py) now handles traits and their connections to the user itself and processes them in Graphiti.
+2. We have a related [TraitExtractionService](./app/services/traits/service.py) and various [Trait Extractors](./app/services/traits/extractors.py) that we used when we were separately extracting out traits and setting them on the UserProfile instead of Graphiti. This is now defunct, as Gemini's [`EntityExtractor`](./app/services/ingestion/entity_extraction_gemini.py) now handles traits and their connections to the user itself and processes them in Graphiti.
 
 
 ### Ingestion Pipeline
 
 The system processes documents and chat messages through a sophisticated pipeline:
 
-Documents:
-1. **File Upload**: Documents are uploaded and basic validation is performed
+Documents and Chat logs:
+1. **Upload**: Documents are uploaded and basic validation is performed; chat logs are pushed a message at a time
 2. **Content Parsing**: Files are parsed based on type (PDF, MD, TXT)
-3. **Entity Extraction**: Using Gemini to extract entities like people, organizations, locations
 4. **Smart Chunking**: Content is split into semantic chunks while respecting document structure
+3. **Entity Extraction**: Use Gemini to extract entities like people, organizations, locations, traits from every chunk
 5. **Mem0 Storage**: Chunks are stored in Mem0 with metadata and deduplication
 6. **Graphiti Integration**: Entities, relationships, and traits are registered in the knowledge graph
 
