@@ -87,10 +87,23 @@ class EntityExtractor:
         prompt = f"""
         Extract entities from the following text. For each entity, provide:
         1. The entity text
-        2. The entity type (PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT, NORP, FAC, LAW, LANGUAGE, ORDINAL, CARDINAL, QUANTITY, NAMED_BEING (this is not a person but has a name, like animals))
+        2. The entity type (PERSON, ORG, GPE, LOC, PRODUCT, WORK_OF_ART, EVENT, DATE, TIME, MONEY, PERCENT, NORP, FAC, LAW, LANGUAGE, ORDINAL, CARDINAL, QUANTITY, NAMED_BEING (this is not a person but has a name, like animals)), or a trait like (ATTRIBUTE, INTEREST, SKILL, PREFERENCE, LIKE, DISLIKE))
         3. The start and end character positions in the text
         4. A confidence score between 0 and 1
         5. The surrounding context (a few words before and after)
+
+       Regarding traits, extract attributes, interests, skills, preferences, likes and dislikes as entities:
+        - ATTRIBUTE: Any descriptive quality (e.g., "tall", "fat", "red", "expensive")
+        - INTEREST: Activities or topics someone enjoys or is curious about (e.g., "hiking", "movies", "AI")
+        - SKILL: Abilities or competencies (e.g., "Python", "painting", "cooking")
+        - PREFERENCE: Things someone prefers (e.g., "Italian food", "warm weather")
+        - LIKE: Things someone likes or loves (e.g., "tuna", "hiking")
+        - DISLIKE: Things someone dislikes (e.g., "cold weather", "mushrooms")
+
+        For example, in "Mochi is fat and loves tuna", extract:
+            - "Mochi" as PERSON
+            - "fat" as ATTRIBUTE
+            - "tuna" as LIKE
 
         Return your answer as a JSON list of objects with the following properties:
         - text: The entity text
@@ -118,7 +131,6 @@ class EntityExtractor:
             # Try to extract JSON from response
             entities = self._extract_json_from_response(response_text)
             
-            logger.info(f"Extracted entities from Gemini: {entities}")
             # If we couldn't extract JSON or got an empty list, try a different approach
             if not entities:
                 logger.warning("Failed to extract entities JSON from Gemini response, retrying with structured prompt")
@@ -257,9 +269,9 @@ class EntityExtractor:
         if entities is None:
             entities = self.extract_entities(text)
         
-        if len(entities) < 2:
+        if len(entities) < 1:
             logger.warning(f"Not enough entities found for relationship extraction: {entities}")
-            return []  # Need at least 2 entities for relationships
+            return []  # Some entities might be traits?
         
         # Create list of valid relationship types for the prompt, including trait types
         # Added trait relationship types
@@ -322,8 +334,6 @@ class EntityExtractor:
             
             # Try to extract JSON from response
             relationships = self._extract_json_from_response(response_text)
-            
-            logger.info(f"Extracted relationships from Gemini: {relationships}")
             
             # If extraction failed, return empty list
             if not relationships:

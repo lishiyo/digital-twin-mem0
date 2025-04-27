@@ -57,7 +57,7 @@ class GraphitiService:
     COMMON_OPTIONAL_FIELDS = [
         "user_id", "source", "source_file", "context", "scope", "owner_id", 
         "label", "confidence", "strength", "message_id", "conversation_title",
-        "evidence", "source_id", "context_title"
+        "evidence", "source_id", "context_title", "created_at", "uuid"
     ]
 
     def __init__(self):
@@ -1345,19 +1345,17 @@ class GraphitiService:
             # Format the results
             formatted_results = []
             for result in results:
+                logger.info(f"Listing nodes result: {result}")
                 properties = result.get("properties", {})
                 
                 # Generate a fallback ID if uuid is null
                 # First try uuid, then message_id from properties, then Neo4j ID
-                node_id = result.get("uuid")
+                node_id = result.get("uuid") or properties.get("message_id") or properties.get("id")
+                logger.info(f"Node ID: No node_id, getting from properties: {node_id}")
+                # If still no ID, use Neo4j internal ID as last resort
                 if not node_id:
-                    # Try to use message_id from properties if available
-                    node_id = properties.get("message_id") or properties.get("id")
-                    logger.info(f"Node ID: No node_id, getting from properties: {node_id}")
-                    # If still no ID, use Neo4j internal ID as last resort
-                    if not node_id:
-                        node_id = f"neo4j-{result.get('neo4j_id')}"
-                        logger.info(f"Node ID: No node_id, getting from Neo4j ID: {node_id}")
+                    node_id = f"neo4j-{result.get('neo4j_id')}"
+                    logger.info(f"Node ID: No node_id, getting from Neo4j ID: {node_id}")
                         
                 node = {
                     "uuid": node_id,  # Ensure uuid is never null for frontend
@@ -1488,17 +1486,18 @@ class GraphitiService:
         """Get a node by its ID.
         
         Args:
-            node_id: UUID of the node to retrieve
+            node_id: UUID or ID of the node to retrieve
             
         Returns:
             Node details or None if not found
         """
         try:
-            # Construct the Cypher query
+            # Query that specifically checks for message_id inside properties
             query = """
             MATCH (n)
-            WHERE n.uuid = $node_id
-            RETURN n.uuid as uuid, n.name as name, n.summary as summary, labels(n) as labels, 
+            WHERE n.uuid = $node_id OR n.id = $node_id 
+               OR n.properties.message_id = $node_id OR n.properties.id = $node_id
+            RETURN ID(n) as neo4j_id, n.uuid as uuid, n.name as name, n.summary as summary, labels(n) as labels, 
                    n.created_at as created_at, n.scope as scope, n.owner_id as owner_id,
                    properties(n) as properties
             """
@@ -1512,15 +1511,30 @@ class GraphitiService:
                 
             # Format the result
             result = results[0]
+            properties = result.get("properties", {})
+            
+            # Use properties from the properties object if direct properties are null
+            node_uuid = result.get("uuid") or properties.get("message_id") or properties.get("id")
+            node_name = result.get("name") or properties.get("name") or properties.get("title")
+            node_summary = result.get("summary") or properties.get("summary") or properties.get("description")
+            node_created_at = result.get("created_at") or properties.get("created_at")
+            node_scope = result.get("scope") or properties.get("scope")
+            node_owner_id = result.get("owner_id") or properties.get("owner_id")
+            
+            # If still no ID, use Neo4j internal ID as last resort
+            if not node_uuid:
+                node_uuid = f"neo4j-{result.get('neo4j_id')}"
+            
             node = {
-                "uuid": result.get("uuid"),
-                "name": result.get("name"),
-                "summary": result.get("summary"),
+                "uuid": node_uuid,
+                "name": node_name,
+                "summary": node_summary,
                 "labels": result.get("labels", []),
-                "created_at": result.get("created_at"),
-                "scope": result.get("scope"),
-                "owner_id": result.get("owner_id"),
-                "properties": result.get("properties", {})
+                "created_at": node_created_at,
+                "scope": node_scope,
+                "owner_id": node_owner_id,
+                "properties": properties,
+                "neo4j_id": result.get("neo4j_id")
             }
             
             return node
@@ -1716,26 +1730,27 @@ class GraphitiService:
             return None
 
     async def delete_node_by_uuid(self, uuid: str) -> Dict[str, Any]:
-        """Delete a node by its UUID.
+        """Delete a node by its UUID or ID.
         
         Args:
-            uuid: The UUID of the node to delete
+            uuid: The UUID or ID of the node to delete
             
         Returns:
             Success status dictionary
         """
         try:
-            # Query to delete the node and its relationships
+            # Query to delete the node with improved property matching
             query = """
             MATCH (n)
-            WHERE n.uuid = $uuid
+            WHERE n.uuid = $node_id OR n.id = $node_id 
+               OR n.properties.message_id = $node_id OR n.properties.id = $node_id
             DETACH DELETE n
             RETURN count(n) as deleted_count
             """
             
             # Execute query
             result = await self.execute_cypher(
-                query, {"uuid": uuid}
+                query, {"node_id": uuid}
             )
             
             deleted_count = result[0]["deleted_count"] if result and len(result) > 0 else 0
@@ -1744,7 +1759,7 @@ class GraphitiService:
             if success:
                 logger.info(f"Deleted node {uuid}")
             else:
-                logger.warning(f"No node found with UUID {uuid} to delete.")
+                logger.warning(f"No node found with ID {uuid} to delete.")
                 
             return {"success": success, "uuid": uuid, "deleted_count": deleted_count}
         except Exception as e:

@@ -66,8 +66,15 @@ ENTITY_TYPE_MAPPING = {
     "ORDINAL": "Ordinal",
     "CARDINAL": "Cardinal",
     "QUANTITY": "Quantity",
-    "NAMED_BEING": "NamedBeing" # e.g. animals, plants, non-human entities
+    "NAMED_BEING": "NamedBeing", # e.g. animals, plants, non-human entities
+    # Trait types
+    "ATTRIBUTE": "Attribute",
+    "INTEREST": "Interest",
+    "SKILL": "Skill",
+    "PREFERENCE": "Preference",
+    "LIKE": "Like",
+    "DISLIKE": "Dislike"
 }
 
 # Important entity types that we want to prioritize and preserve
-IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time"] 
+IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time", "Preference", "Like", "Dislike", "Skill", "Interest", "Attribute"] 

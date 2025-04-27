@@ -7,8 +7,9 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 
 from app.services.graph import GraphitiService
 from app.services.ingestion.entity_extraction_factory import get_entity_extractor
-from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING
 from app.core.config import settings
+from datetime import datetime, timezone
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +298,10 @@ class ExtractionPipeline:
                 entity_properties["source"] = source_type
                 entity_properties["confidence"] = entity.get("confidence", 0.7)
                 entity_properties["context"] = entity.get("context", "")
-                
+                 # Add created_at timestamp and UUID directly on nodes
+                entity_properties["created_at"] = datetime.now(timezone.utc).isoformat()
+                entity_properties["uuid"] = str(uuid.uuid4())  # Generate a UUID for direct reference
+ 
                 # Add source-specific properties
                 if source_type == "chat":
                     # For chat source, use message_id and conversation_title
@@ -326,80 +330,79 @@ class ExtractionPipeline:
         
         # Process traits - EDIT: Nvm, let's not process traits into entities here, let Gemini handle the relationship
         # trait relationships
-        '''
-        for trait in traits:
-            if trait.get("confidence", 0) < self.MIN_CONFIDENCE_TRAIT:
-                logger.info(f"process_extracted_data: Skipping trait {trait.get('name', '')} because confidence is too low")
-                continue
+        # for trait in traits:
+        #     if trait.get("confidence", 0) < self.MIN_CONFIDENCE_TRAIT:
+        #         logger.info(f"process_extracted_data: Skipping trait {trait.get('name', '')} because confidence is too low")
+        #         continue
                 
-            trait_type = self.TRAIT_TYPE_MAPPING.get(
-                trait.get("trait_type", "").lower(), 
-                "Unknown"
-            )
-            trait_name = trait.get("name", "").strip()
+        #     trait_type = self.TRAIT_TYPE_MAPPING.get(
+        #         trait.get("trait_type", "").lower(), 
+        #         "Unknown"
+        #     )
+        #     trait_name = trait.get("name", "").strip()
             
-            if not trait_name or trait_name in entity_map:
-                continue
+        #     if not trait_name or trait_name in entity_map:
+        #         continue
                 
-            try:
-                # Check if trait already exists
-                existing_trait = await self.graphiti.find_entity(
-                    name=trait_name,
-                    entity_type=trait_type,
-                    scope=scope,
-                    owner_id=owner_id
-                )
+        #     try:
+        #         # Check if trait already exists
+        #         existing_trait = await self.graphiti.find_entity(
+        #             name=trait_name,
+        #             entity_type=trait_type,
+        #             scope=scope,
+        #             owner_id=owner_id
+        #         )
                 
-                if existing_trait and existing_trait.get("id"):
-                    # Trait already exists and has a valid ID, just store its ID
-                    entity_map[trait_name] = existing_trait.get("id")
-                    logger.info(f"process_extracted_data: Trait {trait_name} already exists with ID {existing_trait.get('id')}")
-                    continue
-                elif existing_trait:
-                    # Trait exists but has no valid ID - log a warning and proceed to create it
-                    logger.warning(f"process_extracted_data: Trait {trait_name} exists but has no valid ID. Creating a new instance.")
+        #         if existing_trait and existing_trait.get("id"):
+        #             # Trait already exists and has a valid ID, just store its ID
+        #             entity_map[trait_name] = existing_trait.get("id")
+        #             logger.info(f"process_extracted_data: Trait {trait_name} already exists with ID {existing_trait.get('id')}")
+        #             continue
+        #         elif existing_trait:
+        #             # Trait exists but has no valid ID - log a warning and proceed to create it
+        #             logger.warning(f"process_extracted_data: Trait {trait_name} exists but has no valid ID. Creating a new instance.")
                     
-                # Create new trait
-                trait_properties = {
-                    "name": trait_name,
-                    "user_id": user_id,
-                    "source": source_type,
-                    "confidence": trait.get("confidence", 0.7),
-                    "strength": trait.get("strength", 0.7),
-                    "evidence": trait.get("evidence", "")
-                }
+        #         # Create new trait
+        #         trait_properties = {
+        #             "name": trait_name,
+        #             "user_id": user_id,
+        #             "source": source_type,
+        #             "confidence": trait.get("confidence", 0.7),
+        #             "strength": trait.get("strength", 0.7),
+        #             "evidence": trait.get("evidence", "")
+        #         }
                 
-                # Add source-specific properties
-                if source_type == "chat":
-                    # For chat source, use message_id and conversation_title
-                    trait_properties["message_id"] = source_id
-                    trait_properties["conversation_title"] = context_title
-                else:
-                    # For document source, use source_id and context_title
-                    trait_properties["source_id"] = source_id
-                    trait_properties["context_title"] = context_title
+        #         # Add source-specific properties
+        #         if source_type == "chat":
+        #             # For chat source, use message_id and conversation_title
+        #             trait_properties["message_id"] = source_id
+        #             trait_properties["conversation_title"] = context_title
+        #         else:
+        #             # For document source, use source_id and context_title
+        #             trait_properties["source_id"] = source_id
+        #             trait_properties["context_title"] = context_title
                 
-                trait_id = await self.graphiti.create_entity(
-                    entity_type=trait_type,
-                    properties=trait_properties,
-                    scope=scope,
-                    owner_id=owner_id
-                )
-                logger.info(f"process_extracted_data: Created trait {trait_name} as entity in Graphiti with ID {trait_id}")
+        #         trait_id = await self.graphiti.create_entity(
+        #             entity_type=trait_type,
+        #             properties=trait_properties,
+        #             scope=scope,
+        #             owner_id=owner_id
+        #         )
+        #         logger.info(f"process_extracted_data: Created trait {trait_name} as entity in Graphiti with ID {trait_id}")
                 
-                entity_map[trait_name] = trait_id
-                created_traits.append({
-                    "id": trait_id,
-                    "name": trait_name,
-                    "type": trait_type,
-                    "trait_type": trait.get("trait_type"),
-                    "confidence": trait.get("confidence", 0.7),
-                    "evidence": trait.get("evidence", ""),
-                    "strength": trait.get("strength", 0.7)
-                })
-            except Exception as e:
-                logger.error(f"process_extracted_data: Error handling trait {trait_name}: {str(e)}")
-        '''
+        #         entity_map[trait_name] = trait_id
+        #         created_traits.append({
+        #             "id": trait_id,
+        #             "name": trait_name,
+        #             "type": trait_type,
+        #             "trait_type": trait.get("trait_type"),
+        #             "confidence": trait.get("confidence", 0.7),
+        #             "evidence": trait.get("evidence", ""),
+        #             "strength": trait.get("strength", 0.7)
+        #         })
+        #     except Exception as e:
+        #         logger.error(f"process_extracted_data: Error handling trait {trait_name}: {str(e)}")
+        
         
         # Process relationships
         processed_relationships = set()
