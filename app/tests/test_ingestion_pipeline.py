@@ -7,9 +7,11 @@ import uuid
 from unittest.mock import patch, MagicMock
 
 from app.services.ingestion.service import IngestionService
-from app.services.ingestion.entity_extraction import EntityExtractor
+from app.services.ingestion.entity_extraction_gemini import EntityExtractor
 from app.services.memory import MemoryService
 from app.services.graph import GraphitiService
+from app.services.extraction_pipeline import ExtractionPipeline
+from app.services.traits import TraitExtractionService
 
 
 @pytest.fixture
@@ -410,4 +412,86 @@ async def test_full_pipeline_integration(ingestion_service, test_content, tmp_pa
                 
     except Exception as e:
         # This is an integration test, so it might fail in some environments
-        pytest.skip(f"Integration test failed: {str(e)}") 
+        pytest.skip(f"Integration test failed: {str(e)}")
+
+
+@pytest.fixture
+def mock_entity_extractor():
+    """Create a mock entity extractor."""
+    extractor = MagicMock(spec=EntityExtractor)
+    extractor.process_document.return_value = {
+        "entities": [
+            {"text": "John Smith", "entity_type": "Person", "start": 0, "end": 10, "confidence": 0.9},
+            {"text": "Microsoft", "entity_type": "Organization", "start": 20, "end": 29, "confidence": 0.95}
+        ],
+        "relationships": [
+            {"source": "John Smith", "source_type": "Person", "target": "Microsoft", 
+             "target_type": "Organization", "relationship": "WORKS_FOR"}
+        ],
+        "keywords": [
+            {"text": "cloud", "relevance": 0.8},
+            {"text": "computing", "relevance": 0.7}
+        ]
+    }
+    return extractor
+
+
+@pytest.fixture
+def mock_trait_service():
+    """Create a mock trait service."""
+    service = MagicMock(spec=TraitExtractionService)
+    service.extract_traits.return_value = {
+        "traits": [
+            {"trait": "works_at", "entity": "Microsoft", "confidence": 0.9},
+            {"trait": "interested_in", "entity": "cloud computing", "confidence": 0.8}
+        ]
+    }
+    return service
+
+
+@pytest.fixture
+def mock_graphiti_service():
+    """Create a mock Graphiti service."""
+    service = MagicMock()
+    service.add_entity.return_value = {"id": "entity-123"}
+    service.add_relationship.return_value = {"id": "rel-123"}
+    return service
+
+
+@pytest.mark.asyncio
+async def test_extraction_pipeline(mock_entity_extractor, mock_trait_service, mock_graphiti_service):
+    """Test the extraction pipeline end-to-end."""
+    pipeline = ExtractionPipeline(
+        entity_extractor=mock_entity_extractor,
+        trait_service=mock_trait_service,
+        graphiti_service=mock_graphiti_service
+    )
+    
+    # Test data
+    message = "John Smith works at Microsoft and is interested in cloud computing."
+    user_id = "user-123"
+    message_id = "msg-123"
+    metadata = {"conversation_id": "conv-123"}
+    
+    # Run the pipeline
+    result = await pipeline.process_chat_message(
+        message_content=message,
+        user_id=user_id,
+        message_id=message_id,
+        metadata=metadata
+    )
+    
+    # Verify entity extraction was called
+    mock_entity_extractor.process_document.assert_called_once_with(message)
+    
+    # Verify trait extraction was called
+    mock_trait_service.extract_traits.assert_called_once()
+    
+    # Verify Graphiti calls were made
+    assert mock_graphiti_service.add_entity.call_count >= 1
+    assert mock_graphiti_service.add_relationship.call_count >= 1
+    
+    # Verify pipeline returned expected values
+    assert "status" in result
+    assert result["status"] == "success"
+    assert "processing" in result 

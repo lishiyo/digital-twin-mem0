@@ -74,14 +74,16 @@ class Settings(BaseSettings):
     CHAT_MODEL: str = "gpt-4o-mini"
     OPENAI_TEMPERATURE: float = 0.7
 
-    # Entity Extraction
+    # Entity, relationship, trait Extraction
     GEMINI_API_KEY: str | None = None
-    ENTITY_EXTRACTOR_TYPE: str = "gemini"  # Options: "spacy" or "gemini"
+
+    ENABLE_PROFILE_UPDATES: bool = False
+    ENABLE_GRAPHITI_INGESTION: bool = True
 
     # Auth
-    AUTH0_DOMAIN: str
-    AUTH0_API_AUDIENCE: str
-    AUTH0_ALGORITHMS: list[str] = ["RS256"]
+    # AUTH0_DOMAIN: str
+    # AUTH0_API_AUDIENCE: str
+    # AUTH0_ALGORITHMS: list[str] = ["RS256"]
 
     # Storage
     STORAGE_BUCKET: str

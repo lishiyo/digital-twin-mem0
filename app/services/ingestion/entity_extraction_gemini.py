@@ -10,47 +10,17 @@ import json
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 
-from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING, RELATIONSHIP_TYPES
+from app.services.common.constants import (
+    TRAIT_TYPE_TO_RELATIONSHIP_MAPPING, 
+    RELATIONSHIP_TYPES,
+    ENTITY_TYPE_MAPPING,
+    IMPORTANT_ENTITY_TYPES
+)
 
 logger = logging.getLogger(__name__)
 
 # Default Gemini model
 DEFAULT_MODEL = "gemini-2.0-flash"
-
-# Entity types we're interested in - same mapping as spaCy version
-ENTITY_TYPE_MAPPING = {
-    "PERSON": "Person",
-    "ORG": "Organization",
-    "GPE": "Location",
-    "LOC": "Location",
-    "PRODUCT": "Product",
-    "WORK_OF_ART": "Document",
-    "EVENT": "Event",
-    "DATE": "Date",
-    "TIME": "Time",
-    "MONEY": "Money",
-    "PERCENT": "Percent",
-    "NORP": "Group",  # Nationalities, religious or political groups
-    "FAC": "Facility",  # Buildings, airports, highways, bridges, etc.
-    "LAW": "Legal",  # Named documents made into laws
-    "LANGUAGE": "Language",
-    "ORDINAL": "Ordinal",
-    "CARDINAL": "Cardinal",
-    "QUANTITY": "Quantity",
-    "NAMED_BEING": "NamedBeing" # e.g. animals, plants, non-human entities
-}
-
-# Blacklist of items that should not be treated as entities
-ENTITY_BLACKLIST = [
-    "#", "##", "###", "####", "#####", "######",  # Markdown headers
-    "*", "**", "_", "__", "~", "~~",              # Markdown formatting
-    "-", "+", ">", ">>",                          # Markdown list/quote markers
-    ".", ",", ":", ";", "!", "?",                 # Common punctuation
-    "`", "```",                                   # Code blocks
-]
-
-# Important entity types that we want to prioritize and preserve
-IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time"]
 
 class EntityExtractor:
     """Class for extracting entities from text using Google's Gemini API."""

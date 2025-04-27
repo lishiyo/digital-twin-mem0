@@ -35,7 +35,7 @@ class ConversationSummarizationService:
         self.entity_extractor = get_entity_extractor()
     
     async def generate_summary(self, conversation_id: str) -> Dict[str, Any]:
-        """Generate a summary for a conversation.
+        """Generate a summary for a conversation and store it in mem0 and Postgres.
         
         This uses an incremental approach:
         1. If there's an existing summary, it's preserved as context

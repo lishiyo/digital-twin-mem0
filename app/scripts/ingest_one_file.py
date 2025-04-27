@@ -28,11 +28,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Verify config is loaded
-logger.info(f"Using entity extractor type: {settings.ENTITY_EXTRACTOR_TYPE}")
 if settings.GEMINI_API_KEY:
     logger.info(f"GEMINI_API_KEY is configured in settings (length: {len(settings.GEMINI_API_KEY)})")
 else:
-    logger.warning("GEMINI_API_KEY not found in settings, will fall back to spaCy")
+    logger.warning("GEMINI_API_KEY not found in settings, Gemini entity extraction will not work")
 
 
 async def ingest_file(file_path: str, user_id: str = DEFAULT_USER_ID, scope: str = "user", owner_id: str = None):

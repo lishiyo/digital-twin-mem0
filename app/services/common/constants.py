@@ -44,4 +44,30 @@ RELATIONSHIP_TYPES = [
     "DISLIKES",           # Entity dislikes another entity
     "LIKES",              # Entity likes another entity
     "HAS_ATTRIBUTE",      # Entity has an attribute
-] 
+]
+
+# Entity types mapping for NLP extraction
+ENTITY_TYPE_MAPPING = {
+    "PERSON": "Person",
+    "ORG": "Organization",
+    "GPE": "Location",
+    "LOC": "Location",
+    "PRODUCT": "Product",
+    "WORK_OF_ART": "Document",
+    "EVENT": "Event",
+    "DATE": "Date",
+    "TIME": "Time",
+    "MONEY": "Money",
+    "PERCENT": "Percent",
+    "NORP": "Group",  # Nationalities, religious or political groups
+    "FAC": "Facility",  # Buildings, airports, highways, bridges, etc.
+    "LAW": "Legal",  # Named documents made into laws
+    "LANGUAGE": "Language",
+    "ORDINAL": "Ordinal",
+    "CARDINAL": "Cardinal",
+    "QUANTITY": "Quantity",
+    "NAMED_BEING": "NamedBeing" # e.g. animals, plants, non-human entities
+}
+
+# Important entity types that we want to prioritize and preserve
+IMPORTANT_ENTITY_TYPES = ["Person", "Organization", "Location", "Product", "Event", "Date", "Time"] 

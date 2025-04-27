@@ -7,22 +7,13 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 
 from app.services.graph import GraphitiService
 from app.services.ingestion.entity_extraction_factory import get_entity_extractor
-from app.services.ingestion.entity_extraction_gemini import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING
+from app.services.common.constants import TRAIT_TYPE_TO_RELATIONSHIP_MAPPING
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Pipeline configuration flags
-ENABLE_GRAPHITI_INGESTION = True # Controls whether to store custom entities, relationships, and traits in Graphiti knowledge graph
-ENABLE_PROFILE_UPDATES = False     # Controls whether to update user profiles with traits
-
-# You can override these flags with environment variables
-import os
-if os.environ.get("ENABLE_GRAPHITI_INGESTION", "").lower() in ("false", "0", "no"):
-    ENABLE_GRAPHITI_INGESTION = False
-if os.environ.get("ENABLE_PROFILE_UPDATES", "").lower() in ("false", "0", "no"):
-    ENABLE_PROFILE_UPDATES = False
-
-logger.info(f"ExtractionPipeline config: ENABLE_GRAPHITI_INGESTION={ENABLE_GRAPHITI_INGESTION}, ENABLE_PROFILE_UPDATES={ENABLE_PROFILE_UPDATES}")
+# Import settings from config.py
+logger.info(f"ExtractionPipeline config: ENABLE_GRAPHITI_INGESTION={settings.ENABLE_GRAPHITI_INGESTION}, ENABLE_PROFILE_UPDATES={settings.ENABLE_PROFILE_UPDATES}")
 
 class ExtractionPipeline:
     """Unified extraction pipeline for entities, relationships, and traits with Graphiti integration."""
@@ -62,9 +53,9 @@ class ExtractionPipeline:
     async def extract_from_content(self, content, user_id, metadata, source_type=None, 
                                   process_chunks=False, chunk_boundaries=None, update_profile=True):
         """Extract entities, relationships, and traits from content.
-        if ENABLE_GRAPHITI_INGESTION:
+        if settings.ENABLE_GRAPHITI_INGESTION:
             This will extract entities, relationships, and traits
-        if ENABLE_PROFILE_UPDATES:
+        if settings.ENABLE_PROFILE_UPDATES:
             This will extract traits and update the user profile
         
         Args:
@@ -89,8 +80,8 @@ class ExtractionPipeline:
         
         # Skip entity and relationship extraction if Graphiti ingestion is disabled
         # and profile updates are enabled (we only need traits)
-        extract_entities = ENABLE_GRAPHITI_INGESTION
-        extract_traits = ENABLE_PROFILE_UPDATES or ENABLE_GRAPHITI_INGESTION
+        extract_entities = settings.ENABLE_GRAPHITI_INGESTION
+        extract_traits = settings.ENABLE_PROFILE_UPDATES or settings.ENABLE_GRAPHITI_INGESTION
         
         if not extract_entities and not extract_traits:
             logger.info("Both Graphiti ingestion and profile updates are disabled. Nothing to do.")
@@ -155,7 +146,7 @@ class ExtractionPipeline:
                 extraction_results["traits"] = list(unique_traits.values())
                 
                 # Update user profile with combined traits if enabled
-                if ENABLE_PROFILE_UPDATES and self.trait_service and update_profile:
+                if settings.ENABLE_PROFILE_UPDATES and self.trait_service and update_profile:
                     try:
                         logger.info(f"extract_from_content: Updating user profile with {len(extraction_results['traits'])} traits")
                         
@@ -186,7 +177,7 @@ class ExtractionPipeline:
                         source_type=source_type,
                         user_id=user_id,
                         metadata=metadata,
-                        update_profile=ENABLE_PROFILE_UPDATES and update_profile  # Control with the global flag
+                        update_profile=settings.ENABLE_PROFILE_UPDATES and update_profile  # Control with the global flag
                     )
                     
                     # Store trait dicts in results
@@ -642,7 +633,7 @@ class ExtractionPipeline:
         """
         # Create episode first - this automatically creates entities in Graphiti
         episode_result = None
-        # if ENABLE_GRAPHITI_INGESTION:
+        # if settings.ENABLE_GRAPHITI_INGESTION:
         # episode_result = await self.create_episode(
         #     content=content,
         #     user_id=user_id,
@@ -661,7 +652,7 @@ class ExtractionPipeline:
 
         # Extract entities, relationships, and traits from content, using chunks if provided
         # This updates the user profile with the extracted traits
-        # Depends on the flags for ENABLE_GRAPHITI_INGESTION and ENABLE_PROFILE_UPDATES
+        # Depends on the flags for settings.ENABLE_GRAPHITI_INGESTION and settings.ENABLE_PROFILE_UPDATES
         extraction_results = await self.extract_from_content(
             content=content,
             user_id=user_id,
@@ -674,7 +665,7 @@ class ExtractionPipeline:
         logger.info(f"2. Extracted entities, relationships, and traits, updated profile: {extraction_results}")
         
         processing_result = None
-        if ENABLE_GRAPHITI_INGESTION:   
+        if settings.ENABLE_GRAPHITI_INGESTION:   
             # Process extracted entities, relationships, and traits into Graphiti
             processing_result = await self.process_extracted_data(
                 extraction_results,
@@ -738,7 +729,7 @@ class ExtractionPipeline:
             result["extraction"] = extraction_results
         
         # Process into Graphiti only if enabled
-        if ENABLE_GRAPHITI_INGESTION and (extraction_results.get("entities") or 
+        if settings.ENABLE_GRAPHITI_INGESTION and (extraction_results.get("entities") or 
                                         extraction_results.get("relationships") or 
                                         extraction_results.get("traits")):
             processing_result = await self.process_extracted_data(
@@ -754,7 +745,7 @@ class ExtractionPipeline:
                       f"{len(processing_result.get('relationships', []))} relationships, "
                       f"{len(processing_result.get('traits', []))} traits")
             result["processing"] = processing_result
-        elif not ENABLE_GRAPHITI_INGESTION:
+        elif not settings.ENABLE_GRAPHITI_INGESTION:
             logger.info("Skipping Graphiti processing for chat message (Graphiti ingestion disabled)")
         
         return result

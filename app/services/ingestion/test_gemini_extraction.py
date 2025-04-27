@@ -1,76 +1,78 @@
 #!/usr/bin/env python
-"""Test script for Gemini-based entity extraction."""
+"""Test script for Gemini entity extraction."""
 
 import os
 import sys
-import logging
 import json
-from dotenv import load_dotenv
+import logging
+from argparse import ArgumentParser
+from typing import Dict, List, Any
+import asyncio
 
-# Add the project root to sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+# Add the parent directory to the path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
-# Load environment variables
-load_dotenv()
+# Now we can import our modules
+from app.services.ingestion.entity_extraction_gemini import EntityExtractor
+from app.core.config import settings
 
-# Configure logging
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Import the entity extractors
-from app.services.ingestion.entity_extraction import EntityExtractor as SpacyEntityExtractor
-from app.services.ingestion.entity_extraction_gemini import EntityExtractor as GeminiEntityExtractor
+# Sample text for testing
+SAMPLE_TEXT = """
+**Microsoft Azure** is a cloud computing platform created by Microsoft. It was launched in February 2010.
+John Smith, the CEO of Contoso, announced a partnership with Microsoft on January 15, 2023 in New York.
+The agreement will focus on developing new AI services for healthcare providers.
 
-def test_entity_extraction():
-    """Compare SpaCy and Gemini entity extraction."""
+The project will utilize Azure's machine learning capabilities to improve diagnostic accuracy.
+Dr. Emily Chen, a leading researcher in medical AI, will lead the technical implementation.
+
+Contoso plans to invest $50 million in this initiative over the next three years.
+"""
+
+
+async def main():
+    """Test Gemini entity extraction."""
+    parser = ArgumentParser(description="Test Gemini entity extraction")
+    parser.add_argument("--text", help="Text to extract entities from", default=SAMPLE_TEXT)
+    parser.add_argument("--entities", action="store_true", help="Extract entities")
+    parser.add_argument("--relationships", action="store_true", help="Extract relationships")
+    parser.add_argument("--full", action="store_true", help="Process full document")
+    args = parser.parse_args()
     
-    # Sample text
-    text = """
-    **Microsoft Azure** is a cloud computing platform created by Microsoft. It was launched in February 2010.
-    John Smith, the CEO of Contoso, announced a partnership with Microsoft on January 15, 2023 in New York.
-    The agreement will focus on developing new AI services for healthcare providers.
-    """
+    if not any([args.entities, args.relationships, args.full]):
+        # Default to full processing if no specific options provided
+        args.full = True
     
-    logger.info("Testing SpaCy entity extraction...")
-    spacy_extractor = SpacyEntityExtractor()
-    spacy_results = spacy_extractor.process_document(text)
+    # Initialize extractor
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        logger.error("GEMINI_API_KEY not set. Please set this environment variable.")
+        sys.exit(1)
+        
+    extractor = EntityExtractor(api_key=api_key)
     
-    logger.info(f"SpaCy found {len(spacy_results['entities'])} entities, {len(spacy_results['relationships'])} relationships, and {len(spacy_results['keywords'])} keywords")
+    # Process according to selected options
+    if args.entities or args.full:
+        logger.info("Extracting entities...")
+        entities = extractor.extract_entities(args.text)
+        logger.info(f"Found {len(entities)} entities")
+        print(json.dumps(entities, indent=2))
     
-    try:
-        logger.info("Testing Gemini entity extraction...")
-        gemini_extractor = GeminiEntityExtractor()
-        gemini_results = gemini_extractor.process_document(text)
-        
-        logger.info(f"Gemini found {len(gemini_results['entities'])} entities, {len(gemini_results['relationships'])} relationships, and {len(gemini_results['keywords'])} keywords")
-        
-        # Compare results
-        logger.info("\nSpaCy entities:")
-        for entity in spacy_results['entities']:
-            logger.info(f"- {entity['text']} ({entity['entity_type']})")
-        
-        logger.info("\nGemini entities:")
-        for entity in gemini_results['entities']:
-            logger.info(f"- {entity['text']} ({entity['entity_type']})")
-        
-        logger.info("\nSpaCy relationships:")
-        for rel in spacy_results['relationships']:
-            logger.info(f"- {rel['source']} ({rel['source_type']}) -> {rel['relationship']} -> {rel['target']} ({rel['target_type']})")
-        
-        logger.info("\nGemini relationships:")
-        for rel in gemini_results['relationships']:
-            logger.info(f"- {rel['source']} ({rel['source_type']}) -> {rel['relationship']} -> {rel['target']} ({rel['target_type']})")
-        
-        logger.info("\nResults comparison successful!")
-        return True
+    if args.relationships or args.full:
+        logger.info("Extracting relationships...")
+        relationships = extractor.extract_relationships(args.text)
+        logger.info(f"Found {len(relationships)} relationships")
+        print(json.dumps(relationships, indent=2))
     
-    except Exception as e:
-        logger.error(f"Error testing Gemini extraction: {e}")
-        return False
+    if args.full:
+        logger.info("Processing full document...")
+        result = extractor.process_document(args.text)
+        logger.info(f"Found {len(result['entities'])} entities, {len(result['relationships'])} relationships")
+        # Don't print the full result as it's already shown in parts
+
 
 if __name__ == "__main__":
-    logger.info("Starting entity extraction test")
-    if test_entity_extraction():
-        logger.info("Test completed successfully")
-    else:
-        logger.error("Test failed") 
+    asyncio.run(main()) 
