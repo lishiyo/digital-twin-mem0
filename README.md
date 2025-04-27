@@ -161,7 +161,9 @@ celery -A app.worker worker --loglevel=info
 - There are a LOT of server logs at startup, this is Neo4j vomiting out info about how the index already exists every time the server starts up, you can ignore those or comment out the `initialize_graph` call in [`startup_db_client`](./app/main.py) after the first db setup
 - There are a lot of dev logs in general, these are still on for debugging
 - Ingestion is suuuper slow right now because it has to ingest into mem0 (embeddings), then call into Gemini twice for entities/traits and relations, then create those entities/nodes and relations in Graphiti
-- Retrieval is also super slow, still debugging this - likely either or both mem0 or graphiti have slow retrievals
+- Retrieval is also super slow, still debugging this
+   - mem0's call and graphiti's search call (if we comment out node_search) are both quick, about 0.1 and 0.2 seconds
+   - BUT the response from openai takes 1.30 seconds!
 
 
 ## Useful API Commands
