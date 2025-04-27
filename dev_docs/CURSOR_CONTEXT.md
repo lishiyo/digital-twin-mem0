@@ -1,3 +1,79 @@
+
+# CURSOR CONTEXT
+
+## 2025-04-26 08:49 PDT
+
+### Current State and Focus
+
+We've just completed important fixes in two critical areas:
+
+1. **Knowledge Graph Node Deletion**
+   - Fixed an issue where nodes with visible UUIDs in the UI couldn't be deleted via the API
+   - Root cause was the inconsistent storage of UUIDs (both directly on nodes and in nested properties)
+   - Updated node querying logic to check multiple property locations
+
+2. **Entity Extraction and Relationship Creation**
+   - Enhanced the entity extraction system to identify traits as proper entities
+   - Updated Gemini extraction prompt to recognize ATTRIBUTE, INTEREST, SKILL, PREFERENCE, LIKE, and DISLIKE
+   - Added examples to clarify extraction format
+   - Fixed relationship creation by ensuring both entities in the relationship exist properly
+
+### Recent Changes (Last 2 days)
+
+- Updated Neo4j query patterns to check multiple locations for node UUIDs
+- Enhanced entity extraction to handle traits and attributes as proper entities
+- Fixed relationship creation to properly connect traits/attributes to entities
+- Fixed entity property assignment for more consistent node creation
+- Updated the entity extraction prompt with better examples
+- Enhanced debugging information for graph operations
+
+### Current Focus
+
+1. **Improving entity trait extraction**
+   - Better recall and precision for attributes, interests, preferences
+   - More consistent relationship creation between entities and their traits
+
+2. **Node property consistency**
+   - Ensuring all important properties (uuid, created_at) are accessible directly on nodes
+   - Gradually migrating from nested properties to direct node properties 
+
+3. **Relationship creation**
+   - Making relationship creation more robust when handling trait entities
+   - Better handling of bidirectional relationships
+
+### Next Steps
+
+1. Monitor entity extraction quality to ensure traits are being properly identified
+2. Add unit tests for the updated node deletion and property access logic
+3. Consider implementing a hybrid approach for trait storage (graph + UserProfile)
+4. Review entire relationship creation pipeline for other potential inconsistencies
+5. Update remaining code that assumes UUIDs are in a specific location
+
+### Key Learnings
+
+1. **Knowledge Graph data structure**
+   - Properties in Neo4j can be stored at multiple levels (direct node properties vs nested property objects)
+   - Need consistent property access patterns across the codebase
+   - Important to standardize where critical identifiers like UUIDs are stored
+
+2. **Entity extraction**
+   - LLM prompts need explicit examples for each relationship type we want to extract
+   - Including traits as proper entities improves relationship creation
+   - Entity types need to be explicitly listed in the prompt to ensure they're recognized
+
+3. **Implementation patterns**
+   - Need more consistent property handling between UI, API, and database layers
+   - Debugging information is crucial when dealing with graph operations
+   - Multiple query approaches may be needed for backward compatibility
+
+### Current Database/Model State
+
+- Neo4j graph now includes traits as proper entity nodes
+- Relationships can be created between entities and their traits
+- UUID lookup works across multiple property locations
+- Working toward more consistent property access patterns
+
+
 ## Sat Apr 26 16:04:36 PDT 2025
 
 **Current Focus:**

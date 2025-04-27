@@ -2,7 +2,51 @@
 
 Important: This is our changelog, it goes from most recent to oldest updates. The latest update is at the top.
 
-## Sat Apr 26 16:04:36 PDT 2025
+## 2025-04-26 08:49 PDT
+
+### Knowledge Graph Node Deletion Fix
+
+Fixed a critical bug that prevented nodes with UUIDs from being deleted via the API despite the UUID being visible in the UI. The root cause was inconsistent UUID storage - some were stored directly on the node, while others were in the nested properties object.
+
+Updated the node querying logic to check multiple property locations for UUIDs:
+
+```python
+# Original logic - Only checked direct properties
+MATCH (n {uuid: $uuid}) DETACH DELETE n
+
+# Updated logic - Checks multiple locations for UUID
+MATCH (n) 
+WHERE n.uuid = $uuid OR n.properties.message_id = $uuid OR n.properties.id = $uuid
+DETACH DELETE n
+```
+
+This ensures nodes can be properly deleted regardless of where the UUID is stored.
+
+### Entity Extraction Improvements
+
+Enhanced trait extraction in the entity pipeline:
+
+1. Updated the entity extraction prompt in `entity_extraction_gemini.py` to specifically extract entity types:
+   - ATTRIBUTE
+   - INTEREST
+   - SKILL
+   - PREFERENCE
+   - LIKE
+   - DISLIKE
+
+2. Added examples to the prompt to make the extraction pattern clearer
+
+3. Fixed relationship creation in `process_extracted_data` to ensure both entities in a relationship are properly created before attempting to connect them
+
+4. Fixed entity creation to add created_at and uuid directly on entities for more consistent properties
+
+### Next Steps
+
+1. Monitor entity extraction quality for traits to ensure good recall and precision
+2. Consider implementing a hybrid approach for trait storage (graph + UserProfile) 
+3. Add unit tests for the updated node deletion logic
+
+## 2025-04-26 16:04:36 PDT 2025
 
 ### Fixes and Enhancements
 
