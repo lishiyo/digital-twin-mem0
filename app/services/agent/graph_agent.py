@@ -6,7 +6,6 @@ using Mem0 for memory and Graphiti for knowledge graph retrieval.
 
 import os
 import logging
-import asyncio
 from typing import Dict, List, Any, Optional, TypedDict, Coroutine
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -210,15 +209,16 @@ class TwinAgent:
                 state_obj.error = "No user message found"
                 return state_obj.to_dict()
             
-            logger.info(f"AGENT: Searching for entities in Graphiti for message: {last_user_message}")
-            # Directly await the async calls
-            entity_results = await self.graphiti_service.node_search(
-                query=last_user_message,
-                limit=5,
-                scope="user",
-                owner_id=state_obj.user_id
-            )
-            logger.info(f"AGENT: node_search returned: {entity_results}")
+            # Skipping this call for now because it's slow and not that useful vs graph search
+            # logger.info(f"AGENT: Searching for entities in Graphiti for message: {last_user_message}")
+            # # Directly await the async calls
+            # entity_results = await self.graphiti_service.node_search(
+            #     query=last_user_message,
+            #     limit=5,
+            #     scope="user",
+            #     owner_id=state_obj.user_id
+            # )
+            # logger.info(f"AGENT: node_search returned: {entity_results}")
             
             # Also search general graph results
             graph_results = await self.graphiti_service.search(
@@ -230,14 +230,14 @@ class TwinAgent:
             )
             
             # Log detailed entity results
-            logger.info(f"Retrieved {len(entity_results)} entities from Graphiti")
-            for i, entity in enumerate(entity_results):
-                name = entity.get("name", "")
-                labels = entity.get("labels", [])
-                # get context from properties
-                context = entity.get("properties", {}).get("context", "")
-                labels_str = ", ".join(labels) if labels else ""
-                logger.info(f"Entity {i+1}: {name} ({labels_str}): {context}")
+            # logger.info(f"Retrieved {len(entity_results)} entities from Graphiti")
+            # for i, entity in enumerate(entity_results):
+            #     name = entity.get("name", "")
+            #     labels = entity.get("labels", [])
+            #     # get context from properties
+            #     context = entity.get("properties", {}).get("context", "")
+            #     labels_str = ", ".join(labels) if labels else ""
+            #     logger.info(f"Entity {i+1}: {name} ({labels_str}): {context}")
             
             # Log detailed graph facts
             logger.info(f"Retrieved {len(graph_results)} graph facts from Graphiti")
@@ -249,7 +249,7 @@ class TwinAgent:
             
             # Combine the results
             state_obj.graphiti_results = {
-                "entities": entity_results,
+                # "entities": entity_results,
                 "graph": graph_results
             }
             

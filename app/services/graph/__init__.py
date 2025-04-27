@@ -57,7 +57,7 @@ class GraphitiService:
     COMMON_OPTIONAL_FIELDS = [
         "user_id", "source", "source_file", "context", "scope", "owner_id", 
         "label", "confidence", "strength", "message_id", "conversation_title",
-        "evidence", "source_id", "context_title", "created_at", "uuid"
+        "evidence", "source_id", "context_title", "created_at", "uuid", "valid_to", "valid_from"
     ]
 
     def __init__(self):
