@@ -77,7 +77,7 @@ class MemoryService:
         if not self.client:
             logger.warning("MemoryService initialized without a valid Mem0 client")
 
-    async def add(self, content: str, user_id: str, metadata: Optional[Dict[str, Any]] = None, infer: bool = False, ttl_days: Optional[int] = None) -> Dict[str, Any]:
+    async def add(self, content: str, user_id: str, metadata: Optional[Dict[str, Any]] = None, infer: bool = settings.MEM0_INFERENCE, ttl_days: Optional[int] = None) -> Dict[str, Any]:
         """Add a memory to Mem0.
         
         Args:
@@ -262,7 +262,7 @@ class MemoryService:
             logger.error(f"Unexpected error in search: {e}")
             return [{"error": str(e)}]
     
-    async def add_batch(self, items: List[Dict[str, Any]], user_id: str, infer: bool = False) -> Dict[str, Any]:
+    async def add_batch(self, items: List[Dict[str, Any]], user_id: str, infer: bool = settings.MEM0_INFERENCE) -> Dict[str, Any]:
         """Add multiple memories to Mem0 in a batch.
         
         Args:
@@ -726,7 +726,7 @@ class MemoryService:
                              location: Optional[Dict[str, Any]] = None,
                              timestamp: Optional[str] = None,
                              custom_data: Optional[Dict[str, Any]] = None,
-                             infer: bool = False) -> Dict[str, Any]:
+                             infer: bool = settings.MEM0_INFERENCE) -> Dict[str, Any]:
         """Add a memory to Mem0 with rich metadata.
         
         Args:

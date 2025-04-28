@@ -100,7 +100,8 @@ class SyncChatMem0Ingestion(BaseChatMem0Ingestion):
                 metadata=meta_data,
                 version="v2",
                 output_format="v1.1",
-                ttl_days=ttl_days
+                ttl_days=ttl_days,
+                infer=settings.MEM0_INFERENCE
             )
             
             # Process the result to handle different response formats

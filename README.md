@@ -84,16 +84,21 @@ To use the Gemini-based entity extraction:
 
 1. Get a Google Gemini API key from [AI Studio](https://aistudio.google.com/)
 2. Add it to your `.env` file:
-   ```
+   ```bash
    GEMINI_API_KEY=your_api_key_here
    ```
 3. Tune whether to use ENABLE_PROFILE_UPDATES (to extract traits into UserProfile model in Postgres), and/or ENABLE_GRAPHITI_INGESTION (to extract entities, relationships, traits into Graphiti)
-   ```
-   ENABLE_PROFILE_UPDATES=false
-   ENABLE_GRAPHITI_INGESTION=true
+   ```bash
+   ENABLE_PROFILE_UPDATES=False
+   ENABLE_GRAPHITI_INGESTION=True
    ```
 
-We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false since we already ingesting traits into Graphiti as relationships (which allow for search), so no need for UserProfile.
+We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false since we prefer to ingest traits into Graphiti as relationships between a subject and a trait (which allows for graph search), so no need for UserProfile.
+
+3. Tune whether to run inference in Mem0, this will take your raw text and extract + embed facts from them (ex. "Oh Katie doesn't work on Framework Zero, she runs the Flourishing floor and has her own projects" becomes the memory "Katie runs the Flourishing floor and has her own projects."). When False, this just embeds the raw query:
+   ```bash
+   MEM0_INFERENCE=True
+   ```
 
 ## Running the Backend
 

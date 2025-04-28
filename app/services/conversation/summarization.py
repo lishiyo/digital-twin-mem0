@@ -168,6 +168,7 @@ class ConversationSummarizationService:
                 content=new_messages_summary,
                 metadata=meta_data,
                 user_id=conversation.user_id,
+                infer=False, # don't infer these, they are already summaries
                 ttl_days=360  # Summaries are kept for a year
             )
             # logger.info(f"Successfully stored summary in mem0: {mem0_result}")

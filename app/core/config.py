@@ -67,6 +67,7 @@ class Settings(BaseSettings):
 
     # Mem0
     MEM0_API_KEY: str
+    MEM0_INFERENCE: bool = True
 
     # OpenAI
     OPENAI_API_KEY: str
