@@ -15,6 +15,7 @@ from langgraph.graph import StateGraph, END
 from app.services.memory import MemoryService
 from app.services.graph import GraphitiService, ContentScope
 from app.core.config import settings
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,9 @@ class TwinAgent:
         """Retrieve relevant context from Mem0."""
         state_obj = AgentState.from_dict(state)
         
+        # add a timer to see how long the search takes
+        start_time = time.time()
+    
         try:
             # Get the last user message
             last_user_message = None
@@ -191,11 +195,18 @@ class TwinAgent:
             state_obj.error = f"Mem0 retrieval error: {str(e)}"
             logger.error(state_obj.error)
         
+        # add a timer to see how long the search takes
+        end_time = time.time()
+        logger.info(f"Mem0 search completed in {end_time - start_time:.2f} seconds")
+        
         return state_obj.to_dict()
     
     async def _retrieve_from_graphiti(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve relevant context from Graphiti."""
         state_obj = AgentState.from_dict(state)
+        
+        # add a timer to see how long the search takes
+        start_time = time.time()
         
         try:
             # Get the last user message
@@ -256,6 +267,10 @@ class TwinAgent:
         except Exception as e:
             state_obj.error = f"Graphiti retrieval error: {str(e)}"
             logger.error(state_obj.error)
+        
+        # add a timer to see how long the search takes
+        end_time = time.time()
+        logger.info(f"Graphiti search completed in {end_time - start_time:.2f} seconds")
         
         return state_obj.to_dict()
     

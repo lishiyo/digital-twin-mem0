@@ -56,7 +56,7 @@ async def startup_db_client():
         graph_service = GraphitiService()
         try:
             logger.info("Initializing Graph Database...")
-            await graph_service.initialize_graph()
+            # await graph_service.initialize_graph()
             logger.info("Graph Database initialization complete.")
         except Exception as e:
             logger.error(f"Error during graph database initialization: {e}")

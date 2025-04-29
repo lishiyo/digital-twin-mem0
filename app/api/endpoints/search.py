@@ -16,6 +16,7 @@ from app.services.graph import GraphitiService
 from app.core.constants import DEFAULT_USER
 from app.schemas.ingested_document import IngestedDocument
 from app.api.deps import get_current_user_or_mock
+import time
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -28,22 +29,96 @@ def get_memory_service():
     """Get memory service instance."""
     return MemoryService()
 
+@router.get("/clean")
+async def search_content(
+    query: str = Query(..., description="Search query string"),
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    limit: int = Query(5, ge=1, le=20, description="Maximum number of results to return"),
+    search_type: str = Query("both", description="Type of search: 'memory', 'graph', or 'both'"),
+    metadata_filter: Optional[Dict[str, Any]] = None,
+    current_user: dict = Depends(get_current_user_or_mock),
+):
+    """
+    Search for only memories and/or facts via:
+    - Mem0 for semantic vector search of document chunks
+    - Graphiti for relationship search
+    - Or both combined
+    
+    This returns a list of facts and memories as an object {'memories': [...], 'facts': [...]}.
+    """
+    if not user_id:
+        user_id = current_user.get("id", DEFAULT_USER["id"])
+    
+    results = {}
+    errors = []
+
+    # add a timer to see how long the search takes
+    start_time = time.time()
+    
+    # Initialize services
+    memory_service = MemoryService()
+    graphiti_service = GraphitiService()
+    
+    # Perform Mem0 search
+    if search_type in ["memory", "both"]:
+        try:
+            memory_results = await memory_service.search(
+                query=query,
+                user_id=user_id,
+                limit=limit,
+                metadata_filter=metadata_filter
+            )
+            # filter for only the `content` field
+            results["memories"] = [result["memory"] for result in memory_results]    
+        except Exception as e:
+            errors.append(f"Memory search error: {str(e)}")
+            results["memories"] = []
+    
+    # Perform Graphiti search
+    if search_type in ["graph", "both"]:
+        try:
+            # skipping entity search here
+            # General graph search
+            graph_results = await graphiti_service.search(
+                query=query,
+                user_id=user_id if user_id else None,
+                limit=limit,
+                owner_id=user_id
+                # explicitly not passing scope=ContentScope.USER so we get global too
+            )
+            # filter for only the `fact` field
+            results["facts"] = [result["fact"] for result in graph_results]
+        except Exception as e:
+            errors.append(f"Graph search error: {str(e)}")
+            if "facts" not in results:
+                results["facts"] = []
+    
+    # Add errors to response if any
+    if errors:
+        results["errors"] = errors
+    
+    # add a timer to see how long the search takes
+    end_time = time.time()
+    logger.info(f"Search completed in {end_time - start_time:.2f} seconds")
+    return results
+
+
 @router.get("")
 async def search_content(
     query: str = Query(..., description="Search query string"),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
     limit: int = Query(5, ge=1, le=20, description="Maximum number of results to return"),
-    search_type: str = Query("memory", description="Type of search: 'memory', 'graph', or 'both'"),
+    search_type: str = Query("both", description="Type of search: 'memory', 'graph', or 'both'"),
     metadata_filter: Optional[Dict[str, Any]] = None,
     current_user: dict = Depends(get_current_user_or_mock),
 ):
     """
-    Search for ingested documents using semantic search.
-    
-    This endpoint allows you to verify that ingestion is working by searching through:
+    Search through:
     - Mem0 for semantic vector search of document chunks
     - Graphiti for knowledge graph entity and relationship search
     - Or both combined
+    
+    Returns the full object for each result.
     """
     if not user_id:
         user_id = current_user.get("id", DEFAULT_USER["id"])
@@ -64,10 +139,10 @@ async def search_content(
                 limit=limit,
                 metadata_filter=metadata_filter
             )
-            results["memory"] = memory_results
+            results["memories"] = memory_results
         except Exception as e:
             errors.append(f"Memory search error: {str(e)}")
-            results["memory"] = []
+            results["memories"] = []
     
     # Perform Graphiti search
     if search_type in ["graph", "both"]:
@@ -89,13 +164,13 @@ async def search_content(
                 owner_id=user_id
                 # explicitly not passing scope=ContentScope.USER so we get global too
             )
-            results["graph"] = graph_results
+            results["facts"] = graph_results
         except Exception as e:
             errors.append(f"Graph search error: {str(e)}")
             if "entities" not in results:
                 results["entities"] = []
-            if "graph" not in results:
-                results["graph"] = []
+            if "facts" not in results:
+                results["facts"] = []
     
     # Add errors to response if any
     if errors:

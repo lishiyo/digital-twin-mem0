@@ -206,7 +206,7 @@ class MemoryService:
                         search_func(
                             query=query, 
                             user_id=user_id, 
-                            limit=limit,
+                            top_k=limit,
                             metadata=metadata_filter,
                             version="v2",
                             output_format="v1.1",
