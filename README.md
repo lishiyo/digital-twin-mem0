@@ -78,9 +78,9 @@ See design docs in the `dev_docs` folder:
 
 ### Additional Configuration
 
-#### Gemini API (Optional)
+#### Gemini API
 
-To use the Gemini-based entity extraction:
+You'll want to use the Gemini-based entity extraction:
 
 1. Get a Google Gemini API key from [AI Studio](https://aistudio.google.com/)
 2. Add it to your `.env` file:
@@ -95,7 +95,7 @@ To use the Gemini-based entity extraction:
 
 We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false since we prefer to ingest traits into Graphiti as relationships between a subject and a trait (which allows for graph search), so no need for UserProfile.
 
-3. Tune whether to run inference in Mem0, this will take your raw text and extract + embed facts from them (ex. "Oh Katie doesn't work on Framework Zero, she runs the Flourishing floor and has her own projects" becomes the memory "Katie runs the Flourishing floor and has her own projects."). When False, this just embeds the raw query:
+3. Tune whether to run inference in Mem0, this will take your raw text and extract + embed facts from them (ex. "Oh Katie doesn't work on Framework Zero, she runs the Flourishing floor and has her own projects" becomes the memory "Katie runs the Flourishing floor and has her own projects."). When False, this just embeds and shows the raw query (ie. acts like a regular vector db):
    ```bash
    MEM0_INFERENCE=True
    ```
@@ -112,13 +112,23 @@ We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false si
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
+**Tip**: Comment out `await graph_service.initialize_graph()` in [@startup_db_client](app/main.py) since you won't need this after the first time and neo4j pollutes the logs
+```
+logger.info("Initializing Graph Database...")
+# await graph_service.initialize_graph()
+logger.info("Graph Database initialization complete.")
+```
+
 3. Start the Celery worker for background tasks
    ```
    export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
    celery -A app.worker worker -l info
    ```
 
-4. Process a single file (for testing)
+4. Ingest some personal documents
+
+There are two ways of ingesting docs, you can use the script:
+
    ```
    python -m app.scripts.ingest_one_file "path/to/file.md"
    ```
@@ -128,7 +138,47 @@ We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false si
    python app/scripts/ingest_data_dir.py
    ```
 
-5. Clear data for testing (optional)
+Or use the file upload api endpoint (make sure you have celery worker running):
+
+```
+curl -X POST \
+  http://localhost:8000/api/v1/upload \
+  -F "file=@data/my file.md" \
+  -F "async_processing=true"
+```
+
+5. Ingest some chat messages
+
+To send chat messages, you have two options:
+
+1. Use an api call (don't recommend)
+```
+curl -X POST \
+  "http://localhost:8000/api/v1/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "do I like cats"}'
+```
+
+2. Use the frontend UI to chat with your twin (recommended)
+
+Go to `http://localhost:8000/` where you should see:
+- the Chat UI, where you can start new conversations and chat there, your messages will be ingested and should be preserved across memories
+- the Knowledge Base where you should see the memories, entities, and relations stored - this is only populated if ENABLE_GRAPHITI_INGESTION is on
+- (defunct) the User Profile, traits are only populated if ENABLE_PROFILE_UPDATES is on
+
+6. Test retrieval
+
+You can test retrieval by asking the twin messages, checking memories (you can search in Knowledge Base), or hitting the api directly:
+
+```
+// Use `search/clean` to get only strings
+curl -X GET "http://localhost:8000/api/v1/search/clean?query=cats"
+
+// Use `search` to get full memory and graph objects
+curl -X GET "http://localhost:8000/api/v1/search?query=cats"
+```
+
+7. Clear data for testing (optional)
    ```
    # Clear all data from both Mem0 and Graphiti
    python -m app.scripts.clear_data --all
@@ -146,20 +196,6 @@ We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false si
    python app/scripts/clear_data.py --all --rebuild-indexes 
    ```
 
-6. Test the LangGraph agent with queries
-
-There is a basic frontend to chat with your twin, to view your knowledgebase (mem0 memories and Graphiti entities and relations), and User Profile traits:
-- Knowledge Base is only populated if ENABLE_GRAPHITI_INGESTION is true
-- User Profile traits are only populated if ENABLE_PROFILE_UPDATES is true
-
-To see it at `localhost:8001`
-```
-// Start server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-
-// Start celery worker
-celery -A app.worker worker --loglevel=info
-```
 
 **IMPORTANT NOTES / KNOWN ISUES**:
 - There is no auth yet, just a dummy user - you can control its DEFAULT_USER_ID in [`constants.py`](./app/core/constants.py)
@@ -192,8 +228,11 @@ curl -X GET http://localhost:8000/api/v1/upload/task/{task_id}
 
 ### Search
 ```bash
-# General search (searches both memory and graph by default)
+# General search returning objects (searches both memory and graph by default)
 curl -X GET "http://localhost:8000/api/v1/search?query=your%20search%20query" 
+
+# General search returning only the content (searches both memory and graph by default)
+curl -X GET "http://localhost:8000/api/v1/search/clean?query=your%20search%20query" 
 
 # Memory-only search
 curl -X GET "http://localhost:8000/api/v1/search?query=your%20search%20query&search_type=memory"
@@ -206,6 +245,9 @@ curl -X GET "http://localhost:8000/api/v1/search/ingested-documents"
 ```
 
 ### Chat API
+
+This is no longer necessary now that we have the UI, but you can chat directly through api:
+
 ```bash
 # Chat with your digital twin
 curl -X POST \
@@ -221,6 +263,11 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"message": "What file formats are supported?"}'
 ```
+
+### Storage api (upcoming)
+
+Upcoming will be a `save_to_twin` endpoint that simply ingests the chat message to mem0 + graphiti *without* returning a response (unlike current `/chat`). 
+
 
 ## Project Structure
 
