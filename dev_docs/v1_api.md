@@ -297,7 +297,7 @@ Parameters:
 - `async_processing`: Boolean (default: true) - Whether to process the directory asynchronously
 
 
-## Search API (already in v0)
+## Search API
 
 #### GET /api/v1/search
 
@@ -312,10 +312,55 @@ Parameters:
 - `query`: The search query
 - `search_type`: Type of search ("memory", "graph", or omit for unified search)
 - `limit`: Maximum number of results (default varies by search type)
-- `use_mock`: Boolean (default: false) - Whether to use mock results for testing
+- `user_id`: The user id that owns the memories/facts
+- `metadata_filter`: Optional dict for additional filtering
 
 **Response:**
-(Response format varies based on search type)
+Json dict with keys:
+- memories - list of memory objects
+- entities - list of node/entity objects
+- facts - list of graph fact objects
+
+
+#### GET /api/v1/search/clean
+
+Search for information across memory and knowledge graph,returning ONLY the memories and facts.
+
+**Request:**
+```
+GET /api/v1/search?query=your%20search%20query
+```
+
+Parameters:
+- `query`: The search query
+- `search_type`: Type of search ("memory", "graph", or omit for unified search) 
+- `limit`: Maximum number of results (default varies by search type)
+- `user_id`: The user id
+- `metadata_filter`: Optional dict for additional filtering
+
+**Response:**
+Json dict with keys:
+- memories - list of memories (strings)
+- facts - list of graphiti facts (strings)
+
+Example:
+```
+{
+  "memories": [
+    "User has two cats named Meow Meow and Aggy",
+    "The conversation revolves around the user's pet named Mochi. The user initially mentioned having a dog named Mochi and described Mochi as fat, small, a Cavachon with brown fur, and \"pretty dumb.\" The assistant repeatedly asked the user for favorite memories of Mochi. The assistant provided information about Cavachons and general advice about pet health when the user mentioned Mochi being fat. At one point, the assistant incorrectly identified Mochi as a cat, but the user corrected it, clarifying that Mochi is a dog. The conversation ends with the assistant acknowledging that Mochi is the user's dog.",
+    "User had a dog named Mochi who would wait for her to come home from school.",
+    "User is affiliated with various Bay-area subscenes including group houses, makerspaces, and AI researchers.",
+    "Ming runs the Flourishing floor and has her own projects."
+  ],
+  "graph": [
+    "Connie owns Meow Meow",
+    "Kyle owns Aggy",
+    "Connie owns Aggy",
+    "Kyle owns Meow Meow"
+  ]
+}
+```
 
 #### GET /api/v1/search/ingested-documents
 
