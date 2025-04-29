@@ -112,7 +112,7 @@ We default to ENABLE_GRAPHITI_INGESTION=true and ENABLE_PROFILE_UPDATES=false si
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-**Tip**: Comment out `await graph_service.initialize_graph()` in [@startup_db_client](app/main.py) since you won't need this after the first time and neo4j pollutes the logs
+**Tip**: Comment out `await graph_service.initialize_graph()` in [@startup_db_client](app/main.py) since you won't need this after the first time and neo4j pollutes the logs:
 ```
 logger.info("Initializing Graph Database...")
 # await graph_service.initialize_graph()
@@ -151,7 +151,7 @@ curl -X POST \
 
 To send chat messages, you have two options:
 
-1. Use an api call (don't recommend)
+1. Use an api call (don't recommend):
 ```
 curl -X POST \
   "http://localhost:8000/api/v1/chat" \
@@ -159,7 +159,7 @@ curl -X POST \
   -d '{"message": "do I like cats"}'
 ```
 
-2. Use the frontend UI to chat with your twin (recommended)
+2. Use the frontend UI to chat with your twin (recommended):
 
 Go to `http://localhost:8000/` where you should see:
 - the Chat UI, where you can start new conversations and chat there, your messages will be ingested and should be preserved across memories
@@ -176,6 +176,9 @@ curl -X GET "http://localhost:8000/api/v1/search/clean?query=cats"
 
 // Use `search` to get full memory and graph objects
 curl -X GET "http://localhost:8000/api/v1/search?query=cats"
+
+// (Recommended) Just get the mem0 memories, this is fastest and usually plenty
+curl -X GET "http://localhost:8000/api/v1/search/clean?query=cats&memory_type=memory"
 ```
 
 7. Clear data for testing (optional)
@@ -196,15 +199,15 @@ curl -X GET "http://localhost:8000/api/v1/search?query=cats"
    python app/scripts/clear_data.py --all --rebuild-indexes 
    ```
 
-
 **IMPORTANT NOTES / KNOWN ISUES**:
 - There is no auth yet, just a dummy user - you can control its DEFAULT_USER_ID in [`constants.py`](./app/core/constants.py)
 - There are a LOT of server logs at startup, this is Neo4j vomiting out info about how the index already exists every time the server starts up, you can ignore those or comment out the `initialize_graph` call in [`startup_db_client`](./app/main.py) after the first db setup
 - There are a lot of dev logs in general, these are still on for debugging
-- Ingestion is suuuper slow right now because it has to ingest into mem0 (embeddings), then call into Gemini twice for entities/traits and relations, then create those entities/nodes and relations in Graphiti
-- Retrieval is also super slow, still debugging this
-   - mem0's call and graphiti's search call (if we comment out node_search) are both quick, about 0.1 and 0.2 seconds
+- Ingestion is suuuper slow right now because it has to ingest into mem0 (embeddings), then call into Gemini twice for entities/traits and relations, then create those entities/nodes and relations in Graphiti - this will be improved
+- Search/retrieval is also super slow, still debugging this
+   - mem0's call and graphiti's search call (if we comment out `node_search` and just use the normal graph search) are about 0.2-0.3 and 0.7s-0.9s respectively
    - BUT the response from openai takes 1.30 seconds!
+   - generally, just mem0 is good enough
 
 
 ## Useful API Commands
